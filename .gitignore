@@ -1,0 +1,38 @@
+# Gradle, Kotlin and Android build output
+.gradle/
+.kotlin/
+.android/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+*.apk
+*.aab
+*.apks
+
+# Local IDE, SDK and machine settings
+.idea/
+.vscode/
+*.iml
+local.properties
+captures/
+.DS_Store
+Thumbs.db
+*.log
+*.hprof
+
+# Signing material and local credentials
+*.jks
+*.keystore
+key.properties
+keystore.properties
+signing.properties
+.env
+.env.*
+!.env.example
+
+# Keep the portable Gradle Wrapper in source control.
+!gradle/wrapper/gradle-wrapper.jar
+
+# Raw device dumps and machine-specific build logs are local evidence.
+docs/verification/
+/dist/
