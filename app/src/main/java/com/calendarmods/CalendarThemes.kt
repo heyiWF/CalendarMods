@@ -9,6 +9,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -26,6 +30,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -56,10 +63,18 @@ private val Serif = FontFamily.Serif
 
 /** A fitted Compose artboard keeps poster proportions intact on phones, tablets and rotation. */
 @Composable
-fun CalendarArtwork(theme: CalendarTheme, data: CalendarData) {
+fun CalendarArtwork(theme: CalendarTheme, data: CalendarData, onSelect: (() -> Unit)? = null) {
+    val select by rememberUpdatedState(onSelect)
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val scale = min(maxWidth.value / 360f, maxHeight.value / 560f)
         Layout(
+            modifier = Modifier.pointerInput(Unit) { detectTapGestures(onTap = { select?.invoke() }) }
+                .semantics {
+                    if (onSelect != null) {
+                        role = Role.Button
+                        onClick("全屏显示${theme.title}") { select?.invoke(); true }
+                    }
+                },
             content = {
                 Box(Modifier.size(360.dp, 560.dp).testTag("art-${theme.name}").semantics {
                     contentDescription = "${theme.title}，${data.today}，${data.weekdayChinese}，农历${data.lunar}"
@@ -90,7 +105,7 @@ fun CalendarArtwork(theme: CalendarTheme, data: CalendarData) {
 }
 
 @Composable
-private fun Print(
+internal fun Print(
     text: String, size: Int, modifier: Modifier = Modifier, color: Color = Ink,
     weight: FontWeight = FontWeight.Normal, family: FontFamily = FontFamily.SansSerif,
     align: TextAlign = TextAlign.Center, spacing: Float = 0f,
@@ -116,12 +131,12 @@ private fun Sheet(modifier: Modifier, color: Color = Paper, content: @Composable
 }
 
 @Composable
-private fun Rule(modifier: Modifier, color: Color = Ink.copy(alpha = .22f)) {
+internal fun Rule(modifier: Modifier, color: Color = Ink.copy(alpha = .22f)) {
     Box(modifier.height(.65.dp).background(color))
 }
 
 @Composable
-private fun Rings(modifier: Modifier, dark: Boolean = false, count: Int = 16) {
+internal fun Rings(modifier: Modifier, dark: Boolean = false, count: Int = 16) {
     Canvas(modifier) {
         val gap = size.width / count
         repeat(count) { index ->
@@ -138,7 +153,7 @@ private fun Rings(modifier: Modifier, dark: Boolean = false, count: Int = 16) {
 }
 
 @Composable
-private fun MonthGrid(data: CalendarData, modifier: Modifier, lunar: Boolean = false, outlined: Boolean = false,
+internal fun MonthGrid(data: CalendarData, modifier: Modifier, lunar: Boolean = false, outlined: Boolean = false,
     small: Boolean = false, color: Color = Ink) {
     Column(modifier) {
         Row(Modifier.fillMaxWidth().height(if (small) 16.dp else 25.dp)) {
@@ -345,7 +360,7 @@ private fun BoxScope.HangingCalendar(data: CalendarData) {
 }
 
 @Composable
-private fun CatSketch(modifier: Modifier) {
+internal fun CatSketch(modifier: Modifier) {
     Canvas(modifier) {
         val dark = Color(0xFF526250)
         val body = Path().apply {

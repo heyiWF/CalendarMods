@@ -6,6 +6,15 @@
 
 首版专注于日历展示，没有设置面板、账号、天气或日程管理。所有日期数据离线计算，无需联网权限。
 
+## 使用方式
+
+1. 在主题选择页左右滑动，查看七种主题。
+2. **单击日历**进入该主题的沉浸显示：纸张铺满屏幕，隐藏状态栏、导航栏和选择页控件。
+3. **长按界面任意位置**返回主题选择页，停留在当前主题；再左右滑动并单击即可换主题。系统返回键也可返回选择页。
+4. 沉浸模式下，普通点击和滑动不会切换主题。横竖屏会重新排版，主题和显示模式在旋转、后台恢复及重新启动后保留。
+
+沉浸显示时保持屏幕常亮，返回选择页后恢复正常熄屏策略。内容会避开摄像头缺口；系统边缘手势仍可临时呼出系统栏。
+
 ## 七种主题
 
 | 晴日 · 黄页台历 | 冬日来信 · 插画月历 | 拾光 · 照片台历 |
@@ -16,7 +25,11 @@
 | --- | --- | --- | --- |
 | <img src="docs/screenshots/portrait-4-good_day.png" width="180" alt="留白衬线日历"> | <img src="docs/screenshots/portrait-5-verse.png" width="180" alt="淡绿竖排日历"> | <img src="docs/screenshots/portrait-6-almanac.png" width="180" alt="复古黄历"> | <img src="docs/screenshots/portrait-7-hanging.png" width="180" alt="吊绳纸页日历"> |
 
-横屏保持纸张比例、完整显示；月历采用周日起始的 42 格布局。截图记录的是验收当天，实际 App 会随日期变化。
+上面是保留的主题选择页。沉浸页的纸张铺满显示区域：竖屏纵向排布，横屏将日期与说明、照片与月历重新排成左右布局。月历采用周日起始的 42 格布局。截图记录的是验收当天，实际 App 会随日期变化。
+
+| 沉浸竖屏 | 沉浸横屏 |
+| --- | --- |
+| <img src="docs/screenshots/immersive-portrait-6-almanac.png" width="240" alt="全屏复古黄历竖屏"> | <img src="docs/screenshots/immersive-landscape-6-almanac.png" width="440" alt="全屏复古黄历横屏"> |
 
 ## 日期、宜忌和字体从哪里来
 
@@ -64,7 +77,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 单元测试覆盖月历格子、闰日、跨年周序、农历新年、同日多节日、节气/入九首日、宜忌格式，以及午夜和夏令时日长计算。
 
-设备验收覆盖七主题、双向横滑、短滑回弹、横竖屏、主题恢复，以及不重启 App 的跨年午夜更新、系统时区变更、后台恢复和生产日期恢复。跨日测试仅在测试包中注入时钟，不修改设备系统时间；时区和主题在测试结束后恢复。建议使用专门的测试设备。
+设备验收覆盖七主题的双向横滑、短滑回弹、点击进入沉浸模式、系统栏隐藏、长按返回、全屏占满、横竖屏重排、左右横屏旋转、普通点击/滑动不误退出、返回键和后台恢复，以及沉浸模式下的跨年午夜更新、系统时区变更和生产日期恢复。跨日测试仅在测试包中注入时钟，不修改设备系统时间；时区、主题和原显示模式在测试结束后恢复。建议使用专门的测试设备。
 
 ```powershell
 .\gradlew.bat --no-daemon assembleDebug assembleDebugAndroidTest
@@ -81,5 +94,6 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 - `CalendarClock.kt`：系统日期来源、午夜更新及时间/时区监听。
 - `CalendarData.kt`：统一公历/农历数据、节日、宜忌和 42 格月历。
 - `CalendarThemes.kt`：七个 Compose 主题、纸张、装订和月历组件。
+- `ImmersiveCalendar.kt`：七主题全屏纸张、横竖屏重排和长按退出。
 - `app/src/main/res/drawable-nodpi/`：可替换的小熊插画与照片。
 - `.github/workflows/android.yml`：每次 push 自动编译 APK。
