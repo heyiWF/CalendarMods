@@ -1,6 +1,6 @@
 # CalendarMods 0.1.0 设备验收
 
-验收日期：2026-10-11。独立 Jetpack Compose 工程，包名 `com.calendarmods`，最低 Android 12 / API 31。
+首次验收日期：2026-10-11；全屏过渡复验：2026-10-12。独立 Jetpack Compose 工程，包名 `com.calendarmods`，最低 Android 12 / API 31。
 
 ## 构建与设备
 
@@ -42,6 +42,21 @@
 | 岁时 · 复古黄历 | [查看](screenshots/portrait-6-almanac.png) | [查看](screenshots/landscape-6-almanac.png) | [查看](screenshots/immersive-portrait-6-almanac.png) | [查看](screenshots/immersive-landscape-6-almanac.png) |
 | 一页 · 悬挂日历 | [查看](screenshots/portrait-7-hanging.png) | [查看](screenshots/landscape-7-hanging.png) | [查看](screenshots/immersive-portrait-7-hanging.png) | [查看](screenshots/immersive-landscape-7-hanging.png) |
 
+## 2026-10-12 连续全屏过渡复验
+
+- 日历预览与沉浸页使用共享边界，进入时从当前纸张位置放大到全屏，退出时缩回同一位置；约 460 ms，遵循系统动画时长设置。
+- 纸张内容在缩放中交接，标题与提示独立淡入淡出。使用固定的系统栏安全区，退出动画完成后再恢复系统栏，避免纸张在途中跳位。
+- 过渡期间暂停主题滑动及重复进入；进入途中按系统返回键可反向收回，横竖屏均检查预览最终位置和尺寸与进入前一致。
+- 最终 APK 在同一 Android 15 ADB 设备上通过 **54 项检查**，包括原有七主题、系统栏、日期、时区、后台恢复及旋转验收。测试读取最新可访问节点，并等待旧页面真正移除，避免动画中的缓存节点造成误判。
+- 10 个 JVM 单元测试通过；`lintDebug` 为 `No issues found.`。本轮没有额外验证 Android 12 设备或软件导航栏设备。
+- 分别录制竖屏、横屏的进入、长按退出、快速返回和再次进入，并检查中间帧。以下逐帧图每行按时间从左到右排列，记录实际设备渲染；不以录屏帧率作为性能基准。
+
+| 竖屏过渡中间帧 | 横屏过渡中间帧 |
+| --- | --- |
+| [查看](screenshots/transition-portrait.jpg) | [查看](screenshots/transition-landscape.jpg) |
+
+验收后卸载测试包，保留新版 App；恢复 `Asia/Shanghai`、`accelerometer_rotation=1`、`user_rotation=0`，系统动画倍率保持 `1.0`。设备停在小熊主题的选择页，可直接单击体验过渡。
+
 ## 复现
 
 构建和设备验收命令见 [README](../README.md#验证)。测试包 `CalendarAcceptanceInstrumentation` 输出逐项结果；CI 执行 JVM 单元测试和 Lint，设备交互测试通过 ADB 单独运行。
@@ -50,4 +65,4 @@
 
 APK：`app/build/outputs/apk/debug/app-debug.apk`。CI 使用独立 Debug 签名，各次构建的校验值随 APK 存放在 `SHA256SUMS.txt` 中。
 
-本地验收 APK SHA-256：`09AFFF5460DB25A8981AA4CD5ACD64FE4982A23D47D781AA67DA6BE62B9E71A8`。
+2026-10-12 本地验收 APK SHA-256：`767EA43B99314520DC5BB055642F5992AA9E7D77493D724EE3DC442331BC7BED`。

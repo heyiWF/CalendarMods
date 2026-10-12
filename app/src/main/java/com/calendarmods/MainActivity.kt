@@ -10,10 +10,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -56,6 +61,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
 fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
     val context = LocalContext.current
     val window = LocalActivity.current?.window
@@ -80,8 +86,11 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
     }
     val theme = CalendarTheme.entries[pager.currentPage]
     LaunchedEffect(immersive) { preferences.edit { putBoolean("immersive", immersive) } }
-    CalendarWindow(immersive)
-    BackHandler(enabled = immersive) { immersive = false }
+    val displayTransition = updateTransition(immersive, label = "calendar display mode")
+    // Keep bars hidden until the return animation has landed on the preview.
+    val fullScreenWindow = immersive || displayTransition.currentState || displayTransition.isRunning
+    CalendarWindow(fullScreenWindow)
+    BackHandler(enabled = fullScreenWindow) { immersive = false }
     val background by animateColorAsState(theme.background, label = "theme background")
     val foreground = if (theme == CalendarTheme.ALMANAC) Color(0xFFEAE1C9) else Color(0xFF51554F)
     SideEffect {
@@ -89,21 +98,70 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
         window?.insetsController?.setSystemBarsAppearance(
             if (theme == CalendarTheme.ALMANAC) 0 else mask, mask)
     }
-    if (immersive) {
-        data?.let { ImmersiveCalendar(theme, it, onExit = { immersive = false }) }
-        return
+    SharedTransitionLayout(Modifier.fillMaxSize().background(background)) {
+        val sharedScope = this
+        displayTransition.AnimatedContent(
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                (EnterTransition.None togetherWith ExitTransition.None)
+                    .using(SizeTransform(clip = false))
+            },
+            contentKey = { it },
+        ) { fullScreen ->
+            val visibilityScope = this
+            if (fullScreen) {
+                data?.let {
+                    ImmersiveCalendar(theme, it, onExit = { immersive = false },
+                        modifier = Modifier.calendarBounds(sharedScope, theme, visibilityScope))
+                }
+            } else {
+                ThemeChooser(pager, theme, data, foreground,
+                    enabled = !immersive && !displayTransition.isRunning,
+                    paperModifier = { Modifier.calendarBounds(sharedScope, it, visibilityScope) },
+                    visibilityScope = visibilityScope,
+                    onSelect = { immersive = true })
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun Modifier.calendarBounds(scope: SharedTransitionScope, theme: CalendarTheme,
+    visibility: AnimatedVisibilityScope): Modifier = with(scope) {
+    this@calendarBounds.sharedBounds(
+        sharedContentState = rememberSharedContentState("calendar-${theme.name}"),
+        animatedVisibilityScope = visibility,
+        boundsTransform = { _, _ -> tween(460, easing = FastOutSlowInEasing) },
+        enter = fadeIn(tween(460)),
+        exit = fadeOut(tween(460)),
+        // Measure each paper once at its destination size; scale the layer during motion.
+        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(ContentScale.Fit),
+    )
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun ThemeChooser(pager: PagerState, theme: CalendarTheme, data: CalendarData?, foreground: Color,
+    enabled: Boolean, paperModifier: @Composable (CalendarTheme) -> Modifier,
+    visibilityScope: AnimatedVisibilityScope, onSelect: () -> Unit) {
+    val chromeModifier = with(visibilityScope) {
+        Modifier.animateEnterExit(enter = fadeIn(tween(200, delayMillis = 220)), exit = fadeOut(tween(160)))
     }
     Column(
-        Modifier.fillMaxSize().background(background).safeDrawingPadding().semantics { testTagsAsResourceId = true },
+        Modifier.fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout).union(WindowInsets.waterfall))
+            .semantics { testTagsAsResourceId = true },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        Row(chromeModifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("CALENDARMODS", color = foreground, fontSize = 10.sp, letterSpacing = 2.sp)
             Text("${(pager.currentPage + 1).toString().padStart(2, '0')} / 07", color = foreground, fontSize = 10.sp)
         }
         HorizontalPager(
             state = pager,
+            userScrollEnabled = enabled,
             modifier = Modifier.weight(1f).fillMaxWidth().testTag("theme-pager").semantics {
                 stateDescription = "主题：${theme.title}，${pager.currentPage + 1} / 7"
             },
@@ -112,12 +170,12 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
             Box(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
                 data?.let {
                     CalendarArtwork(CalendarTheme.entries[index], it, onSelect = {
-                        if (!pager.isScrollInProgress && pager.settledPage == index) immersive = true
-                    })
+                        if (enabled && !pager.isScrollInProgress && pager.settledPage == index) onSelect()
+                    }, modifier = paperModifier(CalendarTheme.entries[index]))
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(chromeModifier.fillMaxWidth().padding(top = 10.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(theme.title, color = foreground, fontSize = 13.sp, letterSpacing = 2.sp,
                 modifier = Modifier.testTag("theme-title"))
             Row(Modifier.padding(top = 10.dp, bottom = 8.dp).semantics {

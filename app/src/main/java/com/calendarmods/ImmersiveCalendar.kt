@@ -36,7 +36,7 @@ private val PaperInk = Color(0xFF20231E)
 private val Cream = Color(0xFFFFFEF9)
 
 @Composable
-fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Unit) {
+fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Unit, modifier: Modifier = Modifier) {
     val exit by rememberUpdatedState(onExit)
     val haptics = LocalHapticFeedback.current
     val paper = when (theme) {
@@ -45,7 +45,7 @@ fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Un
         CalendarTheme.PHOTO -> Color(0xFF232421)
         else -> Cream
     }
-    Box(Modifier.fillMaxSize().background(paper).testTag("immersive-${theme.name}")
+    Box(modifier.fillMaxSize().background(paper).testTag("immersive-${theme.name}")
         .semantics {
             testTagsAsResourceId = true
             contentDescription = "${theme.title}，${data.today}，${data.weekdayChinese}，农历${data.lunar}"

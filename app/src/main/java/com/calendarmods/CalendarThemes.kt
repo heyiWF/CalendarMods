@@ -63,12 +63,13 @@ private val Serif = FontFamily.Serif
 
 /** A fitted Compose artboard keeps poster proportions intact on phones, tablets and rotation. */
 @Composable
-fun CalendarArtwork(theme: CalendarTheme, data: CalendarData, onSelect: (() -> Unit)? = null) {
+fun CalendarArtwork(theme: CalendarTheme, data: CalendarData, modifier: Modifier = Modifier,
+    onSelect: (() -> Unit)? = null) {
     val select by rememberUpdatedState(onSelect)
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val scale = min(maxWidth.value / 360f, maxHeight.value / 560f)
         Layout(
-            modifier = Modifier.pointerInput(Unit) { detectTapGestures(onTap = { select?.invoke() }) }
+            modifier = modifier.pointerInput(Unit) { detectTapGestures(onTap = { select?.invoke() }) }
                 .semantics {
                     if (onSelect != null) {
                         role = Role.Button

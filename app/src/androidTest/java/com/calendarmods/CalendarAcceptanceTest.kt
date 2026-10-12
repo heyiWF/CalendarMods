@@ -7,6 +7,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Bundle
+import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -56,6 +57,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                     if (rotation == 0) bounds.height() > bounds.width() else bounds.width() > bounds.height()
                 }
                 awaitTheme(CalendarTheme.GOLDEN)
+                verifyInterruptedEntry(checks, rotation)
                 CalendarTheme.entries.forEachIndexed { index, theme ->
                     if (index > 0) swipe(left = true)
                     awaitTheme(theme)
@@ -124,6 +126,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             nodes().any { it.viewIdResourceName == "immersive-${theme.name}" && it.contentDescription?.contains(expectedDate.toString()) == true }
         }
         awaitBars(hidden = true)
+        await("chooser removed after full-screen transition") {
+            nodes().none { it.viewIdResourceName == "theme-title" || it.viewIdResourceName == "theme-pager" }
+        }
         // Insets visibility changes before the system bar's exit animation has finished.
         SystemClock.sleep(650)
         val tree = nodes()
@@ -185,7 +190,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         await("theme ${theme.name}") {
             val tree = nodes()
             tree.any { it.viewIdResourceName == "theme-title" && it.text?.toString() == theme.title } &&
-                tree.any { it.viewIdResourceName == "art-${theme.name}" && it.contentDescription?.contains(expectedDate.toString()) == true }
+                tree.any { it.viewIdResourceName == "art-${theme.name}" && it.contentDescription?.contains(expectedDate.toString()) == true } &&
+                tree.none { it.viewIdResourceName?.startsWith("immersive-") == true }
         }
         SystemClock.sleep(350)
         val tree = nodes()
@@ -210,6 +216,23 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         val screen = Rect().also { uiAutomation.rootInActiveWindow.getBoundsInScreen(it) }
         val bounds = Rect().also { artwork.getBoundsInScreen(it) }
         check(!bounds.isEmpty && screen.contains(bounds)) { "Artwork clipped: $bounds in $screen" }
+    }
+
+    private fun verifyInterruptedEntry(checks: MutableList<String>, rotation: Int) {
+        fun paperBounds() = Rect().also { bounds ->
+            nodes().first { it.viewIdResourceName == "art-GOLDEN" }.getBoundsInScreen(bounds)
+        }
+        val initialBounds = paperBounds()
+        press("art-GOLDEN")
+        await("entry gesture starts immersive mode") {
+            targetContext.getSharedPreferences("calendar", 0).getBoolean("immersive", false)
+        }
+        SystemClock.sleep(80)
+        check(uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
+        awaitTheme(CalendarTheme.GOLDEN)
+        awaitBars(hidden = false)
+        check(paperBounds() == initialBounds) { "Interrupted entry left the preview at a different size" }
+        checks += "rotation=$rotation, Back during entry returns to the same preview bounds PASS"
     }
 
     private fun verifyLiveDates(checks: MutableList<String>, savedZone: String) {
@@ -278,9 +301,13 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     }
 
     private fun nodes(): List<AccessibilityNodeInfo> {
+        // AnimatedContent removes and recreates subtrees. Read fresh nodes rather than
+        // cached outgoing labels or bounds from an earlier animation frame.
+        if (Build.VERSION.SDK_INT >= 34) uiAutomation.clearCache()
         val result = mutableListOf<AccessibilityNodeInfo>()
         fun visit(node: AccessibilityNodeInfo?) {
             if (node == null) return
+            if (Build.VERSION.SDK_INT < 34 && !node.refresh()) return
             result += node
             repeat(node.childCount) { visit(node.getChild(it)) }
         }
