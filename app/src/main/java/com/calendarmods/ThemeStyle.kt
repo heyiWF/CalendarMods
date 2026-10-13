@@ -43,18 +43,39 @@ internal enum class ImageFill(val title: String, val description: String, val sc
 }
 
 internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFill = ImageFill.CROP)
-internal val LocalThemeStyles = staticCompositionLocalOf<Map<CalendarTheme, ThemeStyle>> { emptyMap() }
+internal fun CalendarTheme.defaultStyle() = ThemeStyle(fill = ImageFill.entries.single { it.name.lowercase() == defaultFill })
+internal val LocalThemeStyles = staticCompositionLocalOf<Map<String, ThemeStyle>> { emptyMap() }
+internal val LocalThemeImages = staticCompositionLocalOf<Map<String, String>> { emptyMap() }
 
 internal class ThemeStyleStore(private val context: Context) {
     private val preferences = context.getSharedPreferences("theme_styles", Context.MODE_PRIVATE)
-    fun read(theme: CalendarTheme) = ThemeStyle(
-        preferences.getString("${theme.name}.image", null),
-        ImageFill.entries.firstOrNull { it.name == preferences.getString("${theme.name}.fill", null) } ?: ImageFill.CROP,
-    )
+    fun read(theme: CalendarTheme): ThemeStyle {
+        if (theme.settings.isEmpty()) return theme.defaultStyle()
+        // Migrate once, including an explicit reset, so old values cannot reappear later.
+        val key = theme.id
+        val legacy = CalendarTheme.entries.firstOrNull { it.id == key }?.name
+        if (!preferences.contains("$key.migrated") && legacy != null) {
+            preferences.edit {
+                if (preferences.contains("$legacy.image")) putString("$key.image", preferences.getString("$legacy.image", null))
+                if (preferences.contains("$legacy.fill")) putString("$key.fill", preferences.getString("$legacy.fill", null))
+                putBoolean("$key.migrated", true)
+            }
+        }
+        return ThemeStyle(preferences.getString("$key.image", null),
+            ImageFill.entries.firstOrNull { it.name == preferences.getString("$key.fill", null) } ?: theme.defaultStyle().fill)
+    }
     fun save(theme: CalendarTheme, style: ThemeStyle) {
         preferences.edit {
-            putString("${theme.name}.image", style.imagePath)
-            putString("${theme.name}.fill", style.fill.name)
+            putString("${theme.id}.image", style.imagePath)
+            putString("${theme.id}.fill", style.fill.name)
+            putBoolean("${theme.id}.migrated", true)
+        }
+    }
+
+    fun reset(theme: CalendarTheme) {
+        preferences.edit {
+            remove("${theme.id}.image"); remove("${theme.id}.fill")
+            putBoolean("${theme.id}.migrated", true)
         }
     }
 
@@ -68,7 +89,7 @@ internal class ThemeStyleStore(private val context: Context) {
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
         }
         val directory = File(context.filesDir, "theme-images").apply { mkdirs() }
-        val file = File(directory, "${theme.name}-${UUID.randomUUID()}.png")
+        val file = File(directory, "${theme.id}-${UUID.randomUUID()}.png")
         try {
             file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
             file.absolutePath
@@ -96,29 +117,32 @@ private val imageCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
 
 @Composable
 internal fun ThemeImage(theme: CalendarTheme, modifier: Modifier) {
-    val style = LocalThemeStyles.current[theme] ?: ThemeStyle()
-    val bitmap by produceState<Bitmap?>(style.imagePath?.let(imageCache::get), style.imagePath) {
+    val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
+    val defaultPath = LocalThemeImages.current[theme.id]
+    val path = style.imagePath ?: defaultPath
+    val bitmap by produceState<Bitmap?>(path?.let(imageCache::get), path, defaultPath) {
         value = withContext(Dispatchers.IO) {
-            style.imagePath?.let { path ->
-                imageCache.get(path) ?: runCatching {
-                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(File(path)))
-                        .also { imageCache.put(path, it) }
+            listOfNotNull(path, defaultPath).distinct().firstNotNullOfOrNull { candidate ->
+                imageCache.get(candidate) ?: runCatching {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(File(candidate)))
+                        .also { imageCache.put(candidate, it) }
                 }.getOrNull()
             }
         }
     }
-    val description = if (style.imagePath == null) {
-        if (theme == CalendarTheme.TEDDY) "雪地里的小熊与热可可" else "日落海边的温暖合影"
-    } else "自选日历图片"
+    val description = if (path != null) "自选日历图片" else when (theme.renderer.image) {
+        BuiltInImage.BEAR -> "雪地里的小熊与热可可"
+        else -> "日落海边的温暖合影"
+    }
     if (bitmap != null) Image(bitmap!!.asImageBitmap(), description, modifier, contentScale = style.fill.scale)
-    else Image(painterResource(if (theme == CalendarTheme.TEDDY) R.drawable.winter_bear else R.drawable.sunset_memory),
+    else Image(painterResource(if (theme.renderer.image == BuiltInImage.BEAR) R.drawable.winter_bear else R.drawable.sunset_memory),
         description, modifier, contentScale = style.fill.scale)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: ThemeStyleStore,
-    onChange: (ThemeStyle) -> Unit, onDismiss: () -> Unit) {
+    onChange: (ThemeStyle) -> Unit, onReset: () -> Unit, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val currentStyle by rememberUpdatedState(style)
     val currentChange by rememberUpdatedState(onChange)
@@ -146,8 +170,10 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
             .padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("${theme.title.substringBefore(" · ")}样式", style = MaterialTheme.typography.headlineSmall)
-            if (theme == CalendarTheme.TEDDY || theme == CalendarTheme.PHOTO) {
-                Text("日历图片", style = MaterialTheme.typography.titleMedium)
+            val imageSetting = theme.settings.filterIsInstance<ThemeSetting.Image>().singleOrNull()
+            val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull()
+            if (imageSetting != null && fillSetting != null) {
+                Text(imageSetting.title, style = MaterialTheme.typography.titleMedium)
                 ThemeImage(theme, Modifier.fillMaxWidth().height(128.dp))
                 Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                     enabled = !importing, modifier = Modifier.fillMaxWidth().testTag("choose-image")) {
@@ -155,9 +181,9 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
                 HorizontalDivider()
-                Text("图片填充方式", style = MaterialTheme.typography.titleMedium)
+                Text(fillSetting.title, style = MaterialTheme.typography.titleMedium)
                 Column(Modifier.selectableGroup()) {
-                    ImageFill.entries.forEach { fill ->
+                    ImageFill.entries.filter { it.name.lowercase() in fillSetting.choices }.forEach { fill ->
                         Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).selectable(
                             selected = style.fill == fill, enabled = !importing, role = Role.RadioButton,
                             onClick = { onChange(style.copy(fill = fill)) }).testTag("fill-${fill.name}"),
@@ -173,9 +199,9 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
                 }
                 TextButton(onClick = {
                     val old = style.imagePath
-                    onChange(ThemeStyle())
+                    onReset()
                     scope.launch(Dispatchers.IO) { store.discard(old) }
-                }, enabled = !importing && style != ThemeStyle(), modifier = Modifier.testTag("restore-image")) {
+                }, enabled = !importing, modifier = Modifier.testTag("restore-image")) {
                     Text("恢复默认图片与填充方式")
                 }
             } else {

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "org.example.blue-winter",
+  "version": 1,
+  "title": "蓝色冬日 · 插画月历",
+  "author": "Example Studio",
+  "renderer": "illustration.v1",
+  "surfaces": {
+    "backdrop": "#FFDCEBF3",
+    "paper": "#FFFFFEF9",
+    "chrome": "#FF30495A",
+    "darkSystemBarIcons": true
+  },
+  "defaults": {
+    "fill": "fit"
+  },
+  "imageAsset": true
+}

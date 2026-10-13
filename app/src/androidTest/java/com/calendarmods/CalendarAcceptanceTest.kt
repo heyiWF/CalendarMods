@@ -31,11 +31,13 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var chooserNavigationVisible = true
     private var lastBars = "not measured"
     private var refinementsOnly = false
+    private var contractOnly = false
     private var denseOnly = false
     private var centeredRotation: Int? = null
     private var anchoredRotation: Int? = null
     override fun onCreate(arguments: Bundle?) {
         refinementsOnly = arguments?.getString("refinements") == "true"
+        contractOnly = arguments?.getString("contract") == "true"
         denseOnly = arguments?.getString("dense") == "true"
         centeredRotation = arguments?.getString("centered")?.toIntOrNull()
         anchoredRotation = arguments?.getString("anchored")?.toIntOrNull()
@@ -48,11 +50,12 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         val checks = mutableListOf<String>()
         val preferences = targetContext.getSharedPreferences("calendar", 0)
         val savedTheme = preferences.getInt("theme", 0)
+        val savedThemeId = preferences.getString("theme_id", null)
         val savedImmersive = preferences.getBoolean("immersive", false)
         val savedZone = ZoneId.systemDefault().id
         try {
             activities = addMonitor(MainActivity::class.java.name, null, false)
-            preferences.edit().putInt("theme", 0).putBoolean("immersive", false).commit()
+            preferences.edit().remove("theme_id").putInt("theme", 0).putBoolean("immersive", false).commit()
             uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
             startActivitySync(Intent(targetContext, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             awaitTheme(CalendarTheme.GOLDEN)
@@ -60,7 +63,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (anchoredRotation != null) {
+            if (contractOnly) {
+                verifyThemeContract(checks)
+            } else if (anchoredRotation != null) {
                 verifyAnchoredCarousel(checks, anchoredRotation!!)
             } else if (centeredRotation != null) {
                 verifyCenteredCarousel(checks, centeredRotation!!)
@@ -116,10 +121,113 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             report.putString("stream", "\nFAIL after ${checks.size} checks\n" + failure.stackTraceToString())
         } finally {
             shell("cmd alarm set-timezone $savedZone")
-            preferences.edit().putInt("theme", savedTheme).putBoolean("immersive", savedImmersive).commit()
+            preferences.edit().putString("theme_id", savedThemeId).putInt("theme", savedTheme).putBoolean("immersive", savedImmersive).commit()
             if (::activities.isInitialized) removeMonitor(activities)
             uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE)
             finish(result, report)
+        }
+    }
+
+    private fun verifyThemeContract(checks: MutableList<String>) = kotlinx.coroutines.runBlocking {
+        val repository = ThemeRepository.get(targetContext)
+        val store = ThemeStyleStore(targetContext)
+        val fixture = CalendarTheme.TEDDY.copy(id = "org.example.contract-fixture", title = "契约测试主题",
+            author = "Contract test", defaultFill = "fit", hasImageAsset = true)
+        val neighbor = fixture.copy(id = "org.example.contract-neighbor", title = "契约相邻主题", hasImageAsset = false)
+        check(repository.inventory.value.themes.none { it.id == fixture.id || it.id == neighbor.id })
+        val preferences = targetContext.getSharedPreferences("theme_styles", 0)
+        val originalStyles = preferences.all.toMap()
+        val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF609DBB.toInt()) }
+        val image = java.io.ByteArrayOutputStream().apply { bitmap.compress(Bitmap.CompressFormat.PNG, 100, this) }.toByteArray()
+        bitmap.recycle()
+        try {
+            // Test the real Android JSON decoder, not android.jar's JVM stubs.
+            CalendarTheme.entries.forEach { check(ThemeManifest.decode(ThemeManifest.encode(it)) == it) }
+            val invalid = listOf(
+                ThemeManifest.encode(fixture).replace("\"schemaVersion\":1", "\"schemaVersion\":2"),
+                ThemeManifest.encode(fixture).replace("illustration.v1", "unknown.v1"),
+                ThemeManifest.encode(fixture).replace("\"version\":1", "\"version\":1.5"),
+                ThemeManifest.encode(fixture).replace("\"fill\":\"fit\"", "\"fill\":\"invalid\""),
+                ThemeManifest.encode(fixture).dropLast(1) + ",\"script\":\"bad\"}",
+            )
+            invalid.forEach { check(runCatching { repository.install(it, image) }.isFailure) }
+            check(runCatching { repository.install(ThemeManifest.encode(fixture)) }.isFailure)
+            check(runCatching { repository.install(ThemeManifest.encode(fixture), byteArrayOf(1, 2, 3)) }.isFailure)
+            checks += "manifest round trips; unknown schema/renderer/property, wrong types, missing/invalid asset rejected PASS"
+
+            preferences.edit().remove("${CalendarTheme.TEDDY.id}.migrated").remove("${CalendarTheme.TEDDY.id}.fill")
+                .putString("TEDDY.fill", "STRETCH").commit()
+            check(store.read(CalendarTheme.TEDDY).fill == ImageFill.STRETCH)
+            store.reset(CalendarTheme.TEDDY)
+            check(store.read(CalendarTheme.TEDDY).fill == ImageFill.CROP)
+            check(targetContext.getSharedPreferences("calendar", 0).getString("theme_id", null) == CalendarTheme.GOLDEN.id)
+            checks += "legacy ordinal selection and image settings migrate once; reset cannot resurrect old values PASS"
+
+            repository.install(ThemeManifest.encode(neighbor))
+            repository.install(ThemeManifest.encode(fixture), image)
+            awaitTheme(CalendarTheme.GOLDEN)
+            check(repository.imagePath(fixture)?.let { File(it).isFile } == true)
+            repeat(repository.inventory.value.themes.lastIndex) { swipe(left = true) }
+            awaitTheme(fixture)
+            check(nodes().any { it.contentDescription?.toString() == "自选日历图片" })
+            val total = repository.inventory.value.themes.size.toString().padStart(2, '0')
+            check(nodes().any { it.text?.toString()?.endsWith(" / $total") == true })
+            capture("contract-installed-theme")
+            press("style-${fixture.name}")
+            await("external theme settings") { nodes().any { it.viewIdResourceName == "fill-FIT" } }
+            // Semantics exist before the sheet reaches its final touch coordinates.
+            var previousBounds: Rect? = null
+            var stableSince = SystemClock.uptimeMillis()
+            await("external settings sheet settled") {
+                val node = nodes().firstOrNull { it.viewIdResourceName == "fill-STRETCH" }
+                val bounds = node?.let { Rect().also(it::getBoundsInScreen) }
+                if (bounds != previousBounds) {
+                    previousBounds = bounds
+                    stableSince = SystemClock.uptimeMillis()
+                }
+                bounds != null && !bounds.isEmpty && SystemClock.uptimeMillis() - stableSince >= 500
+            }
+            check(store.read(fixture).fill == ImageFill.FIT)
+            press("fill-STRETCH")
+            await("external override") { store.read(fixture).fill == ImageFill.STRETCH }
+            check(store.read(CalendarTheme.TEDDY).fill == ImageFill.CROP)
+            check(uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
+            awaitTheme(fixture)
+            press("art-${fixture.name}")
+            awaitImmersive(fixture)
+            press("immersive-${fixture.name}", long = true)
+            awaitTheme(fixture)
+            checks += "installed asset appears live in chooser; dynamic total, settings isolation and fullscreen interaction PASS"
+
+            repository.uninstall(neighbor.id)
+            awaitTheme(fixture)
+            val updated = fixture.copy(version = 2, title = "契约测试主题 · 更新", defaultFill = "crop")
+            repository.install(ThemeManifest.encode(updated), image)
+            awaitTheme(updated)
+            check(store.read(updated).fill == ImageFill.STRETCH)
+            check(runCatching { repository.install(ThemeManifest.encode(fixture), image) }.isFailure)
+            val reloaded = ThemeRepository.reopen(targetContext)
+            check(reloaded.inventory.value.loadErrors.isEmpty())
+            check(reloaded.inventory.value.themes.last() == updated)
+            runOnMainSync { activities.lastActivity.recreate() }
+            awaitTheme(updated)
+            uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_90)
+            await("contract landscape") { targetContext.resources.configuration.orientation == 2 }
+            awaitTheme(updated)
+            capture("contract-installed-landscape")
+            repository.uninstall(updated.id)
+            awaitTheme(CalendarTheme.GOLDEN)
+            check(ThemeRepository.reopen(targetContext).inventory.value.themes.none { it.id == fixture.id })
+            checks += "neighbor removal preserves selected ID; version update retains overrides; durable reload, rotation and uninstall fallback PASS"
+        } finally {
+            repository.uninstall(fixture.id)
+            repository.uninstall(neighbor.id)
+            val restore = preferences.edit().clear()
+            originalStyles.forEach { (key, value) -> when (value) {
+                is String -> restore.putString(key, value)
+                is Boolean -> restore.putBoolean(key, value)
+            } }
+            check(restore.commit())
         }
     }
 
@@ -276,7 +384,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private fun verifyDenseContent(checks: MutableList<String>) {
         val preferences = targetContext.getSharedPreferences("calendar", 0)
         fun show(theme: CalendarTheme, date: LocalDate) {
-            preferences.edit().putInt("theme", theme.ordinal).putBoolean("immersive", true).commit()
+            preferences.edit().putString("theme_id", theme.id).putBoolean("immersive", true).commit()
             val clock = object : CalendarClock {
                 override fun now(): ZonedDateTime = date.atTime(12, 0).atZone(ZoneId.systemDefault())
             }
@@ -412,8 +520,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             // Instrumentation can terminate before apply() reaches disk; restore synchronously.
             val restore = targetContext.getSharedPreferences("theme_styles", 0).edit()
             originals.forEach { (theme, style) ->
-                restore.putString("${theme.name}.image", style.imagePath)
-                restore.putString("${theme.name}.fill", style.fill.name)
+                restore.putString("${theme.id}.image", style.imagePath)
+                restore.putString("${theme.id}.fill", style.fill.name)
             }
             check(restore.commit())
             imported.forEach(store::discard)

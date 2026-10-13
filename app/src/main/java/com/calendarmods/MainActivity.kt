@@ -66,16 +66,29 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
     val context = LocalContext.current
+    val repository = remember { ThemeRepository.get(context) }
+    val inventory by repository.inventory.collectAsState()
+    // Rebuild positional pager state only when identities change; restore selection by stable ID.
+    key(inventory.themes.map { it.id }) {
+        CalendarContent(clock, inventory.themes, repository)
+    }
+}
+
+@Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun CalendarContent(clock: CalendarClock, themes: List<CalendarTheme>, repository: ThemeRepository) {
+    val context = LocalContext.current
     val window = LocalActivity.current?.window
     val preferences = remember { context.getSharedPreferences("calendar", Context.MODE_PRIVATE) }
     var immersive by rememberSaveable { mutableStateOf(preferences.getBoolean("immersive", false)) }
     val pager = rememberPagerState(
-        initialPage = preferences.getInt("theme", 0).coerceIn(0, CalendarTheme.entries.lastIndex),
-        pageCount = { CalendarTheme.entries.size },
+        initialPage = themes.indexOfFirst { it.id == ThemeCatalog.selectedId(
+            preferences.getString("theme_id", null), preferences.getInt("theme", 0), themes) },
+        pageCount = { themes.size },
     )
     val styleStore = remember { ThemeStyleStore(context.applicationContext) }
-    var styles by remember { mutableStateOf(CalendarTheme.entries.associateWith(styleStore::read)) }
-    var editingTheme by rememberSaveable { mutableStateOf<CalendarTheme?>(null) }
+    var styles by remember(themes) { mutableStateOf(themes.associate { it.id to styleStore.read(it) }) }
+    var editingThemeId by rememberSaveable { mutableStateOf<String?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val data by produceState<CalendarData?>(null, context, lifecycle, clock) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -84,12 +97,12 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
             }
         }
     }
-    LaunchedEffect(pager) {
+    LaunchedEffect(pager, themes) {
         snapshotFlow { pager.settledPage }.distinctUntilChanged().collect {
-            preferences.edit { putInt("theme", it) }
+            preferences.edit { putString("theme_id", themes[it].id) }
         }
     }
-    val theme = CalendarTheme.entries[pager.currentPage]
+    val theme = themes[pager.currentPage]
     LaunchedEffect(immersive) { preferences.edit { putBoolean("immersive", immersive) } }
     val displayTransition = updateTransition(immersive, label = "calendar display mode")
     // Keep bars hidden until the return animation has landed on the preview.
@@ -97,23 +110,27 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
     CalendarWindow(fullScreenWindow)
     BackHandler(enabled = fullScreenWindow) { immersive = false }
     val background by animateColorAsState(theme.background, label = "theme background")
-    val foreground = if (theme == CalendarTheme.ALMANAC) Color(0xFFEAE1C9) else Color(0xFF51554F)
+    val foreground = Color(theme.surfaces.chrome)
     SideEffect {
         val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window?.insetsController?.setSystemBarsAppearance(
-            if (theme == CalendarTheme.ALMANAC) 0 else mask, mask)
+            if (theme.surfaces.darkSystemBarIcons) mask else 0, mask)
     }
     val cycle = rememberAlmanacCycle(data)
     val goodDayCycle = rememberAlmanacCycle(data, centered = true)
-    CompositionLocalProvider(LocalThemeStyles provides styles, LocalAlmanacCycle provides cycle,
+    val themeImages = themes.mapNotNull { theme -> repository.imagePath(theme)?.let { theme.id to it } }.toMap()
+    CompositionLocalProvider(LocalThemeStyles provides styles, LocalThemeImages provides themeImages, LocalAlmanacCycle provides cycle,
         LocalGoodDayCycle provides goodDayCycle,
         LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).asPaddingValues()) {
-        editingTheme?.let { selected ->
-            ThemeStyleSheet(selected, styles.getValue(selected), styleStore,
+        themes.firstOrNull { it.id == editingThemeId }?.let { selected ->
+            ThemeStyleSheet(selected, styles.getValue(selected.id), styleStore,
                 onChange = { style ->
                     styleStore.save(selected, style)
-                    styles = styles + (selected to style)
-                }, onDismiss = { editingTheme = null })
+                    styles = styles + (selected.id to style)
+                }, onReset = {
+                    styleStore.reset(selected)
+                    styles = styles + (selected.id to selected.defaultStyle())
+                }, onDismiss = { editingThemeId = null })
         }
         SharedTransitionLayout(Modifier.fillMaxSize().background(background)) {
             val sharedScope = this
@@ -132,12 +149,12 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
                             modifier = Modifier.calendarBounds(sharedScope, theme, visibilityScope))
                     }
                 } else {
-                    ThemeChooser(pager, theme, data, foreground,
+                    ThemeChooser(pager, themes, theme, data, foreground,
                         enabled = !immersive && !displayTransition.isRunning,
                         paperModifier = { Modifier.calendarBounds(sharedScope, it, visibilityScope) },
                         visibilityScope = visibilityScope,
                         onSelect = { immersive = true },
-                        onStyle = { editingTheme = it })
+                        onStyle = { editingThemeId = it.id })
                 }
             }
         }
@@ -149,7 +166,7 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
 private fun Modifier.calendarBounds(scope: SharedTransitionScope, theme: CalendarTheme,
     visibility: AnimatedVisibilityScope): Modifier = with(scope) {
     this@calendarBounds.sharedBounds(
-        sharedContentState = rememberSharedContentState("calendar-${theme.name}"),
+        sharedContentState = rememberSharedContentState("calendar-${theme.id}"),
         animatedVisibilityScope = visibility,
         boundsTransform = { _, _ -> tween(460, easing = FastOutSlowInEasing) },
         // Both surfaces render identical paper; overlapping alpha fades would wash out its ink.
@@ -162,7 +179,7 @@ private fun Modifier.calendarBounds(scope: SharedTransitionScope, theme: Calenda
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
-private fun ThemeChooser(pager: PagerState, theme: CalendarTheme, data: CalendarData?, foreground: Color,
+private fun ThemeChooser(pager: PagerState, themes: List<CalendarTheme>, theme: CalendarTheme, data: CalendarData?, foreground: Color,
     enabled: Boolean, paperModifier: @Composable (CalendarTheme) -> Modifier,
     visibilityScope: AnimatedVisibilityScope, onSelect: () -> Unit, onStyle: (CalendarTheme) -> Unit) {
     val chromeModifier = with(visibilityScope) {
@@ -177,27 +194,27 @@ private fun ThemeChooser(pager: PagerState, theme: CalendarTheme, data: Calendar
         Row(chromeModifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("CALENDARMODS", color = foreground, fontSize = 10.sp, letterSpacing = 2.sp)
-            Text("${(pager.currentPage + 1).toString().padStart(2, '0')} / 07", color = foreground, fontSize = 10.sp)
+            Text("${(pager.currentPage + 1).toString().padStart(2, '0')} / ${themes.size.toString().padStart(2, '0')}", color = foreground, fontSize = 10.sp)
         }
         HorizontalPager(
             state = pager,
             userScrollEnabled = enabled,
             modifier = Modifier.weight(1f).fillMaxWidth().testTag("theme-pager").semantics {
-                stateDescription = "主题：${theme.title}，${pager.currentPage + 1} / 7"
+                stateDescription = "主题：${theme.title}，${pager.currentPage + 1} / ${themes.size}"
             },
-            key = { CalendarTheme.entries[it].name },
+            key = { themes[it].id },
         ) { index ->
             Box(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
                 data?.let {
-                    CalendarArtwork(CalendarTheme.entries[index], it, onSelect = {
+                    CalendarArtwork(themes[index], it, onSelect = {
                         if (enabled && !pager.isScrollInProgress && pager.settledPage == index) onSelect()
-                    }, modifier = paperModifier(CalendarTheme.entries[index]))
+                    }, modifier = paperModifier(themes[index]))
                 }
-                FilledTonalIconButton(onClick = { onStyle(CalendarTheme.entries[index]) },
+                FilledTonalIconButton(onClick = { onStyle(themes[index]) },
                     enabled = enabled && !pager.isScrollInProgress,
                     modifier = chromeModifier.align(Alignment.BottomEnd).size(48.dp)
-                        .testTag("style-${CalendarTheme.entries[index].name}")) {
-                    Icon(StyleIcon, "${CalendarTheme.entries[index].title.substringBefore(" · ")}样式设置")
+                        .testTag("style-${themes[index].name}")) {
+                    Icon(StyleIcon, "${themes[index].title.substringBefore(" · ")}样式设置")
                 }
             }
         }
@@ -205,9 +222,11 @@ private fun ThemeChooser(pager: PagerState, theme: CalendarTheme, data: Calendar
             Text(theme.title, color = foreground, fontSize = 13.sp, letterSpacing = 2.sp,
                 modifier = Modifier.testTag("theme-title"))
             Row(Modifier.padding(top = 10.dp, bottom = 8.dp).semantics {
-                contentDescription = "共 7 个主题，当前第 ${pager.currentPage + 1} 个"
+                contentDescription = "共 ${themes.size} 个主题，当前第 ${pager.currentPage + 1} 个"
             }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CalendarTheme.entries.forEachIndexed { index, _ ->
+                // Keep the indicator bounded when a large downloaded library is installed.
+                val start = (pager.currentPage - 4).coerceIn(0, (themes.size - 9).coerceAtLeast(0))
+                (start until minOf(start + 9, themes.size)).forEach { index ->
                     Box(Modifier.size(if (index == pager.currentPage) 16.dp else 4.dp, 4.dp)
                         .background(foreground.copy(alpha = if (index == pager.currentPage) .85f else .25f), CircleShape))
                 }

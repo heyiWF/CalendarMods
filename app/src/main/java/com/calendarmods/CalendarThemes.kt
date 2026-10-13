@@ -39,15 +39,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-enum class CalendarTheme(val title: String, val background: Color) {
-    GOLDEN("晴日 · 黄页台历", Color(0xFFECEEE9)),
-    TEDDY("冬日来信 · 插画月历", Color(0xFF9CC9DF)),
-    PHOTO("拾光 · 照片台历", Color(0xFFD5C6B6)),
-    GOOD_DAY("好日 · 字体日历", Color(0xFFF8F7F3)),
-    VERSE("慢笺 · 竖排文句", Color(0xFFE5E6DE)),
-    ALMANAC("岁时 · 复古黄历", Color(0xFF53534D)),
-    HANGING("一页 · 悬挂日历", Color(0xFFE6E8E1)),
-}
+val CalendarTheme.background: Color get() = Color(surfaces.backdrop)
 
 private val Ink = Color(0xFF20231E)
 private val Red = Color(0xFFAD4B42)

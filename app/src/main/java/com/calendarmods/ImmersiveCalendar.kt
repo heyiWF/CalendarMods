@@ -59,24 +59,19 @@ fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Un
 
 @Composable
 internal fun CalendarPaper(theme: CalendarTheme, data: CalendarData, modifier: Modifier = Modifier) {
-    val paper = when (theme) {
-        CalendarTheme.VERSE -> Color(0xFFE4E4D5)
-        CalendarTheme.ALMANAC -> Color(0xFF30312D)
-        CalendarTheme.PHOTO -> Color(0xFF232421)
-        else -> Cream
-    }
+    val paper = Color(theme.surfaces.paper)
     Box(modifier.fillMaxSize().background(paper)) {
         // Paint to every edge, but keep printed content clear of camera cutouts.
         Box(Modifier.fillMaxSize().padding(LocalPaperInsets.current)) {
             FullPaper { wide ->
-                when (theme) {
-                    CalendarTheme.GOLDEN -> GoldenPaper(data, wide)
-                    CalendarTheme.TEDDY -> IllustrationPaper(data, wide, photo = false)
-                    CalendarTheme.PHOTO -> IllustrationPaper(data, wide, photo = true)
-                    CalendarTheme.GOOD_DAY -> GoodDayPaper(data, wide)
-                    CalendarTheme.VERSE -> VersePaper(data, wide)
-                    CalendarTheme.ALMANAC -> AlmanacPaper(data, wide)
-                    CalendarTheme.HANGING -> HangingPaper(data, wide)
+                when (theme.renderer) {
+                    ThemeRenderer.GOLDEN -> GoldenPaper(data, wide)
+                    ThemeRenderer.TEDDY -> IllustrationPaper(theme, data, wide, photo = false)
+                    ThemeRenderer.PHOTO -> IllustrationPaper(theme, data, wide, photo = true)
+                    ThemeRenderer.GOOD_DAY -> GoodDayPaper(data, wide)
+                    ThemeRenderer.VERSE -> VersePaper(data, wide)
+                    ThemeRenderer.ALMANAC -> AlmanacPaper(data, wide)
+                    ThemeRenderer.HANGING -> HangingPaper(data, wide)
                 }
             }
         }
@@ -167,11 +162,11 @@ private fun GoldenPaper(data: CalendarData, wide: Boolean) {
 }
 
 @Composable
-private fun IllustrationPaper(data: CalendarData, wide: Boolean, photo: Boolean) {
+private fun IllustrationPaper(theme: CalendarTheme, data: CalendarData, wide: Boolean, photo: Boolean) {
     Box(Modifier.fillMaxSize().then(if (photo) Modifier.padding(8.dp) else Modifier).background(Cream)) {
         Panels(wide, Modifier.fillMaxSize().padding(top = 12.dp), firstWeight = if (photo) .56f else .44f,
             first = {
-                ThemeImage(if (photo) CalendarTheme.PHOTO else CalendarTheme.TEDDY, Modifier.fillMaxSize())
+                ThemeImage(theme, Modifier.fillMaxSize())
             }, second = {
                 Column(Modifier.fillMaxSize().padding(if (wide) 20.dp else 15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (photo) {
