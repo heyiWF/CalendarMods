@@ -66,3 +66,7 @@
 APK：`app/build/outputs/apk/debug/app-debug.apk`。CI 使用独立 Debug 签名，各次构建的校验值随 APK 存放在 `SHA256SUMS.txt` 中。
 
 2026-10-12 本地验收 APK SHA-256：`767EA43B99314520DC5BB055642F5992AA9E7D77493D724EE3DC442331BC7BED`。
+
+## 2026-10-12 主题调优后续验收
+
+共用横竖屏预览、366 条每日格言、366 个二字心语、宜忌轮播和独立图片样式设置的详细结果，见 [主题调优验收](theme-refinements.md)。

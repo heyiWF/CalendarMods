@@ -17,3 +17,9 @@ Use case: illustration-story. Asset type: image-only header illustration for an 
 提示词：
 
 Use case: photorealistic-natural. Asset type: full bleed photograph used in a photo desk calendar app. Candid close portrait of two adult friends, a man in a dark knit beanie and a woman with brown shoulder-length hair, smiling naturally together on a seaside walk at sunset. Golden rim light, muted warm analog film palette, tactile grain, ocean and rocky coastline softly out of focus. Spontaneous memory, relaxed expressions, realistic faces and hands. Square 1:1 framing, subjects composed centrally for crop to 4:3 and portrait, faces in upper central half. Photograph only, no calendar, no typography, no frame, no watermark, no brands.
+
+## 样式图标与每日文句
+
+样式入口使用用户指定的 [Material Symbols Outlined / style](https://fonts.gstatic.com/render/v1/Material+Symbols+Outlined/24dp/style.kt?var=opsz,wght,FILL,GRAD,ROND@24,400,0,0,50)，Google，Apache License 2.0；源文件为 `StyleIcon.kt`，仅修改包名及 Kotlin 属性名。许可随应用保存在 `assets/licenses/material-symbols-Apache-2.0.txt`。
+
+每日格言和二字心语各 366 条，由本项目原创整理。格言最长 14 字（含标点），不标注名人作者；它们属于日常文案，不属于历法宜忌。按连续公历日取模轮换，不在元旦重置。

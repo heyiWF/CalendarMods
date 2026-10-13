@@ -22,6 +22,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -71,6 +73,9 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
         initialPage = preferences.getInt("theme", 0).coerceIn(0, CalendarTheme.entries.lastIndex),
         pageCount = { CalendarTheme.entries.size },
     )
+    val styleStore = remember { ThemeStyleStore(context.applicationContext) }
+    var styles by remember { mutableStateOf(CalendarTheme.entries.associateWith(styleStore::read)) }
+    var editingTheme by rememberSaveable { mutableStateOf<CalendarTheme?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val data by produceState<CalendarData?>(null, context, lifecycle, clock) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -98,28 +103,42 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
         window?.insetsController?.setSystemBarsAppearance(
             if (theme == CalendarTheme.ALMANAC) 0 else mask, mask)
     }
-    SharedTransitionLayout(Modifier.fillMaxSize().background(background)) {
-        val sharedScope = this
-        displayTransition.AnimatedContent(
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = {
-                (EnterTransition.None togetherWith ExitTransition.None)
-                    .using(SizeTransform(clip = false))
-            },
-            contentKey = { it },
-        ) { fullScreen ->
-            val visibilityScope = this
-            if (fullScreen) {
-                data?.let {
-                    ImmersiveCalendar(theme, it, onExit = { immersive = false },
-                        modifier = Modifier.calendarBounds(sharedScope, theme, visibilityScope))
+    val cycle = rememberAlmanacCycle(data)
+    val goodDayCycle = rememberAlmanacCycle(data, centered = true)
+    CompositionLocalProvider(LocalThemeStyles provides styles, LocalAlmanacCycle provides cycle,
+        LocalGoodDayCycle provides goodDayCycle,
+        LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).asPaddingValues()) {
+        editingTheme?.let { selected ->
+            ThemeStyleSheet(selected, styles.getValue(selected), styleStore,
+                onChange = { style ->
+                    styleStore.save(selected, style)
+                    styles = styles + (selected to style)
+                }, onDismiss = { editingTheme = null })
+        }
+        SharedTransitionLayout(Modifier.fillMaxSize().background(background)) {
+            val sharedScope = this
+            displayTransition.AnimatedContent(
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    (EnterTransition.None togetherWith ExitTransition.None)
+                        .using(SizeTransform(clip = false))
+                },
+                contentKey = { it },
+            ) { fullScreen ->
+                val visibilityScope = this
+                if (fullScreen) {
+                    data?.let {
+                        ImmersiveCalendar(theme, it, onExit = { immersive = false },
+                            modifier = Modifier.calendarBounds(sharedScope, theme, visibilityScope))
+                    }
+                } else {
+                    ThemeChooser(pager, theme, data, foreground,
+                        enabled = !immersive && !displayTransition.isRunning,
+                        paperModifier = { Modifier.calendarBounds(sharedScope, it, visibilityScope) },
+                        visibilityScope = visibilityScope,
+                        onSelect = { immersive = true },
+                        onStyle = { editingTheme = it })
                 }
-            } else {
-                ThemeChooser(pager, theme, data, foreground,
-                    enabled = !immersive && !displayTransition.isRunning,
-                    paperModifier = { Modifier.calendarBounds(sharedScope, it, visibilityScope) },
-                    visibilityScope = visibilityScope,
-                    onSelect = { immersive = true })
             }
         }
     }
@@ -133,8 +152,9 @@ private fun Modifier.calendarBounds(scope: SharedTransitionScope, theme: Calenda
         sharedContentState = rememberSharedContentState("calendar-${theme.name}"),
         animatedVisibilityScope = visibility,
         boundsTransform = { _, _ -> tween(460, easing = FastOutSlowInEasing) },
-        enter = fadeIn(tween(460)),
-        exit = fadeOut(tween(460)),
+        // Both surfaces render identical paper; overlapping alpha fades would wash out its ink.
+        enter = EnterTransition.None,
+        exit = ExitTransition.None,
         // Measure each paper once at its destination size; scale the layer during motion.
         resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(ContentScale.Fit),
     )
@@ -144,7 +164,7 @@ private fun Modifier.calendarBounds(scope: SharedTransitionScope, theme: Calenda
 @OptIn(ExperimentalLayoutApi::class)
 private fun ThemeChooser(pager: PagerState, theme: CalendarTheme, data: CalendarData?, foreground: Color,
     enabled: Boolean, paperModifier: @Composable (CalendarTheme) -> Modifier,
-    visibilityScope: AnimatedVisibilityScope, onSelect: () -> Unit) {
+    visibilityScope: AnimatedVisibilityScope, onSelect: () -> Unit, onStyle: (CalendarTheme) -> Unit) {
     val chromeModifier = with(visibilityScope) {
         Modifier.animateEnterExit(enter = fadeIn(tween(200, delayMillis = 220)), exit = fadeOut(tween(160)))
     }
@@ -172,6 +192,12 @@ private fun ThemeChooser(pager: PagerState, theme: CalendarTheme, data: Calendar
                     CalendarArtwork(CalendarTheme.entries[index], it, onSelect = {
                         if (enabled && !pager.isScrollInProgress && pager.settledPage == index) onSelect()
                     }, modifier = paperModifier(CalendarTheme.entries[index]))
+                }
+                FilledTonalIconButton(onClick = { onStyle(CalendarTheme.entries[index]) },
+                    enabled = enabled && !pager.isScrollInProgress,
+                    modifier = chromeModifier.align(Alignment.BottomEnd).size(48.dp)
+                        .testTag("style-${CalendarTheme.entries[index].name}")) {
+                    Icon(StyleIcon, "${CalendarTheme.entries[index].title.substringBefore(" · ")}样式设置")
                 }
             }
         }

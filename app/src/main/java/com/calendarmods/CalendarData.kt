@@ -21,6 +21,8 @@ data class CalendarData(
 ) {
     fun suitableText(limit: Int) = recommends.take(limit).joinToString(" · ").ifBlank { "暂无" }
     fun avoidText(limit: Int) = avoids.take(limit).joinToString(" · ").ifBlank { "暂无" }
+    val motto get() = DailyWords.motto(today)
+    val heartWord get() = DailyWords.heartWord(today)
     val day get() = today.dayOfMonth.toString().padStart(2, '0')
     val month get() = today.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
     val monthShort get() = today.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
