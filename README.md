@@ -64,6 +64,8 @@ CalendarMods 会随设备日期与时区更新，午夜自动翻到新的一天�
 
 ## 下载体验
 
+[![Build APK](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml?query=branch%3Amain)
+
 前往 [安装包下载页面](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml)，选择一次成功的构建，在 **Artifacts** 中下载 `CalendarMods-debug-运行序号`，解压后安装 `CalendarMods-debug.apk`。
 
 目前提供开发预览版 APK，支持 Android 12 及以上设备。
