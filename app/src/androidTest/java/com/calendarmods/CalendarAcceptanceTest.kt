@@ -32,11 +32,20 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var lastBars = "not measured"
     private var refinementsOnly = false
     private var contractOnly = false
+    private var storeOnly = false
+    private val dayMotion = AtomicReference<Pair<LocalDate, Boolean>>()
+    private var performanceOnly = false
+    private var interruptionsOnly = false
+    private var midnightOnly = false
     private var denseOnly = false
     private var centeredRotation: Int? = null
     private var anchoredRotation: Int? = null
     override fun onCreate(arguments: Bundle?) {
         refinementsOnly = arguments?.getString("refinements") == "true"
+        performanceOnly = arguments?.getString("performance") == "true"
+        storeOnly = arguments?.getString("store") == "true"
+        interruptionsOnly = arguments?.getString("interruptions") == "true"
+        midnightOnly = arguments?.getString("midnight") == "true"
         contractOnly = arguments?.getString("contract") == "true"
         denseOnly = arguments?.getString("dense") == "true"
         centeredRotation = arguments?.getString("centered")?.toIntOrNull()
@@ -63,7 +72,16 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (contractOnly) {
+            if (performanceOnly) {
+                verifyStorePerformance(checks)
+            } else if (storeOnly) {
+                verifyStore(checks)
+            } else if (interruptionsOnly) {
+                verifyMotionInterruptions(checks)
+            } else if (midnightOnly) {
+                verifyMidnightMotions(checks)
+                verifyMotionInterruptions(checks)
+            } else if (contractOnly) {
                 verifyThemeContract(checks)
             } else if (anchoredRotation != null) {
                 verifyAnchoredCarousel(checks, anchoredRotation!!)
@@ -128,8 +146,335 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         }
     }
 
+    private fun verifyStore(checks: MutableList<String>) = kotlinx.coroutines.runBlocking {
+        val root = File(targetContext.cacheDir, "library-test").apply { deleteRecursively(); mkdirs() }
+        val testContext = object : android.content.ContextWrapper(targetContext) {
+            override fun getFilesDir() = root
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getSharedPreferences(name: String, mode: Int) =
+                super.getSharedPreferences("store-test-$name", mode)
+        }
+        val testIndex = File(root, "themes-v1/index.json")
+        val fixture = CalendarTheme.PHOTO.copy(id = "org.example.migration", author = "test")
+        testIndex.parentFile!!.mkdirs()
+        testIndex.writeText(org.json.JSONArray().put(org.json.JSONObject().put("manifest", org.json.JSONObject(ThemeManifest.encode(fixture)))).toString())
+        val isolated = ThemeRepository.reopen(testContext)
+        check(isolated.inventory.value.themes.size == 8)
+        val teddy = CalendarTheme.TEDDY
+        val styles = ThemeStyleStore(testContext)
+        val image = File(root, "theme-images/custom.png").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1)) }
+        styles.save(teddy, ThemeStyle(image.absolutePath, ImageFill.FIT))
+        isolated.toggleFavorite(teddy.id)
+        isolated.uninstall(teddy.id)
+        check(!image.exists() && styles.read(teddy) == teddy.defaultStyle())
+        val reopened = ThemeRepository.reopen(testContext)
+        check(teddy.id !in reopened.inventory.value.library.order && teddy.id in reopened.inventory.value.library.favorites)
+        isolated.add(teddy.id)
+        check(isolated.inventory.value.themes.last() == teddy)
+        isolated.reorder(isolated.inventory.value.library.order.reversed())
+        check(ThemeRepository.reopen(testContext).inventory.value.library == isolated.inventory.value.library)
+        checks += "v1 migration, builtin deletion, favorite retention, image cleanup, default re-add and durable ordering PASS"
+        val before = isolated.inventory.value
+        val obstruction = File(testIndex.path + ".new").apply { mkdirs() }
+        File(obstruction, "block").writeText("test")
+        check(runCatching { isolated.setFavorites(mapOf(CalendarTheme.GOLDEN.id to true, teddy.id to false)) }.isFailure)
+        check(before == isolated.inventory.value)
+        obstruction.deleteRecursively()
+        isolated.inventory.value.library.order.drop(1).forEach { isolated.uninstall(it) }
+        check(runCatching { isolated.uninstall(isolated.inventory.value.library.order.first()) }.isFailure)
+        check(ThemeRepository.reopen(testContext).inventory.value.themes.size == 1)
+        checks += "atomic write failure leaves published state unchanged; repository prevents removing final theme PASS"
+        root.deleteRecursively()
+        testContext.getSharedPreferences("theme_styles", 0).edit().clear().commit()
+
+        val repository = ThemeRepository.get(targetContext)
+        val index = File(targetContext.filesDir, "themes-v1/index.json")
+        val original = index.takeIf { it.exists() }?.readBytes()
+        val originalOrder = repository.inventory.value.library.order
+        try {
+            repeat(originalOrder.size) { swipe(left = true) }
+            await("shop entry") { nodes().any { it.viewIdResourceName == "store-entry" } }
+            capture("store-entry-portrait")
+            press("store-entry")
+            await("shop opens") { nodes().any { it.viewIdResourceName == "store-tab-0" } }
+            SystemClock.sleep(700)
+            for (rotation in 0..1) {
+                uiAutomation.setRotation(rotation)
+                await("store orientation") { targetContext.resources.configuration.orientation == if (rotation == 0) 1 else 2 }
+                SystemClock.sleep(800)
+                val firstRow = listOf("GOLDEN", "TEDDY", "PHOTO").map { name ->
+                    Rect().also { bounds -> nodes().first { it.viewIdResourceName == "store-card-$name" }.getBoundsInScreen(bounds) }
+                }
+                check(firstRow.map { it.top }.distinct().size == 1)
+                check(firstRow.zipWithNext().all { (a, b) -> a.right <= b.left })
+                val title = Rect().also { b -> nodes().first { it.viewIdResourceName == "store-title-GOLDEN" }.getBoundsInScreen(b) }
+                val button = Rect().also { b -> nodes().first { it.viewIdResourceName == "add-use-GOLDEN" }.getBoundsInScreen(b) }
+                check(title.right <= button.left && kotlin.math.abs(title.centerY() - button.centerY()) <= 2)
+                SystemClock.sleep(1500) // Cold orientation-specific thumbnails settle before the visual sample.
+                capture("store-recommended-${if (rotation == 0) "portrait" else "landscape"}")
+            }
+            uiAutomation.setRotation(0); SystemClock.sleep(800)
+            val wasFavorite = CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites
+            if (!wasFavorite) press("favorite-GOLDEN")
+            await("favorite persisted") { CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites }
+            press("store-tab-1")
+            await("favorites") { nodes().any { it.viewIdResourceName == "store-card-GOLDEN" } }
+            capture("store-favorites")
+            press("favorite-GOLDEN")
+            check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
+            check(nodes().any { it.viewIdResourceName == "store-card-GOLDEN" })
+            check(nodes().any { it.contentDescription?.toString() == "收藏${CalendarTheme.GOLDEN.title}" })
+            uiAutomation.setRotation(1); SystemClock.sleep(800)
+            check(nodes().any { it.contentDescription?.toString() == "收藏${CalendarTheme.GOLDEN.title}" })
+            check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
+            press("favorite-GOLDEN") // undo pending removal after rotation
+            uiAutomation.setRotation(0); SystemClock.sleep(800)
+            check(nodes().any { it.contentDescription?.toString() == "取消收藏${CalendarTheme.GOLDEN.title}" })
+            press("favorite-GOLDEN")
+            val failedWrite = File(index.path + ".new").apply { mkdirs() }
+            try {
+                File(failedWrite, "block").writeText("failure fixture")
+                press("store-tab-0")
+                await("failed favorite save restores solid heart") {
+                    nodes().any { it.contentDescription?.toString() == "取消收藏${CalendarTheme.GOLDEN.title}" }
+                }
+                check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
+                check(nodes().any { it.viewIdResourceName == "store-grid-1" })
+            } finally { failedWrite.deleteRecursively() }
+            press("favorite-GOLDEN")
+            backgroundToHome()
+            shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+            await("favorites restored from background") { nodes().any { it.viewIdResourceName == "store-grid-1" } }
+            check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
+            press("store-tab-0")
+            await("unfavorite batch committed on leave") { CalendarTheme.GOLDEN.id !in repository.inventory.value.library.favorites }
+            press("favorite-GOLDEN")
+            await("refavorite persisted") { CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites }
+            checks += "deferred unfavorite remains visible, survives rotation, undo and atomic commit on tab leave PASS"
+            press("store-tab-2"); SystemClock.sleep(400)
+            press("store-edit"); SystemClock.sleep(400)
+            val a = Rect().also { bounds -> nodes().first { it.viewIdResourceName == "drag-GOLDEN" }.getBoundsInScreen(bounds) }
+            val b = Rect().also { bounds -> nodes().first { it.viewIdResourceName == "drag-PHOTO" }.getBoundsInScreen(bounds) }
+            dragPoints(a.exactCenterX(), a.exactCenterY(), b.exactCenterX(), b.exactCenterY(), captureAtEnd = "store-drag-shadow")
+            await("drag order saved") { repository.inventory.value.library.order != originalOrder }
+            check(ThemeRepository.reopen(targetContext).inventory.value.library.order == repository.inventory.value.library.order)
+            capture("store-installed-edit")
+            press("delete-GOLDEN")
+            await("delete confirmation") { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+            press("confirm-delete")
+            await("golden removed") { CalendarTheme.GOLDEN.id !in repository.inventory.value.library.order }
+            press("store-tab-1"); SystemClock.sleep(400)
+            check(nodes().any { it.viewIdResourceName == "store-card-GOLDEN" })
+            press("add-use-GOLDEN")
+            await("readd") { repository.inventory.value.library.order.last() == CalendarTheme.GOLDEN.id }
+            check(nodes().any { it.viewIdResourceName == "theme-store" })
+            checks += "three-column portrait/landscape grids, favorite tab, real drag reorder, delete confirmation and re-add in place PASS"
+            press("add-use-GOLDEN")
+            await("installed button confirms deletion") { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+            check(nodes().any { it.text?.toString() == "将从已安装主题中移除“${CalendarTheme.GOLDEN.title}”" })
+            uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            press("store-tab-2")
+            // Re-added theme is last; scroll the grid until its use action is visible.
+            repeat(3) {
+                if (nodes().none { it.viewIdResourceName == "add-use-GOLDEN" }) {
+                    val bounds = Rect().also { b -> nodes().first { it.viewIdResourceName == "store-grid-2" }.getBoundsInScreen(b) }
+                    dragPoints(bounds.exactCenterX(), bounds.bottom - 60f, bounds.exactCenterX(), bounds.top + 60f)
+                }
+            }
+            await("use action ready") { nodes().any { it.text?.toString() == "使用" } }
+            press("add-use-GOLDEN")
+            awaitTheme(CalendarTheme.GOLDEN)
+            val art = Rect().also { bounds -> nodes().first { it.viewIdResourceName == "art-GOLDEN" }.getBoundsInScreen(bounds) }
+            val style = Rect().also { bounds -> nodes().first { it.viewIdResourceName == "style-GOLDEN" }.getBoundsInScreen(bounds) }
+            check(style.top >= art.bottom)
+            check(kotlin.math.abs(style.right - art.right) <= 2) { "style right=${style.right}, art right=${art.right}" }
+            dragPoints(art.exactCenterX(), art.exactCenterY(), art.exactCenterX(), art.exactCenterY() - 25)
+            check(nodes().none { it.viewIdResourceName == "confirm-delete" })
+            dragPoints(art.exactCenterX(), art.exactCenterY(), art.exactCenterX(), art.exactCenterY() - art.height() * .4f, captureAtEnd = "chooser-delete-threshold")
+            await("swipe deletion dialog") { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+            uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            awaitTheme(CalendarTheme.GOLDEN)
+            checks += "use returns to selected preview; style button below artwork; short swipe cancels and long swipe confirms without fullscreen PASS"
+        } finally {
+            if (original == null) index.delete() else index.writeBytes(original)
+        }
+    }
+
+    private fun verifyStorePerformance(checks: MutableList<String>) {
+        val activity = activities.lastActivity as MainActivity
+        val frames = java.util.Collections.synchronizedList(mutableListOf<Long>())
+        val sampling = java.util.concurrent.atomic.AtomicBoolean(true)
+        val peakPss = java.util.concurrent.atomic.AtomicInteger(0)
+        val sampler = kotlin.concurrent.thread(name = "store-memory-sampler") {
+            while (sampling.get()) {
+                val memory = android.os.Debug.MemoryInfo().also(android.os.Debug::getMemoryInfo).totalPss
+                peakPss.updateAndGet { maxOf(it, memory) }
+                SystemClock.sleep(250)
+            }
+        }
+        val listener = android.view.Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
+            frames.add(metrics.getMetric(android.view.FrameMetrics.TOTAL_DURATION))
+        }
+        runOnMainSync { activity.window.addOnFrameMetricsAvailableListener(listener, android.os.Handler(android.os.Looper.getMainLooper())) }
+        try {
+            for (count in listOf(7, 70, 200)) {
+                val extras = (7 until count).map { n -> InstalledTheme(CalendarTheme.entries[n % 7].copy(id = "org.benchmark.theme$n", title = "主题 $n")) }
+                val all = CalendarTheme.entries + extras.map { it.theme }
+                val fixture = ThemeInventory(installed = extras, library = ThemeLibrary(order = all.map { it.id },
+                    addedAt = all.associate { it.id to 0L }, favorites = all.map { it.id }.toSet()))
+                ThemeThumbnails.clear()
+                peakPss.set(0)
+                frames.clear()
+                val start = SystemClock.elapsedRealtime()
+                runOnMainSync {
+                    activity.setContent {
+                        MaterialTheme {
+                            androidx.compose.runtime.key(count) {
+                                ThemeStore(fixture, CalendarData.create(LocalDate.of(2026, 10, 14)), false,
+                                    androidx.compose.ui.Modifier, {}, {}, {}, {}, {}, {}, {}, {})
+                            }
+                        }
+                    }
+                }
+                await("benchmark grid $count") { nodes().any { it.viewIdResourceName == "store-grid-0" } }
+                SystemClock.sleep(1800)
+                fun summary(label: String): String {
+                    val samples = synchronized(frames) { frames.toList().sorted() }
+                    val info = android.os.Debug.MemoryInfo().also(android.os.Debug::getMemoryInfo)
+                    fun percentile(p: Double) = if (samples.isEmpty()) 0 else samples[((samples.size - 1) * p).toInt()] / 1_000_000
+                    return "$count themes $label: frames=${samples.size}, p50=${percentile(.5)}ms p95=${percentile(.95)}ms max=${percentile(1.0)}ms over100ms=${samples.count { it > 100_000_000 }}, pss=${info.totalPss / 1024}MiB peakPss=${peakPss.get() / 1024}MiB cache=${ThemeThumbnails.bytes() / 1024}KiB"
+                }
+                checks += summary("cold (${SystemClock.elapsedRealtime() - start}ms including 1800ms settle)")
+                press("store-tab-1"); SystemClock.sleep(1000)
+                press("store-tab-2"); SystemClock.sleep(1000)
+                frames.clear()
+                repeat(3) {
+                    press("store-tab-0"); press("store-tab-1"); press("store-tab-2")
+                }
+                checks += summary("warm tab switches")
+                press("store-edit")
+                val first = Rect().also { b -> nodes().first { it.viewIdResourceName == "drag-GOLDEN" }.getBoundsInScreen(b) }
+                val second = Rect().also { b -> nodes().first { it.viewIdResourceName == "drag-TEDDY" }.getBoundsInScreen(b) }
+                frames.clear()
+                dragPoints(first.exactCenterX(), first.exactCenterY(), second.exactCenterX(), second.exactCenterY())
+                checks += summary("drag")
+                press("store-edit")
+                frames.clear()
+                val bounds = Rect().also { b -> nodes().first { it.viewIdResourceName == "store-grid-2" }.getBoundsInScreen(b) }
+                repeat(3) { dragPoints(bounds.exactCenterX(), bounds.bottom - 70f, bounds.exactCenterX(), bounds.top + 70f, 450) }
+                check(ThemeThumbnails.bytes() <= ThemeThumbnails.MAX_BYTES)
+                checks += summary("scroll")
+                capture("store-performance-$count")
+            }
+        } finally {
+            sampling.set(false); sampler.join(1000)
+            runOnMainSync { activity.window.removeOnFrameMetricsAvailableListener(listener) }
+        }
+    }
+
+    private fun dragPoints(x: Float, y: Float, endX: Float, endY: Float, duration: Long = 700, captureAtEnd: String? = null) {
+        val down = SystemClock.uptimeMillis()
+        fun inject(action: Int, px: Float, py: Float) {
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, px, py, 0)
+            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            check(uiAutomation.injectInputEvent(event, true)); event.recycle()
+        }
+        inject(MotionEvent.ACTION_DOWN, x, y)
+        for (step in 1..30) {
+            SystemClock.sleep(duration / 30)
+            inject(MotionEvent.ACTION_MOVE, x + (endX - x) * step / 30, y + (endY - y) * step / 30)
+        }
+        captureAtEnd?.let(::capture)
+        inject(MotionEvent.ACTION_UP, endX, endY)
+        SystemClock.sleep(700)
+    }
+
+    private fun verifyMidnightMotions(checks: MutableList<String>) {
+        val preferences = targetContext.getSharedPreferences("calendar", 0)
+        for (rotation in 0..1) {
+            uiAutomation.setRotation(rotation)
+            SystemClock.sleep(700)
+            CalendarTheme.entries.forEach { theme ->
+                preferences.edit().putString("theme_id", theme.id).putBoolean("immersive", true).commit()
+                val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+                val clock = AdvancingClock().apply {
+                    set(ZonedDateTime.of(2026, 12, 31, 23, 59, 50, 0, ZoneId.systemDefault()).toInstant())
+                }
+                runOnMainSync { activity.setContent { MaterialTheme {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalDayMotionObserver provides { date, moving -> dayMotion.set(date to moving) }) {
+                        CalendarApp(clock)
+                    }
+                } } }
+                awaitImmersive(theme, LocalDate.of(2026, 12, 31))
+                await("midnight animation ${theme.name}") { dayMotion.get() == (LocalDate.of(2027, 1, 1) to true) }
+                SystemClock.sleep(120)
+                capture("midnight-$rotation-${theme.name.lowercase()}-middle")
+                await("midnight settled") { dayMotion.get() == (LocalDate.of(2027, 1, 1) to false) }
+                awaitImmersive(theme, LocalDate.of(2027, 1, 1))
+                capture("midnight-$rotation-${theme.name.lowercase()}-after")
+                val result = "${theme.name}: rotation=$rotation natural year boundary animates and settles to complete new date PASS"
+                checks += result
+                sendStatus(0, Bundle().apply { putString("stream", result + "\n") })
+            }
+        }
+    }
+
+    private fun verifyMotionInterruptions(checks: MutableList<String>) {
+        uiAutomation.setRotation(0); SystemClock.sleep(700)
+        val prefs = targetContext.getSharedPreferences("calendar", 0)
+        fun start(): Pair<MainActivity, AdvancingClock> {
+            prefs.edit().putString("theme_id", CalendarTheme.GOLDEN.id).putBoolean("immersive", true).commit()
+            val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+            val clock = AdvancingClock().apply {
+                set(ZonedDateTime.of(2028, 2, 28, 23, 59, 50, 0, ZoneId.systemDefault()).toInstant())
+            }
+            runOnMainSync { activity.setContent { MaterialTheme {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalDayMotionObserver provides { date, moving -> dayMotion.set(date to moving) }) {
+                        CalendarApp(clock)
+                    }
+                } } }
+            awaitImmersive(CalendarTheme.GOLDEN, LocalDate.of(2028, 2, 28))
+            return activity to clock
+        }
+        fun moving() = dayMotion.get()?.second == true
+
+        start()
+        await("leap-day motion starts") { moving() }
+        uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        awaitTheme(CalendarTheme.GOLDEN, LocalDate.of(2028, 2, 29))
+        checks += "Back during midnight converges to leap-day chooser without stale paper PASS"
+        start()
+        await("rotation motion starts") { moving() }
+        uiAutomation.setRotation(1)
+        await("rotation settled") { targetContext.resources.configuration.orientation == 2 }
+        awaitImmersive(CalendarTheme.GOLDEN)
+        // Recreation intentionally replaces the injected content/observer with production content.
+        check(nodes().any { it.viewIdResourceName == "midnight-paper" && it.stateDescription == "静止：${LocalDate.now()}" })
+        checks += "rotation during midnight discards outgoing page and recreates latest production date PASS"
+        uiAutomation.setRotation(0); SystemClock.sleep(700)
+        val (_, clock) = start()
+        backgroundToHome()
+        clock.set(ZonedDateTime.of(2028, 2, 29, 12, 0, 0, 0, ZoneId.systemDefault()).toInstant())
+        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+        awaitImmersive(CalendarTheme.GOLDEN, LocalDate.of(2028, 2, 29))
+        check(!moving())
+        checks += "background across midnight resumes at current date without replay PASS"
+        val scale = shell("settings get global animator_duration_scale").trim()
+        try {
+            shell("settings put global animator_duration_scale 0")
+            start()
+            awaitImmersive(CalendarTheme.GOLDEN, LocalDate.of(2028, 2, 29))
+            check(!moving())
+            checks += "disabled system animation displays latest date without retained transition PASS"
+        } finally { shell("settings put global animator_duration_scale $scale") }
+    }
+
     private fun verifyThemeContract(checks: MutableList<String>) = kotlinx.coroutines.runBlocking {
         val repository = ThemeRepository.get(targetContext)
+        val catalogFile = File(targetContext.filesDir, "themes-v1/index.json")
+        val originalCatalog = catalogFile.readBytes()
         val store = ThemeStyleStore(targetContext)
         val fixture = CalendarTheme.TEDDY.copy(id = "org.example.contract-fixture", title = "契约测试主题",
             author = "Contract test", defaultFill = "fit", hasImageAsset = true)
@@ -216,12 +561,13 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             awaitTheme(updated)
             capture("contract-installed-landscape")
             repository.uninstall(updated.id)
-            awaitTheme(CalendarTheme.GOLDEN)
+            awaitTheme(CalendarTheme.HANGING)
             check(ThemeRepository.reopen(targetContext).inventory.value.themes.none { it.id == fixture.id })
             checks += "neighbor removal preserves selected ID; version update retains overrides; durable reload, rotation and uninstall fallback PASS"
         } finally {
             repository.uninstall(fixture.id)
             repository.uninstall(neighbor.id)
+            catalogFile.writeBytes(originalCatalog)
             val restore = preferences.edit().clear()
             originalStyles.forEach { (key, value) -> when (value) {
                 is String -> restore.putString(key, value)
@@ -571,6 +917,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     }
 
     private fun press(tag: String, long: Boolean = false) {
+        await("press target $tag") { nodes().any { it.viewIdResourceName == tag && it.isEnabled } }
+        SystemClock.sleep(250)
         val node = nodes().first { it.viewIdResourceName == tag }
         val area = Rect().also { node.getBoundsInScreen(it) }
         val down = SystemClock.uptimeMillis()
@@ -666,7 +1014,11 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
         val clock = AdvancingClock()
         clock.set(ZonedDateTime.of(2026, 12, 31, 23, 59, 52, 0, ZoneId.systemDefault()).toInstant())
-        runOnMainSync { activity.setContent { MaterialTheme { CalendarApp(clock) } } }
+        runOnMainSync { activity.setContent { MaterialTheme {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalDayMotionObserver provides { date, moving -> dayMotion.set(date to moving) }) {
+                        CalendarApp(clock)
+                    }
+                } } }
         awaitTheme(CalendarTheme.GOLDEN, LocalDate.of(2026, 12, 31))
         press("art-GOLDEN")
         awaitImmersive(CalendarTheme.GOLDEN, LocalDate.of(2026, 12, 31))

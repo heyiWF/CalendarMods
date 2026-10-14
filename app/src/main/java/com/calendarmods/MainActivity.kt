@@ -16,15 +16,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -33,12 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -47,6 +35,9 @@ import androidx.core.content.edit
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.launch
+import androidx.compose.material3.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
@@ -68,170 +59,154 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
     val context = LocalContext.current
     val repository = remember { ThemeRepository.get(context) }
     val inventory by repository.inventory.collectAsState()
-    // Rebuild positional pager state only when identities change; restore selection by stable ID.
-    key(inventory.themes.map { it.id }) {
-        CalendarContent(clock, inventory.themes, repository)
-    }
+    CalendarContent(clock, inventory, repository)
 }
 
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
-private fun CalendarContent(clock: CalendarClock, themes: List<CalendarTheme>, repository: ThemeRepository) {
+private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, repository: ThemeRepository) {
+    val themes = inventory.themes
     val context = LocalContext.current
     val window = LocalActivity.current?.window
     val preferences = remember { context.getSharedPreferences("calendar", Context.MODE_PRIVATE) }
     var immersive by rememberSaveable { mutableStateOf(preferences.getBoolean("immersive", false)) }
-    val pager = rememberPagerState(
-        initialPage = themes.indexOfFirst { it.id == ThemeCatalog.selectedId(
-            preferences.getString("theme_id", null), preferences.getInt("theme", 0), themes) },
-        pageCount = { themes.size },
-    )
+    var storeOpen by rememberSaveable { mutableStateOf(false) }
+    var selectedId by rememberSaveable { mutableStateOf(ThemeCatalog.selectedId(
+        preferences.getString("theme_id", null), preferences.getInt("theme", 0), themes)) }
+    var atStoreEntry by rememberSaveable { mutableStateOf(false) }
+    val pager = rememberPagerState(initialPage = themes.indexOfFirst { it.id == selectedId }.coerceAtLeast(0),
+        pageCount = { themes.size + 1 })
     val styleStore = remember { ThemeStyleStore(context.applicationContext) }
     var styles by remember(themes) { mutableStateOf(themes.associate { it.id to styleStore.read(it) }) }
     var editingThemeId by rememberSaveable { mutableStateOf<String?>(null) }
+    var deletingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    fun operation(block: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try { block() }
+            catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                snackbar.showSnackbar(if (failure is java.io.IOException) "保存失败，请重试" else failure.message ?: "操作失败，请重试")
+            } finally { busy = false }
+        }
+    }
+    fun requestDelete(id: String) {
+        if (themes.size == 1) scope.launch { snackbar.showSnackbar("至少保留一个主题") }
+        else deletingId = id
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val data by produceState<CalendarData?>(null, context, lifecycle, clock) {
+    val day by produceState<CalendarDay?>(null, context, lifecycle, clock) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            calendarDates(context, clock).collect { today ->
-                value = withContext(Dispatchers.Default) { CalendarData.create(today) }
+            calendarDayEvents(context, clock).collect { event ->
+                value = withContext(Dispatchers.Default) { CalendarDay(CalendarData.create(event.date), event.animate) }
             }
         }
     }
-    LaunchedEffect(pager, themes) {
-        snapshotFlow { pager.settledPage }.distinctUntilChanged().collect {
-            preferences.edit { putString("theme_id", themes[it].id) }
+    val data = day?.data
+    var previousOrder by remember { mutableStateOf(themes.map { it.id }) }
+    LaunchedEffect(themes.map { it.id }) {
+        val ids = themes.map { it.id }
+        if (selectedId !in ids) {
+            val index = previousOrder.indexOf(selectedId).coerceAtLeast(0)
+            selectedId = previousOrder.drop(index + 1).firstOrNull { it in ids }
+                ?: previousOrder.take(index).lastOrNull { it in ids } ?: ids.first()
+        }
+        pager.requestScrollToPage(if (atStoreEntry) themes.size else ids.indexOf(selectedId))
+        previousOrder = ids
+        snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { page ->
+            if (!storeOpen) {
+                atStoreEntry = page == themes.size
+                themes.getOrNull(page)?.let { selectedId = it.id }
+            }
         }
     }
-    val theme = themes[pager.currentPage]
+    LaunchedEffect(selectedId) { preferences.edit { putString("theme_id", selectedId) } }
     LaunchedEffect(immersive) { preferences.edit { putBoolean("immersive", immersive) } }
-    val displayTransition = updateTransition(immersive, label = "calendar display mode")
-    // Keep bars hidden until the return animation has landed on the preview.
-    val fullScreenWindow = immersive || displayTransition.currentState || displayTransition.isRunning
+    val theme = themes.find { it.id == selectedId } ?: themes.first()
+    val displayTransition = updateTransition(if (storeOpen) 2 else if (immersive) 1 else 0, label = "calendar screen")
+    val fullScreenWindow = immersive || displayTransition.currentState == 1
     CalendarWindow(fullScreenWindow)
     BackHandler(enabled = fullScreenWindow) { immersive = false }
-    val background by animateColorAsState(theme.background, label = "theme background")
-    val foreground = Color(theme.surfaces.chrome)
+    val background by animateColorAsState(if (storeOpen || atStoreEntry) MaterialTheme.colorScheme.surface else theme.background,
+        label = "theme background")
+    val foreground = if (atStoreEntry) MaterialTheme.colorScheme.onSurface else Color(theme.surfaces.chrome)
     SideEffect {
         val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window?.insetsController?.setSystemBarsAppearance(
-            if (theme.surfaces.darkSystemBarIcons) mask else 0, mask)
+            if (storeOpen || atStoreEntry || theme.surfaces.darkSystemBarIcons) mask else 0, mask)
     }
-    val cycle = rememberAlmanacCycle(data)
-    val goodDayCycle = rememberAlmanacCycle(data, centered = true)
-    val themeImages = themes.mapNotNull { theme -> repository.imagePath(theme)?.let { theme.id to it } }.toMap()
-    CompositionLocalProvider(LocalThemeStyles provides styles, LocalThemeImages provides themeImages, LocalAlmanacCycle provides cycle,
-        LocalGoodDayCycle provides goodDayCycle,
+    val cycle = rememberAlmanacCycle(data, enabled = !storeOpen)
+    val goodDayCycle = rememberAlmanacCycle(data, centered = true, enabled = !storeOpen)
+    val themeImages = inventory.catalog.mapNotNull { t -> repository.imagePath(t)?.let { t.id to it } }.toMap()
+    val savedScreens = rememberSaveableStateHolder()
+    CompositionLocalProvider(LocalThemeStyles provides styles, LocalThemeImages provides themeImages,
+        LocalAlmanacCycle provides cycle, LocalGoodDayCycle provides goodDayCycle,
         LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).asPaddingValues()) {
         themes.firstOrNull { it.id == editingThemeId }?.let { selected ->
             ThemeStyleSheet(selected, styles.getValue(selected.id), styleStore,
-                onChange = { style ->
-                    styleStore.save(selected, style)
-                    styles = styles + (selected.id to style)
-                }, onReset = {
-                    styleStore.reset(selected)
-                    styles = styles + (selected.id to selected.defaultStyle())
-                }, onDismiss = { editingThemeId = null })
+                onChange = { style -> styleStore.save(selected, style); styles = styles + (selected.id to style) },
+                onReset = { styleStore.reset(selected); styles = styles + (selected.id to selected.defaultStyle()) },
+                onDismiss = { editingThemeId = null })
+        }
+        deletingId?.let { id ->
+            val name = inventory.catalog.find { it.id == id }?.title.orEmpty()
+            AlertDialog(modifier = Modifier.semantics { testTagsAsResourceId = true }, onDismissRequest = { if (!busy) deletingId = null },
+                title = { Text("删除主题？") },
+                text = { Text("将从已安装主题中移除“$name”") },
+                confirmButton = { TextButton(enabled = !busy, onClick = {
+                    operation { repository.uninstall(id); deletingId = null }
+                }, modifier = Modifier.testTag("confirm-delete")) { Text("删除") } },
+                dismissButton = { TextButton(enabled = !busy, onClick = { deletingId = null }) { Text("取消") } })
         }
         SharedTransitionLayout(Modifier.fillMaxSize().background(background)) {
             val sharedScope = this
-            displayTransition.AnimatedContent(
-                modifier = Modifier.fillMaxSize(),
-                transitionSpec = {
-                    (EnterTransition.None togetherWith ExitTransition.None)
-                        .using(SizeTransform(clip = false))
-                },
-                contentKey = { it },
-            ) { fullScreen ->
-                val visibilityScope = this
-                if (fullScreen) {
-                    data?.let {
-                        ImmersiveCalendar(theme, it, onExit = { immersive = false },
-                            modifier = Modifier.calendarBounds(sharedScope, theme, visibilityScope))
+            displayTransition.AnimatedContent(modifier = Modifier.fillMaxSize(), transitionSpec = {
+                (EnterTransition.None togetherWith ExitTransition.None).using(SizeTransform(clip = false))
+            }) { screen ->
+                val visibility = this
+                @Composable
+                fun Modifier.shared(key: String): Modifier = with(sharedScope) {
+                    sharedBounds(rememberSharedContentState(key), visibility,
+                        boundsTransform = { _, _ -> tween(460, easing = FastOutSlowInEasing) },
+                        enter = EnterTransition.None, exit = ExitTransition.None,
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(ContentScale.Fit))
+                }
+                when (screen) {
+                    1 -> day?.let { current ->
+                        ImmersiveCalendar(theme, current.data, onExit = { immersive = false },
+                            modifier = Modifier.shared("calendar-${theme.id}"), animateDay = current.animate && immersive)
                     }
-                } else {
-                    ThemeChooser(pager, themes, theme, data, foreground,
-                        enabled = !immersive && !displayTransition.isRunning,
-                        paperModifier = { Modifier.calendarBounds(sharedScope, it, visibilityScope) },
-                        visibilityScope = visibilityScope,
-                        onSelect = { immersive = true },
-                        onStyle = { editingThemeId = it.id })
+                    2 -> savedScreens.SaveableStateProvider("store") {
+                        ThemeStore(inventory, data, busy, Modifier.shared("theme-store"),
+                            previewsEnabled = !displayTransition.isRunning,
+                            onBack = { storeOpen = false }, onAdd = { operation { repository.add(it) } },
+                            onFavorite = { operation { repository.toggleFavorite(it) } },
+                            onSaveFavorites = { repository.setFavorites(it) },
+                            onError = { message -> scope.launch { snackbar.showSnackbar(message) } }, onDelete = ::requestDelete,
+                            onReorder = { ids -> operation { repository.reorder(ids) } },
+                            onUse = { id ->
+                                selectedId = id; atStoreEntry = false
+                                // The pager is detached in the store; schedule its next layout rather
+                                // than suspending until it exists before dismissing the store.
+                                pager.requestScrollToPage(themes.indexOfFirst { it.id == id }.coerceAtLeast(0))
+                                storeOpen = false
+                            })
+                    }
+                    else -> ThemeChooser(pager, themes, theme, data, foreground,
+                        enabled = !displayTransition.isRunning && !busy,
+                        paperModifier = { Modifier.shared("calendar-${it.id}") },
+                        modifier = Modifier.shared("theme-store"), visibilityScope = visibility,
+                        onSelect = { immersive = true }, onStyle = { editingThemeId = it.id },
+                        onStore = { storeOpen = true }, onDelete = ::requestDelete)
                 }
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalSharedTransitionApi::class)
-@Composable
-private fun Modifier.calendarBounds(scope: SharedTransitionScope, theme: CalendarTheme,
-    visibility: AnimatedVisibilityScope): Modifier = with(scope) {
-    this@calendarBounds.sharedBounds(
-        sharedContentState = rememberSharedContentState("calendar-${theme.id}"),
-        animatedVisibilityScope = visibility,
-        boundsTransform = { _, _ -> tween(460, easing = FastOutSlowInEasing) },
-        // Both surfaces render identical paper; overlapping alpha fades would wash out its ink.
-        enter = EnterTransition.None,
-        exit = ExitTransition.None,
-        // Measure each paper once at its destination size; scale the layer during motion.
-        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(ContentScale.Fit),
-    )
-}
-
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun ThemeChooser(pager: PagerState, themes: List<CalendarTheme>, theme: CalendarTheme, data: CalendarData?, foreground: Color,
-    enabled: Boolean, paperModifier: @Composable (CalendarTheme) -> Modifier,
-    visibilityScope: AnimatedVisibilityScope, onSelect: () -> Unit, onStyle: (CalendarTheme) -> Unit) {
-    val chromeModifier = with(visibilityScope) {
-        Modifier.animateEnterExit(enter = fadeIn(tween(200, delayMillis = 220)), exit = fadeOut(tween(160)))
-    }
-    Column(
-        Modifier.fillMaxSize()
-            .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout).union(WindowInsets.waterfall))
-            .semantics { testTagsAsResourceId = true },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row(chromeModifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("CALENDARMODS", color = foreground, fontSize = 10.sp, letterSpacing = 2.sp)
-            Text("${(pager.currentPage + 1).toString().padStart(2, '0')} / ${themes.size.toString().padStart(2, '0')}", color = foreground, fontSize = 10.sp)
-        }
-        HorizontalPager(
-            state = pager,
-            userScrollEnabled = enabled,
-            modifier = Modifier.weight(1f).fillMaxWidth().testTag("theme-pager").semantics {
-                stateDescription = "主题：${theme.title}，${pager.currentPage + 1} / ${themes.size}"
-            },
-            key = { themes[it].id },
-        ) { index ->
-            Box(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-                data?.let {
-                    CalendarArtwork(themes[index], it, onSelect = {
-                        if (enabled && !pager.isScrollInProgress && pager.settledPage == index) onSelect()
-                    }, modifier = paperModifier(themes[index]))
-                }
-                FilledTonalIconButton(onClick = { onStyle(themes[index]) },
-                    enabled = enabled && !pager.isScrollInProgress,
-                    modifier = chromeModifier.align(Alignment.BottomEnd).size(48.dp)
-                        .testTag("style-${themes[index].name}")) {
-                    Icon(StyleIcon, "${themes[index].title.substringBefore(" · ")}样式设置")
-                }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                SnackbarHost(snackbar, Modifier.navigationBarsPadding())
             }
-        }
-        Column(chromeModifier.fillMaxWidth().padding(top = 10.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(theme.title, color = foreground, fontSize = 13.sp, letterSpacing = 2.sp,
-                modifier = Modifier.testTag("theme-title"))
-            Row(Modifier.padding(top = 10.dp, bottom = 8.dp).semantics {
-                contentDescription = "共 ${themes.size} 个主题，当前第 ${pager.currentPage + 1} 个"
-            }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                // Keep the indicator bounded when a large downloaded library is installed.
-                val start = (pager.currentPage - 4).coerceIn(0, (themes.size - 9).coerceAtLeast(0))
-                (start until minOf(start + 9, themes.size)).forEach { index ->
-                    Box(Modifier.size(if (index == pager.currentPage) 16.dp else 4.dp, 4.dp)
-                        .background(foreground.copy(alpha = if (index == pager.currentPage) .85f else .25f), CircleShape))
-                }
-            }
-            Text("左右滑动切换 · 单击全屏 · 长按返回", color = foreground.copy(alpha = .8f), fontSize = 10.sp, letterSpacing = 1.sp)
         }
     }
 }

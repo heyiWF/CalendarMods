@@ -73,7 +73,7 @@ internal class ThemeStyleStore(private val context: Context) {
     }
 
     fun reset(theme: CalendarTheme) {
-        preferences.edit {
+        preferences.edit(commit = true) {
             remove("${theme.id}.image"); remove("${theme.id}.fill")
             putBoolean("${theme.id}.migrated", true)
         }
@@ -118,6 +118,11 @@ private val imageCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
 @Composable
 internal fun ThemeImage(theme: CalendarTheme, modifier: Modifier) {
     val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
+    val thumbnail = LocalThumbnailImage.current
+    if (thumbnail != null) {
+        thumbnail.bitmap?.let { Image(it.asImageBitmap(), null, modifier, contentScale = style.fill.scale) }
+        return
+    }
     val defaultPath = LocalThemeImages.current[theme.id]
     val path = style.imagePath ?: defaultPath
     val bitmap by produceState<Bitmap?>(path?.let(imageCache::get), path, defaultPath) {

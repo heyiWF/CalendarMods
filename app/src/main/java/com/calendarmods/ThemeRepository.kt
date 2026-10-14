@@ -22,8 +22,11 @@ internal data class InstalledTheme(val theme: CalendarTheme, val imageFile: Stri
 internal data class ThemeInventory(
     val installed: List<InstalledTheme> = emptyList(),
     val loadErrors: List<String> = emptyList(),
+    val library: ThemeLibrary = ThemeLibrary(),
 ) {
-    val themes: List<CalendarTheme> get() = CalendarTheme.entries + installed.map { it.theme }
+    val catalog: List<CalendarTheme> = CalendarTheme.entries + installed.map { it.theme }
+    val byId = catalog.associateBy { it.id }
+    val themes: List<CalendarTheme> get() = library.order.mapNotNull(byId::get)
 }
 
 /** Single-process durable catalog. Future download/import clients call install after acquisition.
@@ -33,6 +36,7 @@ internal class ThemeRepository private constructor(context: Context) {
     private val directory = File(context.filesDir, "themes-v1").apply { mkdirs() }
     private val index = AtomicFile(File(directory, "index.json"))
     private val mutex = Mutex()
+    private val styleStore = ThemeStyleStore(context.applicationContext)
     private val mutableInventory = MutableStateFlow(readInventory())
     val inventory = mutableInventory.asStateFlow()
 
@@ -53,8 +57,10 @@ internal class ThemeRepository private constructor(context: Context) {
                 val updated = if (previous.any { it.theme.id == theme.id }) {
                     previous.map { if (it.theme.id == theme.id) entry else it }
                 } else previous + entry
-                persist(updated)
-                mutableInventory.value = ThemeInventory(updated)
+                val library = inventory.value.library.add(theme.id, System.currentTimeMillis())
+                val next = inventory.value.copy(installed = updated, library = library)
+                persist(next)
+                mutableInventory.value = next
             } catch (failure: Exception) {
                 imageFile?.let { File(directory, it).delete() }
                 throw failure
@@ -64,13 +70,48 @@ internal class ThemeRepository private constructor(context: Context) {
         }
     }
 
-    suspend fun uninstall(id: String) = withContext(Dispatchers.IO) {
+    suspend fun add(id: String) = modify { current ->
+        require(current.catalog.any { it.id == id }) { "主题不存在" }
+        current.copy(library = current.library.add(id, System.currentTimeMillis()))
+    }
+
+    suspend fun uninstall(id: String) = modify { current ->
+        current.copy(library = current.library.remove(id))
+    }
+
+    suspend fun toggleFavorite(id: String) = modify { current ->
+        require(current.catalog.any { it.id == id })
+        current.copy(library = current.library.favorite(id))
+    }
+
+    suspend fun setFavorites(values: Map<String, Boolean>) = modify { current ->
+        require(values.keys.all { id -> current.catalog.any { it.id == id } }) { "主题不存在" }
+        current.copy(library = current.library.setFavorites(values))
+    }
+
+    suspend fun reorder(ids: List<String>) = modify { current ->
+        current.copy(library = current.library.reorder(ids))
+    }
+
+    private suspend fun modify(update: (ThemeInventory) -> ThemeInventory) = withContext(Dispatchers.IO) {
         mutex.withLock {
-            check(inventory.value.loadErrors.isEmpty()) { "Resolve theme index errors before modifying the library" }
-            require(CalendarTheme.entries.none { it.id == id }) { "Cannot uninstall a built-in theme" }
-            val updated = inventory.value.installed.filterNot { it.theme.id == id }
-            persist(updated)
-            mutableInventory.value = ThemeInventory(updated)
+            check(inventory.value.loadErrors.isEmpty()) { "主题记录无法读取，暂时不能修改" }
+            val next = update(inventory.value)
+            if (next != inventory.value) {
+                persist(next)
+                // Tombstones survive a crash between the atomic membership write and preference cleanup.
+                resetRemovedStyles(next)
+                mutableInventory.value = next
+            }
+        }
+    }
+
+    private fun resetRemovedStyles(state: ThemeInventory) {
+        val styles = styleStore
+        state.catalog.filter { it.id in state.library.resetStyles }.forEach { theme ->
+            val old = styles.read(theme)
+            styles.reset(theme)
+            styles.discard(old.imagePath)
         }
     }
 
@@ -92,12 +133,20 @@ internal class ThemeRepository private constructor(context: Context) {
         } finally { bitmap.recycle() }
     }
 
-    private fun persist(entries: List<InstalledTheme>) {
-        val json = JSONArray().apply {
-            entries.forEach { entry -> put(JSONObject().apply {
+    private fun persist(state: ThemeInventory) {
+        val packages = JSONArray().apply {
+            state.installed.forEach { entry -> put(JSONObject().apply {
                 put("manifest", JSONObject(ThemeManifest.encode(entry.theme)))
                 entry.imageFile?.let { put("imageFile", it) }
             }) }
+        }
+        val json = JSONObject().apply {
+            put("schemaVersion", 2)
+            put("packages", packages)
+            put("order", JSONArray(state.library.order))
+            put("addedAt", JSONObject(state.library.addedAt))
+            put("favorites", JSONArray(state.library.favorites.toList()))
+            put("resetStyles", JSONArray(state.library.resetStyles.toList()))
         }.toString().toByteArray(Charsets.UTF_8)
         val output = index.startWrite()
         try { output.write(json); index.finishWrite(output) }
@@ -107,13 +156,18 @@ internal class ThemeRepository private constructor(context: Context) {
     private fun readInventory(): ThemeInventory {
         val entries = mutableListOf<InstalledTheme>()
         val errors = mutableListOf<String>()
+        var library: ThemeLibrary? = null
+        var stored: JSONObject? = null
         try {
             val bytes = index.openRead().use {
                 require(it.channel.size() <= 8 * 1024 * 1024) { "Theme index is too large" }
                 it.readBytes()
             }
             require(bytes.size <= 8 * 1024 * 1024)
-            val json = JSONArray(bytes.toString(Charsets.UTF_8))
+            val text = bytes.toString(Charsets.UTF_8)
+            stored = if (text.trimStart().startsWith("{")) JSONObject(text) else null
+            stored?.let { require(it.getInt("schemaVersion") == 2) { "Unsupported library version" } }
+            val json = stored?.getJSONArray("packages") ?: JSONArray(text)
             require(json.length() <= 200)
             for (position in 0 until json.length()) {
                 try {
@@ -134,10 +188,29 @@ internal class ThemeRepository private constructor(context: Context) {
             // First launch has no installed themes.
         } catch (failure: Exception) { errors += "Theme index: ${failure.message}" }
         if (errors.isEmpty()) {
+            try {
+                val catalogIds = (CalendarTheme.entries + entries.map { it.theme }).map { it.id }.toSet()
+                library = stored?.let { root ->
+                    fun ids(key: String): List<String> = root.getJSONArray(key).let { array ->
+                        (0 until array.length()).map { array.getString(it) }.also { values ->
+                            require(values.distinct().size == values.size && values.all { it in catalogIds })
+                        }
+                    }
+                    val order = ids("order")
+                    val times = root.getJSONObject("addedAt")
+                    ThemeLibrary(order, order.associateWith { times.getLong(it) }, ids("favorites").toSet(), ids("resetStyles").toSet())
+                } ?: ThemeLibrary(order = catalogIds.toList())
+            } catch (failure: Exception) { errors += "Theme library: ${failure.message}" }
+        }
+        val state = ThemeInventory(entries, errors, library ?: ThemeLibrary())
+        if (errors.isEmpty()) {
+            if (stored == null) try { persist(state) }
+            catch (failure: Exception) { return state.copy(loadErrors = listOf("Theme migration: ${failure.message}")) }
+            resetRemovedStyles(state)
             val used = entries.mapNotNull { it.imageFile }.toSet()
             directory.listFiles()?.filter { it.extension == "png" && it.name !in used }?.forEach { it.delete() }
         }
-        return ThemeInventory(entries, errors)
+        return state
     }
 
     companion object {
