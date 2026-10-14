@@ -38,7 +38,7 @@ CalendarMods 是一款专注于日历展示的 Android 应用。七种各具风�
 
 滑到主题选择的最右侧，点击加号进入主题商店。推荐、收藏和已安装以三列预览展示，横竖屏都能浏览。
 
-<img src="docs/screenshots/theme-store-portrait.jpg" width="260" alt="主题商店：三列预览，名称与安装按钮同行"> <img src="docs/screenshots/theme-store-landscape.jpg" width="460" alt="主题商店横屏布局">
+<img src="docs/screenshots/theme-store-portrait.jpg" width="260" alt="主题商店：三列预览，名称与安装按钮分两行居中"> <img src="docs/screenshots/theme-store-landscape.jpg" width="460" alt="主题商店横屏布局">
 
 七个预设主题初始全部添加。收藏喜欢的外观，在“已安装”的编辑模式里拖动排序，让常用主题排在前面。也可以上滑切换页预览或在商店中删除主题；至少保留一个，删除的主题随时可以重新添加。
 

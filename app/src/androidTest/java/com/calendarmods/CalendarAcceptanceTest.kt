@@ -209,7 +209,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 check(firstRow.zipWithNext().all { (a, b) -> a.right <= b.left })
                 val title = Rect().also { b -> nodes().first { it.viewIdResourceName == "store-title-GOLDEN" }.getBoundsInScreen(b) }
                 val button = Rect().also { b -> nodes().first { it.viewIdResourceName == "add-use-GOLDEN" }.getBoundsInScreen(b) }
-                check(title.right <= button.left && kotlin.math.abs(title.centerY() - button.centerY()) <= 2)
+                check(title.bottom <= button.top && kotlin.math.abs(title.centerX() - button.centerX()) <= 2)
+                check(kotlin.math.abs(button.centerX() - firstRow.first().centerX()) <= 2)
                 SystemClock.sleep(1500) // Cold orientation-specific thumbnails settle before the visual sample.
                 capture("store-recommended-${if (rotation == 0) "portrait" else "landscape"}")
             }

@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -223,12 +224,13 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                         StoreIcon(if (favorite) FavoriteFilledIcon else FavoriteIcon, if (favorite) "取消收藏${theme.title}" else "收藏${theme.title}", favorite)
                                     }
                                 }
-                                Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 10.dp).heightIn(min = 48.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(top = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(theme.title.substringBefore(" · "),
-                                        Modifier.weight(1f).testTag("store-title-${theme.name}"),
-                                        style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Modifier.fillMaxWidth().padding(horizontal = 4.dp).testTag("store-title-${theme.name}"),
+                                        style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     if (!editing || page != 2) StoreInstallButton(theme, installed, page == 2,
                                         enabled = !busy && !savingFavorites,
                                         onClick = {

@@ -6,7 +6,7 @@
 
 - 七个预设主题一次性迁移为已安装，保留外部主题、顺序、当前选择与样式。删除后重启不重新添加；重新应用排在末尾，恢复默认样式。
 - 仓库覆盖收藏批量持久化、失败不发布新状态、至少一个主题、删除图片清理、默认样式重置和排序保存。
-- 推荐、收藏、已安装保持三列；主题名称与按钮同行、垂直居中，名称内缩 14dp，整行距预览 10dp。横竖屏实际坐标断言通过。
+- 推荐、收藏、已安装保持三列；主题名称与按钮分两行水平居中，名称在上、按钮在下，名称距预览 10dp、与按钮间隔 4dp。横竖屏实际坐标断言通过。
 - “应用”安装后留在当前页，“已安装”打开共用删除确认；已安装页保留“使用”。已移除独立的安装状态文字。
 - 收藏页取消收藏后心形变空心、Toast 提示、卡片保留；旋转和后台保持待取消状态，再点可撤销；离页原子提交。模拟文件写入失败时恢复实心收藏并留在原页。
 - 真实拖动手势保存排序；阴影仅覆盖圆角预览，标题区域无矩形阴影。上滑不足阈值回弹，超过阈值显示删除确认，不误进全屏；垃圾桶以带滞回的缩放和轻跳反馈阈值。
@@ -50,3 +50,7 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 ```
 
 本地完整日志为 `theme-store-final-build.log`、`theme-store-device-final.log`、`theme-store-performance-final.log`、`theme-midnight-final.log`、`theme-store-regression-final.log`、`theme-store-contract-final.log`、`theme-store-styles-final.log`。原始 PNG、录屏及逐帧联系表保存在忽略目录 `docs/verification/theme-store/`；产品截图为 [`theme-store-portrait.jpg`](screenshots/theme-store-portrait.jpg) 和 [`theme-store-landscape.jpg`](screenshots/theme-store-landscape.jpg)。
+
+### 居中双行布局复测
+
+按手机显示反馈，将名称与安装按钮改为上下两行并水平居中。横竖屏断言名称位于按钮上方，二者与卡片中心对齐；APK 构建及商店 5 组设备回归通过。对应日志为 `theme-store-centered-build.log`、`theme-store-centered-device.log`，上方产品截图已更新。
