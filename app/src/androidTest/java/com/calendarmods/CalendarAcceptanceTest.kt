@@ -17,6 +17,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.accessibilityservice.AccessibilityService
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.*
 import androidx.lifecycle.Lifecycle
 import java.io.File
 import java.time.Instant
@@ -33,6 +34,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var refinementsOnly = false
     private var contractOnly = false
     private var storeOnly = false
+    private var storeMotionOnly = false
     private val dayMotion = AtomicReference<Pair<LocalDate, Boolean>>()
     private var performanceOnly = false
     private var interruptionsOnly = false
@@ -44,6 +46,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         refinementsOnly = arguments?.getString("refinements") == "true"
         performanceOnly = arguments?.getString("performance") == "true"
         storeOnly = arguments?.getString("store") == "true"
+        storeMotionOnly = arguments?.getString("storeMotion") == "true"
         interruptionsOnly = arguments?.getString("interruptions") == "true"
         midnightOnly = arguments?.getString("midnight") == "true"
         contractOnly = arguments?.getString("contract") == "true"
@@ -72,7 +75,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (performanceOnly) {
+            if (storeMotionOnly) {
+                verifyStoreMotion(checks)
+            } else if (performanceOnly) {
                 verifyStorePerformance(checks)
             } else if (storeOnly) {
                 verifyStore(checks)
@@ -267,7 +272,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             press("store-tab-1"); SystemClock.sleep(400)
             check(nodes().any { it.viewIdResourceName == "store-card-GOLDEN" })
             press("add-use-GOLDEN")
-            await("readd") { repository.inventory.value.library.order.last() == CalendarTheme.GOLDEN.id }
+            await("readd") { repository.inventory.value.library.order.last() == CalendarTheme.GOLDEN.id &&
+                nodes().any { it.viewIdResourceName == "add-use-GOLDEN" && it.isClickable } }
             check(nodes().any { it.viewIdResourceName == "theme-store" })
             checks += "three-column portrait/landscape grids, favorite tab, real drag reorder, delete confirmation and re-add in place PASS"
             press("add-use-GOLDEN")
@@ -284,6 +290,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             }
             await("use action ready") { nodes().any { it.text?.toString() == "使用" } }
             press("add-use-GOLDEN")
+            SystemClock.sleep(100)
+            capture("store-use-middle")
             awaitTheme(CalendarTheme.GOLDEN)
             val art = Rect().also { bounds -> nodes().first { it.viewIdResourceName == "art-GOLDEN" }.getBoundsInScreen(bounds) }
             val style = Rect().also { bounds -> nodes().first { it.viewIdResourceName == "style-GOLDEN" }.getBoundsInScreen(bounds) }
@@ -295,10 +303,142 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             await("swipe deletion dialog") { nodes().any { it.viewIdResourceName == "confirm-delete" } }
             uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
             awaitTheme(CalendarTheme.GOLDEN)
-            checks += "use returns to selected preview; style button below artwork; short swipe cancels and long swipe confirms without fullscreen PASS"
+            checks += "use returns to selected preview with transition; style alignment and swipe deletion PASS"
+            repeat(repository.inventory.value.themes.size) { swipe(left = true) }
+            press("store-entry")
+            await("fresh store entry") { nodes().any { it.viewIdResourceName == "store-tab-0" && it.isSelected } }
+            SystemClock.sleep(500)
+            check(nodes().any { it.viewIdResourceName == "store-grid-0" })
+            checks += "reopening the store always selects recommended PASS"
         } finally {
             if (original == null) index.delete() else index.writeBytes(original)
         }
+    }
+
+    private fun verifyChooserMotion(checks: MutableList<String>) {
+        press("style-GOLDEN")
+        await("style sheet") { nodes().any { it.viewIdResourceName == "style-done" } }
+        SystemClock.sleep(900)
+        capture("style-done-before")
+        press("style-done")
+        SystemClock.sleep(100)
+        check(nodes().any { it.viewIdResourceName == "theme-style-sheet" }) { "Done removed the sheet before its exit animation" }
+        capture("style-done-middle")
+        await("style dismissed") { nodes().none { it.viewIdResourceName == "theme-style-sheet" } }
+        checks += "style Done retains and animates the sheet before removing it PASS"
+        val art = Rect().also { b -> nodes().first { it.viewIdResourceName == "art-GOLDEN" }.getBoundsInScreen(b) }
+        val down = SystemClock.uptimeMillis()
+        fun inject(action: Int, x: Float, y: Float) {
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
+            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            check(uiAutomation.injectInputEvent(event, true)); event.recycle()
+        }
+        val x = art.exactCenterX(); val y = art.exactCenterY()
+        inject(MotionEvent.ACTION_DOWN, x, y)
+        for (step in 1..20) {
+            inject(MotionEvent.ACTION_MOVE, x, y - art.height() * .35f * step / 20)
+            SystemClock.sleep(16)
+        }
+        for (step in 1..20) {
+            inject(MotionEvent.ACTION_MOVE, x - art.width() * .4f * step / 20, y - art.height() * .35f)
+            SystemClock.sleep(16)
+        }
+        capture("chooser-vertical-lock")
+        check(nodes().any { it.viewIdResourceName == "art-GOLDEN" })
+        inject(MotionEvent.ACTION_UP, x - art.width() * .4f, y - art.height() * .35f)
+        await("locked swipe delete") { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+        check(nodes().any { it.text?.toString() == "将从已安装主题中移除“${CalendarTheme.GOLDEN.title}”" })
+        uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        awaitTheme(CalendarTheme.GOLDEN)
+        swipe(left = true); awaitTheme(CalendarTheme.TEDDY)
+        swipe(left = false); awaitTheme(CalendarTheme.GOLDEN)
+        checks += "vertical deletion stays locked through sideways drift, then releases horizontal paging PASS"
+    }
+
+    private fun assertPhotoPreviewsVisible() {
+        val bitmap = checkNotNull(uiAutomation.takeScreenshot())
+        try {
+            for (name in listOf("PHOTO", "TEDDY")) {
+                val bounds = Rect().also { b -> nodes().first { it.viewIdResourceName == "store-card-$name" }.getBoundsInScreen(b) }
+                val colors = mutableSetOf<Int>()
+                for (x in 3..12) for (y in 4..9) {
+                    val px = (bounds.left + bounds.width() * x / 16).coerceIn(0, bitmap.width - 1)
+                    val py = (bounds.top + bounds.height() * y / 20).coerceIn(0, bitmap.height - 1)
+                    colors += bitmap.getPixel(px, py)
+                }
+                check(colors.size > 25) { "$name preview disappeared during reorder (${colors.size} colors)" }
+            }
+        } finally { bitmap.recycle() }
+    }
+
+    private fun verifyStoreMotion(checks: MutableList<String>) {
+        val activity = activities.lastActivity as MainActivity
+        val gate = AtomicReference(kotlinx.coroutines.CompletableDeferred<Unit>())
+        val progress = AtomicReference<(Float?) -> Unit>()
+        val motionFrames = java.util.Collections.synchronizedList(mutableListOf<Triple<Float, Int, Int>>())
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val error = AtomicReference<String>()
+        val failure = java.util.concurrent.atomic.AtomicBoolean()
+        val reset = AtomicReference<() -> Unit>()
+        val originalScale = shell("settings get global animator_duration_scale").trim()
+        try {
+            shell("settings put global animator_duration_scale 2")
+            verifyChooserMotion(checks)
+            runOnMainSync {
+                activity.setContent {
+                    var fixture by remember { mutableStateOf(ThemeInventory(library = ThemeLibrary(
+                        favorites = CalendarTheme.entries.map { it.id }.toSet()).remove(CalendarTheme.GOLDEN.id))) }
+                    reset.set { fixture = fixture.copy(library = fixture.library.remove(CalendarTheme.GOLDEN.id)) }
+                    MaterialTheme {
+                        CompositionLocalProvider(LocalStoreTabMotionObserver provides { alpha, displayed, target ->
+                            motionFrames.add(Triple(alpha, displayed, target))
+                        }) {
+                        ThemeStore(fixture, CalendarData.create(LocalDate.of(2026, 10, 14)), false,
+                            androidx.compose.ui.Modifier, onBack = {}, onAdd = { id, notify ->
+                                calls.incrementAndGet(); progress.set(notify)
+                                gate.get().await()
+                                if (failure.get()) throw java.io.IOException("fixture install failure")
+                                fixture = fixture.copy(library = fixture.library.add(id, 1L))
+                            }, onFavorite = {}, onSaveFavorites = {}, onError = { error.set(it) },
+                            onDelete = {}, onReorder = { fixture = fixture.copy(library = fixture.library.reorder(it)) }, onUse = {})
+                        }
+                    }
+                }
+            }
+            await("motion fixture") { nodes().any { it.viewIdResourceName == "store-grid-0" } }
+            SystemClock.sleep(2500)
+            press("store-tab-1")
+            SystemClock.sleep(160)
+            capture("store-tab-transition-middle")
+            SystemClock.sleep(850)
+            val sampled = synchronized(motionFrames) { motionFrames.toList() }
+            check(sampled.any { it.second == 0 && it.third == 1 && it.first in .05f.. .7f }) { "Missing outgoing fade frames" }
+            check(sampled.any { it.second == 1 && it.third == 1 && it.first in .05f.. .9f }) { "Missing incoming fade frames" }
+            press("store-tab-2"); press("store-tab-0")
+            SystemClock.sleep(900)
+            check(nodes().count { it.viewIdResourceName?.startsWith("store-grid-") == true } == 1)
+            checks += "tab fade-through retains outgoing content during exit; rapid reversal settles to one page PASS"
+            press("add-use-GOLDEN")
+            await("install starts") { calls.get() == 1 && nodes().any { it.stateDescription?.toString() == "正在安装" } }
+            capture("store-install-indeterminate")
+            check(nodes().filter { it.viewIdResourceName?.startsWith("store-tab-") == true }.all { !it.isEnabled })
+            runOnMainSync { progress.get().invoke(.42f) }
+            await("real progress") { nodes().any { it.stateDescription?.toString() == "42%" } }
+            capture("store-install-progress")
+            gate.get().complete(Unit)
+            await("installed result") { nodes().any { it.viewIdResourceName == "add-use-GOLDEN" && it.isClickable } }
+            check(calls.get() == 1)
+            checks += "application shows circular indeterminate and determinate progress, prevents duplicate actions and settles installed PASS"
+            runOnMainSync { reset.get().invoke() }
+            gate.set(kotlinx.coroutines.CompletableDeferred())
+            failure.set(true)
+            press("add-use-GOLDEN")
+            await("second install starts") { calls.get() == 2 }
+            gate.get().complete(Unit)
+            await("failure restores action") { error.get() != null && nodes().any { it.viewIdResourceName == "add-use-GOLDEN" && it.isClickable } }
+            check(nodes().any { it.text?.toString() == "应用" })
+            checks += "failed acquisition leaves theme uninstalled and restores retry action PASS"
+        } finally { shell("settings put global animator_duration_scale $originalScale") }
     }
 
     private fun verifyStorePerformance(checks: MutableList<String>) {
@@ -332,7 +472,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                         MaterialTheme {
                             androidx.compose.runtime.key(count) {
                                 ThemeStore(fixture, CalendarData.create(LocalDate.of(2026, 10, 14)), false,
-                                    androidx.compose.ui.Modifier, {}, {}, {}, {}, {}, {}, {}, {})
+                                    androidx.compose.ui.Modifier, {}, { _, _ -> }, {}, {}, {}, {}, {}, {})
                             }
                         }
                     }
@@ -386,6 +526,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             inject(MotionEvent.ACTION_MOVE, x + (endX - x) * step / 30, y + (endY - y) * step / 30)
         }
         captureAtEnd?.let(::capture)
+        if (captureAtEnd == "store-drag-shadow") {
+            assertPhotoPreviewsVisible()
+        }
         inject(MotionEvent.ACTION_UP, endX, endY)
         SystemClock.sleep(700)
     }

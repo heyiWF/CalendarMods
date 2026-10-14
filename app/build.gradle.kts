@@ -28,7 +28,8 @@ dependencies {
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
+    // Material 3 Expressive circular wavy progress indicators.
+    implementation("androidx.compose.material3:material3:1.5.0-beta01")
     implementation("androidx.compose.ui:ui")
     implementation("cn.6tail:tyme4j:1.5.1")
     testImplementation("junit:junit:4.13.2")

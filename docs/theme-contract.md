@@ -148,3 +148,11 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 设备验收参数：`-e store true`（商店交互与持久化）、`-e performance true`（7/70/200 个测试主题与 FrameMetrics/PSS/cache 量测）、`-e midnight true`（七主题横竖屏跨年与闰日/后台/旋转/禁用动画）。测试目录不写入用户主题库。
 
 本轮完整结果、性能限制及复现方式见[主题商店与午夜动画验收](theme-store-validation.md)。
+
+### 商店过渡与应用进度
+
+标签切换采用先淡出、后淡入的短距离滑动过渡，复用同一组带稳定 ID 的网格节点；目标页面完成布局后才开始淡入，避免两套卡片同时重建；过渡期间暂停新的缩略图生成。缩略图内容身份与网格列的像素取整分离，移动到宽度相差 1–2px 的列时复用已有位图；已开始的快照不会因拖动暂停信号被中途清空。
+
+商店的 `onAdd(id, reportProgress)` 为挂起接口：准备/安装阶段传入 `null`，有实际下载字节进度时传入 `0..1`。使用 Material 3 [`CircularWavyProgressIndicator`](https://developer.android.com/reference/kotlin/androidx/compose/material3/CircularWavyProgressIndicator.composable) 的不确定/确定进度变体；本地预设不模拟联网下载百分比。等待期间拦截重复操作，成功后显示已安装，失败恢复应用按钮并提示。指示器使用 `material3:1.5.0-beta01` 提供的新式组件。
+
+每次进入商店重置到推荐页，旋转保留当前标签，三页滚动位置继续保存。“使用”单独采用商店淡出、目标预览滑入的过渡；普通返回沿商店入口容器收起。样式面板的完成操作等待 `SheetState.hide()` 结束才移除面板。删除手势在纵向超过触摸阈值后锁定整段指针事件，抑制横向翻页，抬手/取消后释放；垃圾桶围绕固定圆心弹性缩放。

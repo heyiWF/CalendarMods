@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -43,7 +44,17 @@ internal object ThemeThumbnails {
     }
     // At most one temporary full render/image decode; queued off-screen items cancel with their composition.
     val generation = Semaphore(1)
-    fun get(key: ThumbnailKey): ImageBitmap? = cache.get(key)
+    fun get(key: ThumbnailKey): ImageBitmap? {
+        cache.get(key)?.let { return it }
+        // Grid remainder pixels belong to columns, not themes. Reordering can change a
+        // card by 1px in width (and a few pixels in height) without changing its artwork.
+        val compatible = cache.snapshot().keys.lastOrNull {
+            it.copy(size = key.size) == key &&
+                kotlin.math.abs(it.size.width - key.size.width) <= 2 &&
+                kotlin.math.abs(it.size.height - key.size.height) <= 4
+        }
+        return compatible?.let(cache::get)
+    }
     fun put(key: ThumbnailKey, image: ImageBitmap) { cache.put(key, image) }
     fun bytes(): Int = cache.size()
     fun clear() = cache.evictAll()
@@ -64,16 +75,19 @@ internal fun ThemeThumbnail(theme: CalendarTheme, data: CalendarData) {
         val key = remember(theme, data.today, style, asset, revision, window, size, density) {
             ThumbnailKey(theme, data.today, style, asset, revision, window, size, density.density, density.fontScale)
         }
-        var image by remember(key) { mutableStateOf(ThemeThumbnails.get(key)) }
+        // Keep the visible bitmap when this keyed item moves between slightly different columns.
+        var image by remember(key.copy(size = IntSize.Zero)) { mutableStateOf(ThemeThumbnails.get(key)) }
         var rendering by remember(key) { mutableStateOf(false) }
         var source by remember(key) { mutableStateOf<Bitmap?>(null) }
         var drawn by remember(key) { mutableStateOf(CompletableDeferred<Unit>()) }
         val layer = rememberGraphicsLayer()
-        LaunchedEffect(key, generationEnabled) {
-            if (!generationEnabled) return@LaunchedEffect
+        val canGenerate by rememberUpdatedState(generationEnabled)
+        LaunchedEffect(key) {
             if (image != null) return@LaunchedEffect
+            snapshotFlow { canGenerate }.first { it }
             kotlinx.coroutines.delay(120) // Let an interrupted gesture settle before composing a cache miss.
             ThemeThumbnails.generation.withPermit {
+                snapshotFlow { canGenerate }.first { it }
                 image = ThemeThumbnails.get(key)
                 if (image == null) {
                     source = withContext(Dispatchers.IO) {

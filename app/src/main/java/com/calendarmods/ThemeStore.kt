@@ -2,6 +2,7 @@ package com.calendarmods
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -19,7 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -33,20 +34,43 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 
+/** Optional frame observer for device acceptance; absent in production. */
+internal val LocalStoreTabMotionObserver = staticCompositionLocalOf<((Float, Int, Int) -> Unit)?> { null }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Boolean, modifier: Modifier,
-    onBack: () -> Unit, onAdd: (String) -> Unit, onFavorite: (String) -> Unit,
+    onBack: () -> Unit, onAdd: suspend (String, (Float?) -> Unit) -> Unit, onFavorite: (String) -> Unit,
     onSaveFavorites: suspend (Map<String, Boolean>) -> Unit, onError: (String) -> Unit,
     onDelete: (String) -> Unit, onReorder: (List<String>) -> Unit, onUse: (String) -> Unit,
-    previewsEnabled: Boolean = true) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    previewsEnabled: Boolean = true, session: Int = 0) {
+    var tab by rememberSaveable(session) { mutableIntStateOf(0) }
     var pendingUnfavorites by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var savingFavorites by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var applyingId by remember { mutableStateOf<String?>(null) }
+    var applicationProgress by remember { mutableStateOf<Float?>(null) }
+    val interactionBusy = busy || applyingId != null
+    fun applyTheme(id: String) {
+        if (interactionBusy || savingFavorites) return
+        applyingId = id
+        applicationProgress = null
+        scope.launch {
+            val started = android.os.SystemClock.uptimeMillis()
+            try {
+                withFrameNanos { } // Present acknowledgement before local IO or future acquisition.
+                onAdd(id) { progress -> applicationProgress = progress?.coerceIn(0f, 1f) }
+                // Keep fast local installs legible without inventing a download percentage.
+                delay((400L - (android.os.SystemClock.uptimeMillis() - started)).coerceAtLeast(0L))
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                onError("应用失败，请重试")
+            } finally { applyingId = null; applicationProgress = null }
+        }
+    }
     fun leavePage(action: () -> Unit) {
-        if (savingFavorites || busy) return
+        if (savingFavorites || interactionBusy) return
         if (pendingUnfavorites.isEmpty()) { action(); return }
         savingFavorites = true
         scope.launch {
@@ -61,7 +85,11 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
             } finally { savingFavorites = false }
         }
     }
-    var editing by rememberSaveable { mutableStateOf(false) }
+    var editing by rememberSaveable(session) { mutableStateOf(false) }
+    var restoredSession by rememberSaveable { mutableIntStateOf(session) }
+    // SaveableStateHolder restores values before rememberSaveable can compare new inputs.
+    // Reset only the selected tab/edit mode on a new visit; preserve per-tab scroll offsets.
+    if (restoredSession != session) { restoredSession = session; tab = 0; editing = false }
     val states = listOf(rememberLazyGridState(), rememberLazyGridState(), rememberLazyGridState())
     var draft by remember(inventory.library.order) { mutableStateOf(inventory.library.order) }
     var draggedId by remember { mutableStateOf<String?>(null) }
@@ -105,18 +133,36 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
     LaunchedEffect(busy, inventory.library.order) {
         if (!busy && draggedId == null) draft = inventory.library.order
     }
-    val tabMotion = remember { androidx.compose.animation.core.Animatable(1f) }
-    var previousTab by remember { mutableIntStateOf(tab) }
+    var displayedTab by remember { mutableIntStateOf(tab) }
+    val tabOpacity = remember { Animatable(1f) }
+    var tabMoving by remember { mutableStateOf(false) }
+    var tabExiting by remember { mutableStateOf(false) }
     var tabDirection by remember { mutableIntStateOf(1) }
     LaunchedEffect(tab) {
-        tabDirection = if (tab >= previousTab) 1 else -1
-        previousTab = tab
-        val scale = systemAnimationScale(context.contentResolver)
-        if (scale == 0f) tabMotion.snapTo(1f)
-        else withAnimationScale(scale) {
-            tabMotion.snapTo(0f)
-            tabMotion.animateTo(1f, tween(220))
+        if (displayedTab == tab && tabOpacity.value == 1f) return@LaunchedEffect
+        tabMoving = true
+        val durationScale = systemAnimationScale(context.contentResolver)
+        if (durationScale == 0f) { displayedTab = tab; tabOpacity.snapTo(1f); tabMoving = false }
+        else withAnimationScale(durationScale) {
+            if (displayedTab != tab) {
+                tabDirection = if (tab > displayedTab) 1 else -1
+                tabExiting = true
+                tabOpacity.animateTo(0f, tween(130))
+                displayedTab = tab
+                tabExiting = false
+                // Reuse the single keyed grid. Let its new content lay out while invisible,
+                // then begin the incoming animation instead of losing frames to composition.
+                withFrameNanos { }; withFrameNanos { }
+            }
+            tabExiting = false
+            tabOpacity.animateTo(1f, tween(220))
+            tabMoving = false
         }
+    }
+    val motionObserver = LocalStoreTabMotionObserver.current
+    LaunchedEffect(motionObserver) {
+        if (motionObserver != null) snapshotFlow { Triple(tabOpacity.value, displayedTab, tab) }
+            .collect { (alpha, displayed, target) -> motionObserver(alpha, displayed, target) }
     }
     val stillCycle = remember { AlmanacCycle() }
     Surface(modifier.fillMaxSize().testTag("theme-store").semantics { testTagsAsResourceId = true },
@@ -126,22 +172,22 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                 IconButton(onClick = { if (editing) { finishDrag(false); editing = false } else leavePage(onBack) },
                     modifier = Modifier.testTag("store-back")) { Icon(BackIcon, "返回") }
             }, actions = {
-                if (tab == 2) TextButton(enabled = !busy, onClick = {
+                if (tab == 2) TextButton(enabled = !interactionBusy, onClick = {
                     finishDrag(true); editing = !editing
                 }, modifier = Modifier.testTag("store-edit")) { Text(if (editing) "完成" else "编辑") }
             }, windowInsets = WindowInsets(0, 0, 0, 0))
             PrimaryTabRow(selectedTabIndex = tab) {
                 listOf("推荐", "收藏", "已安装").forEachIndexed { index, label ->
-                    Tab(selected = index == tab, enabled = !busy && !savingFavorites,
+                    Tab(selected = index == tab, enabled = !interactionBusy && !savingFavorites,
                         onClick = { if (index != tab) leavePage { finishDrag(false); editing = false; tab = index } },
                         text = { Text(label) }, modifier = Modifier.testTag("store-tab-$index"))
                 }
             }
-            Box(Modifier.weight(1f).graphicsLayer {
-                alpha = .82f + .18f * tabMotion.value
-                translationX = tabDirection * 16.dp.toPx() * (1f - tabMotion.value)
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().graphicsLayer {
+                alpha = tabOpacity.value
+                translationX = (if (tabExiting) -1 else 1) * tabDirection * 16.dp.toPx() * (1f - tabOpacity.value)
             }) {
-                val page = tab
+                val page = displayedTab
                 val entries = when (page) {
                     0 -> CalendarTheme.entries
                     1 -> inventory.catalog.filter { it.id in inventory.library.favorites }
@@ -153,7 +199,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                         Text("收藏喜欢的主题，在这里轻松找到", style = MaterialTheme.typography.bodyMedium)
                     }
                 } else CompositionLocalProvider(LocalAlmanacCycle provides stillCycle, LocalGoodDayCycle provides stillCycle,
-                    LocalThumbnailGeneration provides (previewsEnabled && !states[page].isScrollInProgress && draggedId == null)) {
+                    LocalThumbnailGeneration provides (previewsEnabled && !tabMoving && !states[page].isScrollInProgress && draggedId == null)) {
                     LazyVerticalGrid(columns = GridCells.Fixed(3), state = states[page],
                         modifier = Modifier.fillMaxSize().testTag("store-grid-$page"),
                         contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -181,7 +227,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                     }.background(theme.background)) {
                                     data?.let { ThemeThumbnail(theme, it) }
                                     if (editing && page == 2) {
-                                        IconButton(onClick = {}, enabled = !busy,
+                                        IconButton(onClick = {}, enabled = !interactionBusy && !tabMoving,
                                             modifier = Modifier.align(Alignment.TopStart).size(48.dp)
                                                 .testTag("drag-${theme.name}")
                                                 .semantics {
@@ -196,8 +242,8 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                                             if (index < draft.lastIndex) onReorder(draft.toMutableList().apply { add(index + 1, removeAt(index)) })
                                                             index < draft.lastIndex
                                                         })
-                                                }.pointerInput(theme.id, busy) {
-                                                    if (!busy) detectDragGestures(onDragStart = { offset ->
+                                                }.pointerInput(theme.id, interactionBusy) {
+                                                    if (!interactionBusy) detectDragGestures(onDragStart = { offset ->
                                                         val item = grid.layoutInfo.visibleItemsInfo.find { it.key == theme.id }
                                                         if (item != null) {
                                                             grab = offset
@@ -207,7 +253,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                                     }, onDrag = { change, delta -> change.consume(); pointer += delta; move() },
                                                         onDragEnd = { finishDrag(true) }, onDragCancel = { finishDrag(false) })
                                                 }) { StoreIcon(DragIcon, null) }
-                                        IconButton(onClick = { onDelete(theme.id) }, enabled = !busy,
+                                        IconButton(onClick = { onDelete(theme.id) }, enabled = !interactionBusy && !tabMoving,
                                             modifier = Modifier.align(Alignment.TopEnd).size(48.dp).testTag("delete-${theme.name}")) {
                                             StoreIcon(DeleteIcon, "删除${theme.title}")
                                         }
@@ -220,7 +266,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                             }
                                         } else onFavorite(theme.id)
                                     },
-                                        enabled = !busy, modifier = Modifier.align(Alignment.TopEnd).size(48.dp).testTag("favorite-${theme.name}")) {
+                                        enabled = !interactionBusy && !tabMoving, modifier = Modifier.align(Alignment.TopEnd).size(48.dp).testTag("favorite-${theme.name}")) {
                                         StoreIcon(if (favorite) FavoriteFilledIcon else FavoriteIcon, if (favorite) "取消收藏${theme.title}" else "收藏${theme.title}", favorite)
                                     }
                                 }
@@ -232,10 +278,11 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                         style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     if (!editing || page != 2) StoreInstallButton(theme, installed, page == 2,
-                                        enabled = !busy && !savingFavorites,
+                                        applying = applyingId == theme.id, progress = applicationProgress,
+                                        enabled = !interactionBusy && !savingFavorites && !tabMoving,
                                         onClick = {
                                             if (page == 2) leavePage { onUse(theme.id) }
-                                            else if (installed) onDelete(theme.id) else onAdd(theme.id)
+                                            else if (installed) onDelete(theme.id) else applyTheme(theme.id)
                                         })
                                 }
                             }
@@ -258,9 +305,16 @@ private fun StoreIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 
 @Composable
 private fun StoreInstallButton(theme: CalendarTheme, installed: Boolean, installedPage: Boolean,
-    enabled: Boolean, onClick: () -> Unit) {
+    enabled: Boolean, applying: Boolean, progress: Float?, onClick: () -> Unit) {
     val modifier = Modifier.widthIn(min = 48.dp).heightIn(min = 48.dp).testTag("add-use-${theme.name}")
-    if (installed || installedPage) OutlinedButton(onClick, modifier, enabled = enabled,
+    if (applying) Box(modifier.semantics(mergeDescendants = true) {
+        contentDescription = "正在应用${theme.title}"
+        stateDescription = progress?.let { "${(it * 100).toInt()}%" } ?: "正在安装"
+    }, contentAlignment = Alignment.Center) {
+        if (progress == null) CircularWavyProgressIndicator(Modifier.size(32.dp))
+        else CircularWavyProgressIndicator(progress = { progress }, modifier = Modifier.size(32.dp))
+    }
+    else if (installed || installedPage) OutlinedButton(onClick, modifier, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 6.dp)) { Text(if (installedPage) "使用" else "已安装", style = MaterialTheme.typography.labelMedium, maxLines = 1) }
     else Button(onClick, modifier, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 6.dp)) { Text("应用", style = MaterialTheme.typography.labelMedium, maxLines = 1) }

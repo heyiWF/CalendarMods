@@ -149,6 +149,8 @@ internal fun ThemeImage(theme: CalendarTheme, modifier: Modifier) {
 internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: ThemeStyleStore,
     onChange: (ThemeStyle) -> Unit, onReset: () -> Unit, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var dismissing by remember { mutableStateOf(false) }
     val currentStyle by rememberUpdatedState(style)
     val currentChange by rememberUpdatedState(onChange)
     var importing by remember { mutableStateOf(false) }
@@ -169,7 +171,7 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
         }
     }
     ModalBottomSheet(onDismissRequest = { if (!importing) onDismiss() },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         sheetGesturesEnabled = !importing,
         modifier = Modifier.testTag("theme-style-sheet").semantics { testTagsAsResourceId = true }) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
@@ -213,7 +215,16 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
                 Text("此主题暂无可调整的样式。", style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            TextButton(onClick = onDismiss, enabled = !importing, modifier = Modifier.align(androidx.compose.ui.Alignment.End)) {
+            TextButton(onClick = {
+                if (!dismissing) {
+                    dismissing = true
+                    scope.launch {
+                        try { sheetState.hide(); if (!sheetState.isVisible) onDismiss() }
+                        finally { dismissing = false }
+                    }
+                }
+            }, enabled = !importing && !dismissing,
+                modifier = Modifier.align(androidx.compose.ui.Alignment.End).testTag("style-done")) {
                 Text("完成")
             }
         }

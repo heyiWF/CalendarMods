@@ -71,6 +71,8 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     val preferences = remember { context.getSharedPreferences("calendar", Context.MODE_PRIVATE) }
     var immersive by rememberSaveable { mutableStateOf(preferences.getBoolean("immersive", false)) }
     var storeOpen by rememberSaveable { mutableStateOf(false) }
+    var storeSession by rememberSaveable { mutableIntStateOf(0) }
+    var returningFromStoreUse by remember { mutableStateOf(false) }
     var selectedId by rememberSaveable { mutableStateOf(ThemeCatalog.selectedId(
         preferences.getString("theme_id", null), preferences.getInt("theme", 0), themes)) }
     var atStoreEntry by rememberSaveable { mutableStateOf(false) }
@@ -165,7 +167,11 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
         SharedTransitionLayout(Modifier.fillMaxSize().background(background)) {
             val sharedScope = this
             displayTransition.AnimatedContent(modifier = Modifier.fillMaxSize(), transitionSpec = {
-                (EnterTransition.None togetherWith ExitTransition.None).using(SizeTransform(clip = false))
+                if (initialState == 2 && targetState == 0 && returningFromStoreUse) {
+                    ((fadeIn(tween(340, 60)) + slideInVertically(tween(400, easing = FastOutSlowInEasing)) { it / 24 })
+                        togetherWith (fadeOut(tween(240)) + scaleOut(tween(320), targetScale = .97f)))
+                        .using(SizeTransform(clip = false))
+                } else (EnterTransition.None togetherWith ExitTransition.None).using(SizeTransform(clip = false))
             }) { screen ->
                 val visibility = this
                 @Composable
@@ -181,14 +187,16 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
                             modifier = Modifier.shared("calendar-${theme.id}"), animateDay = current.animate && immersive)
                     }
                     2 -> savedScreens.SaveableStateProvider("store") {
-                        ThemeStore(inventory, data, busy, Modifier.shared("theme-store"),
-                            previewsEnabled = !displayTransition.isRunning,
-                            onBack = { storeOpen = false }, onAdd = { operation { repository.add(it) } },
+                        ThemeStore(inventory, data, busy,
+                            if (returningFromStoreUse) Modifier else Modifier.shared("theme-store"),
+                            previewsEnabled = !displayTransition.isRunning, session = storeSession,
+                            onBack = { storeOpen = false }, onAdd = { id, _ -> repository.add(id) },
                             onFavorite = { operation { repository.toggleFavorite(it) } },
                             onSaveFavorites = { repository.setFavorites(it) },
                             onError = { message -> scope.launch { snackbar.showSnackbar(message) } }, onDelete = ::requestDelete,
                             onReorder = { ids -> operation { repository.reorder(ids) } },
                             onUse = { id ->
+                                returningFromStoreUse = true
                                 selectedId = id; atStoreEntry = false
                                 // The pager is detached in the store; schedule its next layout rather
                                 // than suspending until it exists before dismissing the store.
@@ -201,7 +209,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
                         paperModifier = { Modifier.shared("calendar-${it.id}") },
                         modifier = Modifier.shared("theme-store"), visibilityScope = visibility,
                         onSelect = { immersive = true }, onStyle = { editingThemeId = it.id },
-                        onStore = { storeOpen = true }, onDelete = ::requestDelete)
+                        onStore = { returningFromStoreUse = false; storeSession++; storeOpen = true }, onDelete = ::requestDelete)
                 }
             }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
