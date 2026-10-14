@@ -1,7 +1,6 @@
 package com.calendarmods
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -306,7 +305,7 @@ private fun StoreIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 @Composable
 private fun StoreInstallButton(theme: CalendarTheme, installed: Boolean, installedPage: Boolean,
     enabled: Boolean, applying: Boolean, progress: Float?, onClick: () -> Unit) {
-    val modifier = Modifier.widthIn(min = 48.dp).heightIn(min = 48.dp).testTag("add-use-${theme.name}")
+    val modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("add-use-${theme.name}")
     if (applying) Box(modifier.semantics(mergeDescendants = true) {
         contentDescription = "正在应用${theme.title}"
         stateDescription = progress?.let { "${(it * 100).toInt()}%" } ?: "正在安装"

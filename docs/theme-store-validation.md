@@ -38,8 +38,11 @@
 
 ## 复现入口与证据
 
+本文所列本地日志统一存放在 `docs/verification/logs/`，不再散落于仓库根目录。原始验收资料仅保存在本机，构建报告也可从 GitHub Actions 下载。
+
 ```powershell
-.\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+New-Item -ItemType Directory -Force docs/verification/logs | Out-Null
+.\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest 2>&1 | Tee-Object docs/verification/logs/build.log
 adb shell am instrument -w -e store true com.calendarmods.test/com.calendarmods.CalendarAcceptanceInstrumentation
 adb shell am instrument -w -e performance true com.calendarmods.test/com.calendarmods.CalendarAcceptanceInstrumentation
 adb shell am instrument -w -e midnight true com.calendarmods.test/com.calendarmods.CalendarAcceptanceInstrumentation
@@ -72,6 +75,12 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 
 缓存约 9.11–18.22MiB，仍受 32MiB 上限约束。70/200 主题滚动仍分别出现 5/3 帧超过 100ms；本轮没有宣称全部消除冷渲染和偶发长帧。采用单网格后，当前七主题的缓存后切换、拖动和滚动均未出现超过 100ms 的帧。
 
-复现：新增 `-e storeMotion true` 检查面板、手势锁、标签中间帧和安装进度。日志为 `theme-store-motion-final-build.log`、`theme-store-motion-device.log`、`theme-store-motion-regression.log`、`theme-store-motion-performance-final.log`、`theme-store-motion-fullscreen.log`、`theme-store-motion-styles.log`。录像 `store-motion.mp4`、`store-final-tabs.mp4` 和逐帧图位于本地忽略目录 `docs/verification/theme-store/`。
+复现：新增 `-e storeMotion true` 检查面板、手势锁、标签中间帧和安装进度。日志为 `theme-store-motion-final-build.log`、`theme-store-motion-device.log`、`theme-store-motion-regression.log`、`theme-store-motion-performance-final.log`、`theme-store-motion-fullscreen.log`、`theme-store-motion-styles.log`。录像 `store-motion.mp4`、`store-verified-tabs.mp4` 和逐帧图位于本地忽略目录 `docs/verification/theme-store/`。
 
 本轮最终结果：26 项 JVM 测试通过，APK 与测试 APK 构建通过，Lint 为 0 错误、2 条版本更新提示；设备动效/进度 5 组、商店 6 组、性能 12 组、全屏回归 54 组、样式回归 12 组全部通过。测试后恢复设备动画缩放、旋转与用户内容，并移除测试 APK。
+
+### 卡片等宽按钮
+
+主题名称和操作按钮仍分两行居中；“应用”“已安装”“使用”按钮均填满卡片宽度，安装进度区域保持相同宽度，名称距预览 10dp、距按钮 4dp。
+
+横竖屏截图检查及现有商店 6 组设备回归通过，产品截图已更新。26 项 JVM 测试、APK/测试 APK 构建通过；Lint 无错误，保留两条依赖版本提示。日志：`store-button-width-build.log`、`store-button-width-device.log`。
