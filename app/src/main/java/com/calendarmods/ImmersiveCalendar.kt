@@ -34,7 +34,7 @@ private val Cream = Color(0xFFFFFEF9)
 internal val LocalPaperInsets = staticCompositionLocalOf<PaddingValues> { PaddingValues(0.dp) }
 
 @Composable
-fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Unit, modifier: Modifier = Modifier) {
+fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Unit, modifier: Modifier = Modifier, animateDay: Boolean = false) {
     val exit by rememberUpdatedState(onExit)
     val haptics = LocalHapticFeedback.current
     Box(modifier.fillMaxSize().testTag("immersive-${theme.name}")
@@ -53,7 +53,7 @@ fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Un
             // Consume motion after touch slop so a slow swipe cannot become a long press.
             detectDragGestures { change, _ -> change.consume() }
         }) {
-        CalendarPaper(theme, data)
+        MidnightPaper(theme, data, animateDay)
     }
 }
 

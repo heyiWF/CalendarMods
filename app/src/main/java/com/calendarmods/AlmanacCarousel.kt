@@ -29,8 +29,8 @@ internal class AlmanacCycle {
     var step by mutableIntStateOf(0)
     var previousStep by mutableIntStateOf(0)
     var targetStep by mutableIntStateOf(0)
-    val opacity = Animatable(1f)
-    val widthProgress = Animatable(1f)
+    var opacity = Animatable(1f)
+    var widthProgress = Animatable(1f)
 }
 
 internal val LocalAlmanacCycle = staticCompositionLocalOf { AlmanacCycle() }
@@ -38,11 +38,12 @@ internal val LocalGoodDayCycle = staticCompositionLocalOf { AlmanacCycle() }
 
 /** Hoisted above both surfaces: entering fullscreen never restarts or crossfades two items. */
 @Composable
-internal fun rememberAlmanacCycle(data: CalendarData?, centered: Boolean = false): AlmanacCycle {
+internal fun rememberAlmanacCycle(data: CalendarData?, centered: Boolean = false, enabled: Boolean = true): AlmanacCycle {
     val cycle = remember(data?.today, data?.recommends, centered) { AlmanacCycle() }
     val items = data?.recommends.orEmpty().ifEmpty { listOf("暂无") }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(cycle, lifecycle) {
+    LaunchedEffect(cycle, lifecycle, enabled) {
+        if (!enabled) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             cycle.widthProgress.snapTo(1f)
             cycle.opacity.snapTo(1f)
