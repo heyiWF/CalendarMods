@@ -35,4 +35,5 @@ signing.properties
 
 # Raw device dumps and machine-specific build logs are local evidence.
 docs/verification/
+.codex-remote-attachments/
 /dist/

@@ -125,7 +125,7 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 - 动态主题契约 `PASS 4 checks`（四组场景）：错误包拒绝、旧设置迁移、带图片主题的即时安装及独立设置、更新/重载/旋转/卸载回退。
 - 实际截图确认测试主题出现在第 9 页，移除前面的测试主题后保留选中 ID 并变成第 8 页；横屏更新后标题和图片保持正确。
 - 重复验收曾暴露测试在底部面板动画中点击的问题，已改为等待选项坐标稳定 500 ms 后操作；最终复测通过。
-- 本地日志：`theme-contract-final-build.log`、`theme-contract-test-build.log`、`theme-contract-device-final.log`、`theme-contract-regression.log`；截图位于 `docs/verification/theme-contract/`，均为忽略的本地验收产物。
+- 本地日志（统一存放于 `docs/verification/logs/`）：`theme-contract-final-build.log`、`theme-contract-test-build.log`、`theme-contract-device-final.log`、`theme-contract-regression.log`；截图位于 `docs/verification/theme-contract/`，均为忽略的本地验收产物。
 
 ## 本地主题库 v2
 
