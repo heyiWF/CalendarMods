@@ -23,3 +23,9 @@ Use case: photorealistic-natural. Asset type: full bleed photograph used in a ph
 样式入口使用用户指定的 [Material Symbols Outlined / style](https://fonts.gstatic.com/render/v1/Material+Symbols+Outlined/24dp/style.kt?var=opsz,wght,FILL,GRAD,ROND@24,400,0,0,50)，Google，Apache License 2.0；源文件为 `StyleIcon.kt`，仅修改包名及 Kotlin 属性名。许可随应用保存在 `assets/licenses/material-symbols-Apache-2.0.txt`。
 
 每日格言和二字心语各 366 条，由本项目原创整理。格言最长 14 字（含标点），不标注名人作者；它们属于日常文案，不属于历法宜忌。按连续公历日取模轮换，不在元旦重置。
+
+## 主题商店图标
+
+添加、返回、收藏、删除和排序手柄来自 Google Material Symbols Outlined（24dp，400 weight，FILL 0），Apache-2.0。对应文件为 `AddIcon.kt`、`BackIcon.kt`、`FavoriteIcon.kt`、`DeleteIcon.kt`、`DragIcon.kt`；仅调整包名和属性可见性/名称。原始下载 URL 使用 `https://fonts.gstatic.com/render/v1/Material+Symbols+Outlined/24dp/{name}.kt?var=opsz,wght,FILL,GRAD,ROND@24,400,0,0,50`，name 分别为 `add`、`arrow_back`、`favorite`、`delete`、`drag_indicator`。许可与样式图标共用。
+
+收藏实心图标 `FavoriteFilledIcon.kt` 使用上述 Material Symbols favorite 的同一外轮廓，移除镂空内轮廓。
