@@ -89,7 +89,7 @@ internal fun Print(
     maxLines: Int = Int.MAX_VALUE,
 ) {
     Text(text, modifier, color = color, fontSize = size.sp, fontWeight = weight,
-        fontFamily = family, textAlign = align, letterSpacing = spacing.sp,
+        fontFamily = LocalCalendarFont.current ?: family, textAlign = align, letterSpacing = spacing.sp,
         maxLines = maxLines, overflow = TextOverflow.Ellipsis,
         style = TextStyle(lineHeight = (size * 1.17).sp, platformStyle = PlatformTextStyle(includeFontPadding = false)))
 }

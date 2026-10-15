@@ -39,7 +39,7 @@ class ThemeContractTest {
 
     @Test fun malformedAndIncompatibleContractsAreRejected() {
         rejects { custom.copy(id = "../escape") }
-        rejects { custom.copy(schemaVersion = 2) }
+        rejects { custom.copy(schemaVersion = 3) }
         rejects { custom.copy(version = 0) }
         rejects { custom.copy(title = "\n") }
         rejects { custom.copy(defaultFill = "unknown") }
@@ -50,5 +50,29 @@ class ThemeContractTest {
 
     private fun rejects(block: () -> Unit) {
         assertThrows(IllegalArgumentException::class.java, block)
+    }
+
+    @Test fun fontCatalogIsVersionedBoundedAndNamespaced() {
+        val font = ThemeFont("book", "书卷")
+        rejects { custom.copy(fonts = listOf(font)) }
+        rejects { ThemeFont("../book.ttf", "书卷") }
+        rejects { ThemeFont("template", "模板") }
+        rejects { ThemeFont("default", "默认") }
+        rejects { ThemeFont("book", "\n") }
+        rejects { custom.copy(schemaVersion = 2, fonts = listOf(font, font)) }
+        rejects { custom.copy(schemaVersion = 2, fonts = (1..9).map { ThemeFont("font-$it", "字体 $it") }) }
+        rejects { custom.copy(schemaVersion = 2, defaultFont = "missing") }
+    }
+
+    @Test fun fontChoicesAreConsumedByEveryRendererWithSafeUpgradeFallback() {
+        val font = ThemeFont("book", "书卷")
+        CalendarTheme.entries.forEach { base ->
+            val theme = base.copy(schemaVersion = 2, fonts = listOf(font), defaultFont = font.id)
+            assertEquals(listOf("template", "book"), theme.settings.filterIsInstance<ThemeSetting.Choice>().single { it.key == "font" }.choices)
+            assertEquals("book", theme.resolveFont(null))
+            assertEquals("book", theme.resolveFont("removed"))
+            assertEquals("template", theme.resolveFont("template"))
+            assertEquals("template", theme.copy(fonts = emptyList(), defaultFont = "template").resolveFont("book"))
+        }
     }
 }

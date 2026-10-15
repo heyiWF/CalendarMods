@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "org.example.book-calendar",
+  "version": 1,
+  "title": "书卷 · 字体日历",
+  "author": "Example Studio",
+  "renderer": "good-day.v1",
+  "fonts": [
+    { "id": "book", "title": "书卷字体" },
+    { "id": "rounded", "title": "圆润字体" }
+  ],
+  "defaults": { "font": "book" }
+}

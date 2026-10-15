@@ -14,6 +14,14 @@ enum class ThemeRenderer(val wireId: String, val image: BuiltInImage? = null) {
 
 enum class BuiltInImage { BEAR, SUNSET }
 
+/** A regular TTF/OTF face supplied by the author, addressed by ID rather than a path. */
+data class ThemeFont(val id: String, val title: String) {
+    init {
+        require(id.matches(Regex("[a-z][a-z0-9-]{0,39}")) && id !in listOf("template", "default")) { "Invalid font ID" }
+        require(title.isNotBlank() && title.length <= 80 && title.none(Char::isISOControl)) { "Invalid font title" }
+    }
+}
+
 /** Settings are advertised by the renderer that actually consumes them. */
 sealed class ThemeSetting(val key: String, val title: String) {
     class Image(key: String, title: String) : ThemeSetting(key, title)
@@ -41,18 +49,25 @@ data class CalendarTheme(
     val author: String = "CalendarMods",
     val defaultFill: String = "crop",
     val hasImageAsset: Boolean = false,
+    val fonts: List<ThemeFont> = emptyList(),
+    val defaultFont: String = "template",
 ) {
     init {
         require(id.length <= 120 && id.matches(Regex("[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+"))) { "Invalid theme ID" }
         require(title.isNotBlank() && title.length <= 80 && title.none(Char::isISOControl)) { "Invalid title" }
         require(author.isNotBlank() && author.length <= 80 && author.none(Char::isISOControl)) { "Invalid author" }
-        require(schemaVersion == 1) { "Unsupported theme schema" }
+        require(schemaVersion in 1..2) { "Unsupported theme schema" }
+        require(schemaVersion >= 2 || (fonts.isEmpty() && defaultFont == "template")) { "Fonts require schema v2" }
+        require(fonts.size <= 8 && fonts.map { it.id }.distinct().size == fonts.size) { "Invalid font catalog" }
+        require(defaultFont == "template" || fonts.any { it.id == defaultFont }) { "Unknown default font" }
         require(version > 0) { "Invalid theme version" }
         require(defaultFill in listOf("crop", "fit", "stretch")) { "Unsupported image fill" }
         require(renderer.image != null || (!hasImageAsset && defaultFill == "crop")) { "Renderer has no image slot" }
     }
 
-    val settings: List<ThemeSetting> get() = renderer.settings
+    val settings: List<ThemeSetting> get() = renderer.settings + if (fonts.isEmpty()) emptyList() else
+        listOf(ThemeSetting.Choice("font", "日历字体", listOf("template") + fonts.map { it.id }))
+    fun resolveFont(id: String?): String = id?.takeIf { it == "template" || fonts.any { font -> font.id == it } } ?: defaultFont
     // Preserve existing accessibility/test tags for bundled themes only.
     val name: String get() = entries.firstOrNull { it.id == id }?.renderer?.name ?: id
 

@@ -86,8 +86,9 @@ internal fun CenteredGoodDayCarousel(items: List<String>, size: Int, modifier: M
     val pages = remember(items) { almanacPages(items, 1) }
     val cycle = LocalGoodDayCycle.current
     val measurer = rememberTextMeasurer()
-    val widths = remember(pages, size, measurer) {
-        val style = TextStyle(fontSize = size.sp, fontFamily = FontFamily.Serif, letterSpacing = 0.sp)
+    val family = LocalCalendarFont.current ?: FontFamily.Serif
+    val widths = remember(pages, size, measurer, family) {
+        val style = TextStyle(fontSize = size.sp, fontFamily = family, letterSpacing = 0.sp)
         val minimum = measurer.measure(AnnotatedString("嫁娶"), style, softWrap = false).size.width
         pages.map { measurer.measure(AnnotatedString(it), style, softWrap = false).size.width.coerceAtLeast(minimum) }
     }
@@ -121,9 +122,10 @@ internal fun AlmanacCarousel(label: String, items: List<String>, pageSize: Int, 
     val pages = remember(items, pageSize) { almanacPages(items, pageSize) }
     val cycle = LocalAlmanacCycle.current
     val measurer = rememberTextMeasurer()
-    val baselineWidth = remember(pageSize, size, measurer) {
+    val family = LocalCalendarFont.current ?: FontFamily.Serif
+    val baselineWidth = remember(pageSize, size, measurer, family) {
         measurer.measure(AnnotatedString(List(pageSize) { "嫁娶" }.joinToString(" · ")),
-            TextStyle(fontSize = size.sp, fontFamily = FontFamily.Serif, letterSpacing = 0.sp),
+            TextStyle(fontSize = size.sp, fontFamily = family, letterSpacing = 0.sp),
             softWrap = false).size.width
     }
     val page = cycle.step % pages.size

@@ -1,4 +1,4 @@
-# 主题设计契约 v1
+# 主题设计契约 v1 / v2
 
 主题是可版本化的数据；模板是 App 提供的可信渲染能力。内置主题和安装主题共用 `CalendarTheme`，预览、全屏、设置和选择持久化均消费同一份描述。本地主题商店已提供七个预设主题的添加、收藏和排序；账号、上传、审核和网络下载尚未实现。
 
@@ -29,13 +29,15 @@ flowchart TD
 | 字段 | 契约 |
 | --- | --- |
 | `id` | 不变的命名空间 ID，例如 `org.example.winter`。小写字母/数字、点或连字符，最长 120 字符；与标题、排序无关 |
-| `schemaVersion` | 描述格式版本，目前只接受整数 `1`。未知版本拒绝安装 |
+| `schemaVersion` | 接受整数 `1`、`2`；v2 增加字体资源声明。旧 v1 原样兼容，未知版本拒绝安装 |
 | `version` | 同一 ID 的正整数版本，更新必须严格递增，禁止回退和重复安装 |
 | `title` / `author` | 非空、最长 80 字符、无控制字符；作者字段是展示信息，不是身份认证 |
 | `renderer` | 精确匹配宿主模板 wire ID；同一主题 ID 更新不能改变模板，防止设置语义错配 |
 | `surfaces` | 可选的宿主表面颜色和系统栏图标模式，缺项继承对应内置模板 |
 | `defaults.fill` | 图片模板的默认填充方式；无图片槽的模板禁止声明 |
 | `imageAsset` | 是否提供主题默认图片，默认 false；必须与安装参数的图片存在性一致 |
+| `fonts` | v2 可选字体目录，最多 8 项，每项为稳定 `id` 和显示 `title`；安装时按 ID 传入字体字节 |
+| `defaults.font` | v2 作者默认字体 ID，省略为 `template`（沿用模板原字体），必须属于本主题目录或为 `template` |
 
 `com.calendarmods.*` 保留给内置主题，外部安装不能覆盖。默认按添加先后排序，支持显式排序；升级保留位置，内置主题也可移除，但至少保留一个已安装主题。最多保存 200 个外部主题。
 
@@ -53,7 +55,7 @@ flowchart TD
 | `almanac` | `almanac.v1` | 复古黄历、节日、完整宜忌、月历 | 无 |
 | `hanging` | `hanging.v1` | 悬挂装订、大日期、双项宜忌轮播 | 无 |
 
-`ThemeRenderer.settings` 是能力事实来源。`ThemeSetting.Image` 声明本机图片选择，`ThemeSetting.Choice` 声明有限选项；设置面板不再通过主题 ID 判断是否展示图片属性。v1 不允许远端主题自称支持渲染器没有消费的属性。
+`ThemeRenderer.settings` 声明表中的模板能力，`CalendarTheme.settings` 再根据 v2 的字体目录加入 `font` 选项。`ThemeSetting.Image` 声明本机图片选择，`ThemeSetting.Choice` 声明有限选项；设置面板按属性 key 查找选项，不通过主题 ID 判断能力。主题不能自称支持渲染器没有消费的属性。
 
 | 属性 | 类型 / 默认 | 约束与消费方 |
 | --- | --- | --- |
@@ -64,9 +66,9 @@ flowchart TD
 | `surfaces.chrome` | `#AARRGGBB` | 选择页标题、计数、指示点和提示文字 |
 | `surfaces.darkSystemBarIcons` | Boolean | 选择页系统栏使用深色图标；全屏时由宿主隐藏系统栏 |
 
-颜色属于作者设计默认值，目前不生成用户调色面板。字体、装订、内页装饰、具体排版、时间与宜忌轮播参数仍是原生模板的一部分，不能在 v1 manifest 中随意添加字段。
+颜色属于作者设计默认值，目前不生成用户调色面板。v2 支持主题附带字体及用户切换，详见[字体扩展指南](theme-fonts.md)。装订、内页装饰、具体排版、时间与宜忌轮播参数仍是原生模板的一部分，不能随意添加字段。
 
-用户设置按 ID 隔离；同模板的两个主题也互不影响。旧 `TEDDY.image/fill` 和 `PHOTO.image/fill` 一次性迁移到 ID 命名空间。恢复默认会删除覆盖值并保留迁移标记，防止旧值再次出现。主题升级保留已保存的覆盖值；未保存设置的主题采用新默认值。卸载保留个人设置，便于重装恢复；主题资源在下次仓库初始化时清理不再引用的图片。
+用户设置按 ID 隔离；同模板的两个主题也互不影响。旧 `TEDDY.image/fill` 和 `PHOTO.image/fill` 一次性迁移到 ID 命名空间。恢复默认会删除对应属性的覆盖值并保留迁移标记，防止旧值再次出现；只修改字体不会把继承的图片填充默认值固定下来。主题升级保留仍受支持的覆盖值，未覆盖的属性采用新默认值。本地主题库删除主题时重置个人设置，重新添加恢复默认；资源在下次仓库初始化时清理不再引用的图片与字体。
 
 ## 渲染契约
 
@@ -129,7 +131,7 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 
 ## 本地主题库 v2
 
-主题包 manifest 仍为 v1；私有 `themes-v1/index.json` 升级为 v2 对象，包含 `packages`（已获取的外部描述与图片）、`order`（已添加主题顺序）、`addedAt`（添加时间）、`favorites`、`resetStyles`（删除样式的恢复标记）。从旧数组索引一次性迁移，七个预设排在已有外部主题之前；迁移失败保留原文件并禁止写入。
+主题包 manifest 支持 v1/v2；私有 `themes-v1/index.json` 为 v2 对象，包含 `packages`（外部描述、图片和字体文件映射）、`order`（已添加主题顺序）、`addedAt`（添加时间）、`favorites`、`resetStyles`（删除样式的恢复标记）。从旧数组索引一次性迁移，七个预设排在已有外部主题之前；迁移失败保留原文件并禁止写入。包 schema 与本地索引版本独立，旧条目无需字体映射。
 
 `ThemeInventory.catalog` 是可用目录，`themes` 只返回已安装顺序。`add(id)` 幂等添加、`uninstall(id)` 移除、`toggleFavorite(id)` 切换收藏、`setFavorites(Map<String, Boolean>)` 原子设置一批明确收藏状态、`reorder(ids)` 接受完整无重复的已安装 ID 排列。所有变更串行执行，原子写入成功才发布 StateFlow；不能删除最后一个主题。删除保留目录资源及收藏，重置个人样式，重新添加排在末尾。未安装的外部主题保留已获取资源，可通过仓库重新添加，不需要提升包版本；导入升级仍要求版本递增。
 

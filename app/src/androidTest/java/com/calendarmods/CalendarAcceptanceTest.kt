@@ -33,6 +33,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var lastBars = "not measured"
     private var refinementsOnly = false
     private var contractOnly = false
+    private var fontsOnly = false
     private var storeOnly = false
     private var storeMotionOnly = false
     private val dayMotion = AtomicReference<Pair<LocalDate, Boolean>>()
@@ -50,6 +51,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         interruptionsOnly = arguments?.getString("interruptions") == "true"
         midnightOnly = arguments?.getString("midnight") == "true"
         contractOnly = arguments?.getString("contract") == "true"
+        fontsOnly = arguments?.getString("fonts") == "true"
         denseOnly = arguments?.getString("dense") == "true"
         centeredRotation = arguments?.getString("centered")?.toIntOrNull()
         anchoredRotation = arguments?.getString("anchored")?.toIntOrNull()
@@ -75,7 +77,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (storeMotionOnly) {
+            if (fontsOnly) {
+                verifyThemeFonts(checks)
+            } else if (storeMotionOnly) {
                 verifyStoreMotion(checks)
             } else if (performanceOnly) {
                 verifyStorePerformance(checks)
@@ -615,10 +619,161 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         } finally { shell("settings put global animator_duration_scale $scale") }
     }
 
+    private fun verifyThemeFonts(checks: MutableList<String>) = kotlinx.coroutines.runBlocking {
+        // Device-owned fonts are fixtures only; no third-party font is redistributed by the app.
+        val assets = mapOf("book" to File("/system/fonts/NotoSerif-Regular.ttf").readBytes(),
+            "mono" to File("/system/fonts/DroidSansMono.ttf").readBytes())
+        val theme = CalendarTheme.GOLDEN.copy(id = "org.example.font-test", title = "主题字体测试",
+            schemaVersion = 2, fonts = listOf(ThemeFont("book", "书卷衬线"), ThemeFont("mono", "等宽数字")), defaultFont = "book")
+        check(ThemeManifest.decode(ThemeManifest.encode(theme)) == theme)
+        val root = File(targetContext.cacheDir, "font-contract-test").apply { deleteRecursively(); mkdirs() }
+        val isolatedContext = object : android.content.ContextWrapper(targetContext) {
+            override fun getFilesDir() = root
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getSharedPreferences(name: String, mode: Int) = super.getSharedPreferences("font-test-$name", mode)
+        }
+        try {
+            val repo = ThemeRepository.reopen(isolatedContext)
+            val dir = File(root, "themes-v1")
+            val before = dir.listFiles()!!.map { it.name }.toSet()
+            val invalid = listOf(emptyMap(), assets + ("extra" to assets.getValue("book")),
+                assets + ("mono" to byteArrayOf(0, 1, 0, 0)),
+                assets + ("mono" to ByteArray(ThemeFonts.MAX_FILE_BYTES + 1)))
+            invalid.forEach { fonts ->
+                check(runCatching { repo.install(ThemeManifest.encode(theme), fonts = fonts) }.isFailure)
+                check(dir.listFiles()!!.map { it.name }.toSet() == before) { "Failed font install leaked assets" }
+                check(repo.inventory.value.installed.isEmpty())
+            }
+            val badJson = listOf(
+                ThemeManifest.encode(theme).replace("\"schemaVersion\":2", "\"schemaVersion\":1"),
+                ThemeManifest.encode(theme).replace("\"fonts\":[", "\"fonts\":null,\"unexpected\":["),
+                ThemeManifest.encode(theme).replace("\"font\":\"book\"", "\"font\":\"missing\""))
+            badJson.forEach { check(runCatching { ThemeManifest.decode(it) }.isFailure) }
+            repo.install(ThemeManifest.encode(theme), fonts = assets)
+            check(ThemeRepository.reopen(isolatedContext).inventory.value.installed.single().fontFamilies.size == 2)
+            val store = ThemeStyleStore(isolatedContext)
+            store.save(theme, ThemeStyle(fontId = "mono"))
+            check(store.read(theme).fontId == "mono")
+            check(store.read(theme.copy(id = "org.example.other-font-test")).fontId == null)
+            val photo = theme.copy(id = "org.example.font-photo", renderer = ThemeRenderer.PHOTO)
+            store.save(photo, photo.defaultStyle().copy(fontId = "book"))
+            check(store.read(photo.copy(defaultFill = "fit")).fill == ImageFill.FIT)
+            store.save(photo, store.read(photo).copy(fill = ImageFill.STRETCH, fontId = "mono"))
+            store.resetImage(photo)
+            check(store.read(photo).fontId == "mono" && store.read(photo).fill == ImageFill.CROP)
+            check(store.read(photo.copy(defaultFill = "fit")).fill == ImageFill.FIT)
+            val upgraded = theme.copy(version = 2, fonts = theme.fonts.take(1))
+            val index = File(dir, "index.json")
+            val obstruction = File(dir, "index.json.new").apply { mkdirs() }
+            File(obstruction, "block").writeText("test")
+            val oldFiles = dir.listFiles()!!.map { it.name }.toSet()
+            check(runCatching { repo.install(ThemeManifest.encode(upgraded), fonts = assets.filterKeys { it == "book" }) }.isFailure)
+            check(repo.inventory.value.installed.single().theme == theme)
+            check(dir.listFiles()!!.map { it.name }.toSet() == oldFiles)
+            obstruction.deleteRecursively()
+            repo.install(ThemeManifest.encode(upgraded), fonts = assets.filterKeys { it == "book" })
+            check(store.read(upgraded).fontId == null && upgraded.resolveFont(store.read(upgraded).fontId) == "book")
+            val reopened = ThemeRepository.reopen(isolatedContext)
+            check(dir.listFiles()!!.count { it.extension == "font" } == 1)
+            repo.uninstall(theme.id); repo.add(theme.id)
+            check(store.read(upgraded) == upgraded.defaultStyle())
+            val file = File(dir, reopened.inventory.value.installed.single().fontFiles.getValue("book"))
+            file.delete()
+            val damaged = ThemeRepository.reopen(isolatedContext)
+            check(damaged.inventory.value.loadErrors.isNotEmpty())
+            val savedIndex = index.readText()
+            check(runCatching { damaged.install(ThemeManifest.encode(theme), fonts = assets) }.isFailure)
+            check(index.readText() == savedIndex)
+            checks += "v2 roundtrip; missing/extra/corrupt/oversize fonts rejected without leaks; atomic failure preserves old version PASS"
+            checks += "font persistence and isolation; removed font falls back; obsolete assets pruned; re-add resets; missing asset protects index PASS"
+        } finally {
+            root.deleteRecursively()
+            isolatedContext.getSharedPreferences("theme_styles", 0).edit().clear().commit()
+        }
+
+        val repository = ThemeRepository.get(targetContext)
+        val index = File(targetContext.filesDir, "themes-v1/index.json")
+        val original = index.readBytes()
+        val store = ThemeStyleStore(targetContext)
+        val fontPreferences = targetContext.getSharedPreferences("theme_styles", 0)
+        val savedFontPreferences = fontPreferences.all.filterKeys { it.startsWith("${theme.id}.") }
+        check(repository.inventory.value.catalog.none { it.id == theme.id })
+        fun datePixels(): IntArray {
+            SystemClock.sleep(700)
+            val bounds = Rect().also { out -> nodes().first { it.viewIdResourceName == "immersive-day" }.getBoundsInScreen(out) }
+            val bitmap = checkNotNull(uiAutomation.takeScreenshot())
+            val pixels = IntArray(bounds.width() * bounds.height())
+            bitmap.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top, bounds.width(), bounds.height())
+            bitmap.recycle()
+            return pixels
+        }
+        fun openFonts() {
+            press("style-${theme.name}")
+            await("font choices") { nodes().any { it.viewIdResourceName == "font-default" } }
+            SystemClock.sleep(700)
+        }
+        try {
+            repository.install(ThemeManifest.encode(theme), fonts = assets)
+            awaitTheme(CalendarTheme.GOLDEN)
+            repeat(repository.inventory.value.themes.lastIndex - repository.inventory.value.themes.indexOf(CalendarTheme.GOLDEN)) { swipe(left = true) }
+            awaitTheme(theme)
+            val bookPreview = datePixels()
+            capture("fonts-book-preview")
+            press("art-${theme.name}"); awaitImmersive(theme)
+            val bookFullscreen = datePixels()
+            capture("fonts-book-fullscreen")
+            press("immersive-${theme.name}", long = true); awaitTheme(theme)
+            openFonts()
+            capture("fonts-style-portrait")
+            press("font-mono")
+            await("font stored") { store.read(theme).fontId == "mono" }
+            press("style-done"); awaitTheme(theme)
+            check(!bookPreview.contentEquals(datePixels())) { "Font selection did not change preview pixels" }
+            capture("fonts-mono-preview")
+            press("art-${theme.name}"); awaitImmersive(theme)
+            check(!bookFullscreen.contentEquals(datePixels())) { "Font selection did not change fullscreen pixels" }
+            capture("fonts-mono-fullscreen")
+            uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_90)
+            await("font landscape") { targetContext.resources.configuration.orientation == 2 }
+            awaitImmersive(theme)
+            check(store.read(theme).fontId == "mono")
+            capture("fonts-mono-landscape")
+            press("immersive-${theme.name}", long = true); awaitTheme(theme)
+            openFonts(); capture("fonts-style-landscape")
+            check(uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)); awaitTheme(theme)
+            uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+            await("font portrait") { targetContext.resources.configuration.orientation == 1 }
+            awaitTheme(theme)
+            runOnMainSync { activities.lastActivity.recreate() }; awaitTheme(theme)
+            check(store.read(theme).fontId == "mono")
+            openFonts(); press("font-default")
+            await("font follows default") { store.read(theme).fontId == null }
+            press("style-done"); awaitTheme(theme)
+            check(bookPreview.contentEquals(datePixels())) { "Default font did not restore original date pixels" }
+            openFonts(); press("font-template")
+            await("template font stored") { store.read(theme).fontId == "template" }
+            press("style-done"); awaitTheme(theme)
+            check(!bookPreview.contentEquals(datePixels()))
+            checks += "real settings select font; preview/fullscreen pixels change; portrait/landscape and recreation persist; default/template restore PASS"
+        } finally {
+            store.reset(theme)
+            repository.uninstall(theme.id)
+            index.writeBytes(original)
+            val restore = fontPreferences.edit()
+            listOf("image", "fill", "font", "migrated").forEach { restore.remove("${theme.id}.$it") }
+            savedFontPreferences.forEach { (key, value) -> when (value) {
+                is String -> restore.putString(key, value)
+                is Boolean -> restore.putBoolean(key, value)
+            } }
+            check(restore.commit())
+        }
+    }
+
     private fun verifyThemeContract(checks: MutableList<String>) = kotlinx.coroutines.runBlocking {
         val repository = ThemeRepository.get(targetContext)
         val catalogFile = File(targetContext.filesDir, "themes-v1/index.json")
         val originalCatalog = catalogFile.readBytes()
+        val originalLast = repository.inventory.value.themes.last()
         val store = ThemeStyleStore(targetContext)
         val fixture = CalendarTheme.TEDDY.copy(id = "org.example.contract-fixture", title = "契约测试主题",
             author = "Contract test", defaultFill = "fit", hasImageAsset = true)
@@ -633,7 +788,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             // Test the real Android JSON decoder, not android.jar's JVM stubs.
             CalendarTheme.entries.forEach { check(ThemeManifest.decode(ThemeManifest.encode(it)) == it) }
             val invalid = listOf(
-                ThemeManifest.encode(fixture).replace("\"schemaVersion\":1", "\"schemaVersion\":2"),
+                ThemeManifest.encode(fixture).replace("\"schemaVersion\":1", "\"schemaVersion\":3"),
                 ThemeManifest.encode(fixture).replace("illustration.v1", "unknown.v1"),
                 ThemeManifest.encode(fixture).replace("\"version\":1", "\"version\":1.5"),
                 ThemeManifest.encode(fixture).replace("\"fill\":\"fit\"", "\"fill\":\"invalid\""),
@@ -656,7 +811,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             repository.install(ThemeManifest.encode(fixture), image)
             awaitTheme(CalendarTheme.GOLDEN)
             check(repository.imagePath(fixture)?.let { File(it).isFile } == true)
-            repeat(repository.inventory.value.themes.lastIndex) { swipe(left = true) }
+            repeat(repository.inventory.value.themes.lastIndex - repository.inventory.value.themes.indexOf(CalendarTheme.GOLDEN)) { swipe(left = true) }
             awaitTheme(fixture)
             check(nodes().any { it.contentDescription?.toString() == "自选日历图片" })
             val total = repository.inventory.value.themes.size.toString().padStart(2, '0')
@@ -705,7 +860,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             awaitTheme(updated)
             capture("contract-installed-landscape")
             repository.uninstall(updated.id)
-            awaitTheme(CalendarTheme.HANGING)
+            awaitTheme(originalLast)
             check(ThemeRepository.reopen(targetContext).inventory.value.themes.none { it.id == fixture.id })
             checks += "neighbor removal preserves selected ID; version update retains overrides; durable reload, rotation and uninstall fallback PASS"
         } finally {

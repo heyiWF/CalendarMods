@@ -1,15 +1,19 @@
 package com.calendarmods
 
 import org.json.JSONObject
+import org.json.JSONArray
 
-/** Strict v1 wire format. Unknown fields fail instead of silently changing a design. */
+/** Strict versioned wire format. Unknown fields fail instead of silently changing a design. */
 internal object ThemeManifest {
     const val MAX_BYTES = 32 * 1024
 
     fun decode(json: String): CalendarTheme {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Theme manifest is too large" }
         val root = JSONObject(json)
-        root.only("schemaVersion", "id", "version", "title", "author", "renderer", "surfaces", "defaults", "imageAsset")
+        val schema = root.integer("schemaVersion")
+        require(schema in 1..2) { "Unsupported theme schema" }
+        val fields = arrayOf("schemaVersion", "id", "version", "title", "author", "renderer", "surfaces", "defaults", "imageAsset")
+        root.only(*(if (schema == 2) fields + "fonts" else fields))
         val rendererId = root.string("renderer")
         val renderer = ThemeRenderer.entries.singleOrNull { it.wireId == rendererId }
             ?: error("Unsupported renderer: $rendererId")
@@ -21,7 +25,16 @@ internal object ThemeManifest {
         val defaults = root.optJSONObject("defaults") ?: run {
             require(!root.has("defaults")); JSONObject()
         }
-        defaults.only("fill")
+        defaults.only(*(if (schema == 2) arrayOf("fill", "font") else arrayOf("fill")))
+        val fonts = if (root.has("fonts")) {
+            val array = root.get("fonts") as? JSONArray ?: error("fonts must be an array")
+            require(array.length() <= 8) { "Too many fonts" }
+            (0 until array.length()).map { index ->
+                val font = array.getJSONObject(index)
+                font.only("id", "title")
+                ThemeFont(font.string("id"), font.string("title"))
+            }
+        } else emptyList()
         require(renderer.image != null || !defaults.has("fill")) { "Renderer does not support fill" }
         return CalendarTheme(
             id = root.string("id"), title = root.string("title"), renderer = renderer,
@@ -31,10 +44,12 @@ internal object ThemeManifest {
                 surfaces.color("chrome", base.surfaces.chrome),
                 surfaces.boolean("darkSystemBarIcons", base.surfaces.darkSystemBarIcons),
             ),
-            schemaVersion = root.integer("schemaVersion"), version = root.integer("version"),
+            schemaVersion = schema, version = root.integer("version"),
             author = root.string("author"),
             defaultFill = if (defaults.has("fill")) defaults.string("fill") else "crop",
             hasImageAsset = root.boolean("imageAsset", false),
+            fonts = fonts,
+            defaultFont = if (defaults.has("font")) defaults.string("font") else "template",
         )
     }
 
@@ -46,7 +61,15 @@ internal object ThemeManifest {
             put("backdrop", theme.surfaces.backdrop.hex()); put("paper", theme.surfaces.paper.hex())
             put("chrome", theme.surfaces.chrome.hex()); put("darkSystemBarIcons", theme.surfaces.darkSystemBarIcons)
         })
-        if (theme.renderer.image != null) put("defaults", JSONObject().put("fill", theme.defaultFill))
+        val defaults = JSONObject()
+        if (theme.renderer.image != null) defaults.put("fill", theme.defaultFill)
+        if (theme.schemaVersion == 2) {
+            defaults.put("font", theme.defaultFont)
+            put("fonts", JSONArray().apply {
+                theme.fonts.forEach { put(JSONObject().put("id", it.id).put("title", it.title)) }
+            })
+        }
+        if (defaults.length() > 0) put("defaults", defaults)
     }.toString()
 
     private fun Long.hex() = "#" + toString(16).padStart(8, '0').uppercase()

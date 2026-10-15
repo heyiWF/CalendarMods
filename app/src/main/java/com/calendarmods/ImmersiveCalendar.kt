@@ -60,18 +60,22 @@ fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Un
 @Composable
 internal fun CalendarPaper(theme: CalendarTheme, data: CalendarData, modifier: Modifier = Modifier) {
     val paper = Color(theme.surfaces.paper)
-    Box(modifier.fillMaxSize().background(paper)) {
-        // Paint to every edge, but keep printed content clear of camera cutouts.
-        Box(Modifier.fillMaxSize().padding(LocalPaperInsets.current)) {
-            FullPaper { wide ->
-                when (theme.renderer) {
-                    ThemeRenderer.GOLDEN -> GoldenPaper(data, wide)
-                    ThemeRenderer.TEDDY -> IllustrationPaper(theme, data, wide, photo = false)
-                    ThemeRenderer.PHOTO -> IllustrationPaper(theme, data, wide, photo = true)
-                    ThemeRenderer.GOOD_DAY -> GoodDayPaper(data, wide)
-                    ThemeRenderer.VERSE -> VersePaper(data, wide)
-                    ThemeRenderer.ALMANAC -> AlmanacPaper(data, wide)
-                    ThemeRenderer.HANGING -> HangingPaper(data, wide)
+    val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
+    val fontId = theme.resolveFont(style.fontId)
+    CompositionLocalProvider(LocalCalendarFont provides LocalThemeFonts.current[theme.id]?.get(fontId)) {
+        Box(modifier.fillMaxSize().background(paper)) {
+            // Paint to every edge, but keep printed content clear of camera cutouts.
+            Box(Modifier.fillMaxSize().padding(LocalPaperInsets.current)) {
+                FullPaper { wide ->
+                    when (theme.renderer) {
+                        ThemeRenderer.GOLDEN -> GoldenPaper(data, wide)
+                        ThemeRenderer.TEDDY -> IllustrationPaper(theme, data, wide, photo = false)
+                        ThemeRenderer.PHOTO -> IllustrationPaper(theme, data, wide, photo = true)
+                        ThemeRenderer.GOOD_DAY -> GoodDayPaper(data, wide)
+                        ThemeRenderer.VERSE -> VersePaper(data, wide)
+                        ThemeRenderer.ALMANAC -> AlmanacPaper(data, wide)
+                        ThemeRenderer.HANGING -> HangingPaper(data, wide)
+                    }
                 }
             }
         }
@@ -116,7 +120,7 @@ private fun BigDay(data: CalendarData, modifier: Modifier, family: FontFamily = 
     weight: FontWeight = FontWeight.Bold, color: Color = PaperInk) {
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val fontSize = min(maxWidth.value * .72f, maxHeight.value * .9f) / LocalDensity.current.fontScale
-        Text(data.day, color = color, fontSize = fontSize.sp, fontFamily = family, fontWeight = weight,
+        Text(data.day, color = color, fontSize = fontSize.sp, fontFamily = LocalCalendarFont.current ?: family, fontWeight = weight,
             maxLines = 1, softWrap = false, modifier = Modifier.testTag("immersive-day"),
             style = TextStyle(lineHeight = fontSize.sp, platformStyle = PlatformTextStyle(includeFontPadding = false)))
     }

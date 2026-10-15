@@ -42,7 +42,8 @@ internal enum class ImageFill(val title: String, val description: String, val sc
     STRETCH("拉伸填充", "铺满图片区域，可能改变原图比例", ContentScale.FillBounds),
 }
 
-internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFill = ImageFill.CROP)
+internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFill = ImageFill.CROP,
+    val fontId: String? = null)
 internal fun CalendarTheme.defaultStyle() = ThemeStyle(fill = ImageFill.entries.single { it.name.lowercase() == defaultFill })
 internal val LocalThemeStyles = staticCompositionLocalOf<Map<String, ThemeStyle>> { emptyMap() }
 internal val LocalThemeImages = staticCompositionLocalOf<Map<String, String>> { emptyMap() }
@@ -62,12 +63,23 @@ internal class ThemeStyleStore(private val context: Context) {
             }
         }
         return ThemeStyle(preferences.getString("$key.image", null),
-            ImageFill.entries.firstOrNull { it.name == preferences.getString("$key.fill", null) } ?: theme.defaultStyle().fill)
+            ImageFill.entries.firstOrNull { it.name == preferences.getString("$key.fill", null) } ?: theme.defaultStyle().fill,
+            preferences.getString("$key.font", null)?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } })
     }
     fun save(theme: CalendarTheme, style: ThemeStyle) {
+        val previous = read(theme)
         preferences.edit {
-            putString("${theme.id}.image", style.imagePath)
-            putString("${theme.id}.fill", style.fill.name)
+            // Editing another property must not turn an inherited default into an override.
+            if (style.imagePath != previous.imagePath) putString("${theme.id}.image", style.imagePath)
+            if (style.fill != previous.fill) putString("${theme.id}.fill", style.fill.name)
+            putString("${theme.id}.font", style.fontId?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } })
+            putBoolean("${theme.id}.migrated", true)
+        }
+    }
+
+    fun resetImage(theme: CalendarTheme) {
+        preferences.edit(commit = true) {
+            remove("${theme.id}.image"); remove("${theme.id}.fill")
             putBoolean("${theme.id}.migrated", true)
         }
     }
@@ -75,6 +87,7 @@ internal class ThemeStyleStore(private val context: Context) {
     fun reset(theme: CalendarTheme) {
         preferences.edit(commit = true) {
             remove("${theme.id}.image"); remove("${theme.id}.fill")
+            remove("${theme.id}.font")
             putBoolean("${theme.id}.migrated", true)
         }
     }
@@ -147,7 +160,7 @@ internal fun ThemeImage(theme: CalendarTheme, modifier: Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: ThemeStyleStore,
-    onChange: (ThemeStyle) -> Unit, onReset: () -> Unit, onDismiss: () -> Unit) {
+    onChange: (ThemeStyle) -> Unit, onResetImage: () -> Unit, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var dismissing by remember { mutableStateOf(false) }
@@ -178,7 +191,31 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
             .padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("${theme.title.substringBefore(" · ")}样式", style = MaterialTheme.typography.headlineSmall)
             val imageSetting = theme.settings.filterIsInstance<ThemeSetting.Image>().singleOrNull()
-            val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull()
+            val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull { it.key == "fill" }
+            if (theme.fonts.isNotEmpty()) {
+                Text("日历字体", style = MaterialTheme.typography.titleMedium)
+                val defaultTitle = theme.fonts.firstOrNull { it.id == theme.defaultFont }?.title ?: "模板原字体"
+                val choices = listOf(null to "跟随主题默认 · $defaultTitle", "template" to "模板原字体") +
+                    theme.fonts.map { it.id to it.title }
+                Column(Modifier.selectableGroup()) {
+                    choices.forEach { (id, title) ->
+                        val family = LocalThemeFonts.current[theme.id]?.get(theme.resolveFont(id))
+                        Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).selectable(
+                            selected = style.fontId == id, enabled = !importing, role = Role.RadioButton,
+                            onClick = { onChange(style.copy(fontId = id)) }).testTag("font-${id ?: "default"}"),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            RadioButton(selected = style.fontId == id, onClick = null, enabled = !importing)
+                            Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                                Text(title, style = MaterialTheme.typography.bodyLarge)
+                                Text("日月成章 ABC 0123456789", fontFamily = family,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+                HorizontalDivider()
+            }
             if (imageSetting != null && fillSetting != null) {
                 Text(imageSetting.title, style = MaterialTheme.typography.titleMedium)
                 ThemeImage(theme, Modifier.fillMaxWidth().height(128.dp))
@@ -206,12 +243,12 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
                 }
                 TextButton(onClick = {
                     val old = style.imagePath
-                    onReset()
+                    onResetImage()
                     scope.launch(Dispatchers.IO) { store.discard(old) }
                 }, enabled = !importing, modifier = Modifier.testTag("restore-image")) {
                     Text("恢复默认图片与填充方式")
                 }
-            } else {
+            } else if (theme.fonts.isEmpty()) {
                 Text("此主题暂无可调整的样式。", style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

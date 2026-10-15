@@ -146,12 +146,16 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     val themeImages = inventory.catalog.mapNotNull { t -> repository.imagePath(t)?.let { t.id to it } }.toMap()
     val savedScreens = rememberSaveableStateHolder()
     CompositionLocalProvider(LocalThemeStyles provides styles, LocalThemeImages provides themeImages,
+        LocalThemeFonts provides remember(inventory.installed) { inventory.installed.associate { it.theme.id to it.fontFamilies } },
         LocalAlmanacCycle provides cycle, LocalGoodDayCycle provides goodDayCycle,
         LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).asPaddingValues()) {
         themes.firstOrNull { it.id == editingThemeId }?.let { selected ->
             ThemeStyleSheet(selected, styles.getValue(selected.id), styleStore,
                 onChange = { style -> styleStore.save(selected, style); styles = styles + (selected.id to style) },
-                onReset = { styleStore.reset(selected); styles = styles + (selected.id to selected.defaultStyle()) },
+                onResetImage = {
+                    styleStore.resetImage(selected)
+                    styles = styles + (selected.id to styleStore.read(selected))
+                },
                 onDismiss = { editingThemeId = null })
         }
         deletingId?.let { id ->

@@ -18,7 +18,9 @@ import java.util.UUID
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-internal data class InstalledTheme(val theme: CalendarTheme, val imageFile: String? = null)
+internal data class InstalledTheme(val theme: CalendarTheme, val imageFile: String? = null,
+    val fontFiles: Map<String, String> = emptyMap(),
+    val fontFamilies: Map<String, androidx.compose.ui.text.font.FontFamily> = emptyMap())
 internal data class ThemeInventory(
     val installed: List<InstalledTheme> = emptyList(),
     val loadErrors: List<String> = emptyList(),
@@ -43,7 +45,8 @@ internal class ThemeRepository private constructor(context: Context) {
     fun imagePath(theme: CalendarTheme): String? = inventory.value.installed
         .firstOrNull { it.theme.id == theme.id }?.imageFile?.let { File(directory, it).absolutePath }
 
-    suspend fun install(manifest: String, image: ByteArray? = null): CalendarTheme = withContext(Dispatchers.IO) {
+    suspend fun install(manifest: String, image: ByteArray? = null,
+        fonts: Map<String, ByteArray> = emptyMap()): CalendarTheme = withContext(Dispatchers.IO) {
         mutex.withLock {
             check(inventory.value.loadErrors.isEmpty()) { "Resolve theme index errors before modifying the library" }
             val theme = ThemeManifest.decode(manifest)
@@ -51,9 +54,19 @@ internal class ThemeRepository private constructor(context: Context) {
             ThemeCatalog.validateInstall(theme, previous.map { it.theme })
             require(theme.hasImageAsset == (image != null)) { "Image asset does not match manifest" }
             require(previous.any { it.theme.id == theme.id } || previous.size < 200) { "Theme limit reached" }
+            require(fonts.keys == theme.fonts.map { it.id }.toSet()) { "Font assets do not match manifest" }
+            require(fonts.values.all { it.size in 1..ThemeFonts.MAX_FILE_BYTES } &&
+                fonts.values.sumOf { it.size.toLong() } <= ThemeFonts.MAX_PACKAGE_BYTES) { "Font assets are too large" }
             val imageFile = image?.let { importAsset(it) }
+            val fontFiles = mutableMapOf<String, String>()
             try {
-                val entry = InstalledTheme(theme, imageFile)
+                val families = fonts.mapValues { (id, bytes) ->
+                    val file = File(directory, "${UUID.randomUUID()}.font")
+                    fontFiles[id] = file.name
+                    file.writeBytes(bytes)
+                    ThemeFonts.load(file)
+                }
+                val entry = InstalledTheme(theme, imageFile, fontFiles.toMap(), families)
                 val updated = if (previous.any { it.theme.id == theme.id }) {
                     previous.map { if (it.theme.id == theme.id) entry else it }
                 } else previous + entry
@@ -63,6 +76,7 @@ internal class ThemeRepository private constructor(context: Context) {
                 mutableInventory.value = next
             } catch (failure: Exception) {
                 imageFile?.let { File(directory, it).delete() }
+                fontFiles.values.forEach { File(directory, it).delete() }
                 throw failure
             }
             // Old immutable assets may still be rendered during an update. Prune on next startup.
@@ -138,6 +152,7 @@ internal class ThemeRepository private constructor(context: Context) {
             state.installed.forEach { entry -> put(JSONObject().apply {
                 put("manifest", JSONObject(ThemeManifest.encode(entry.theme)))
                 entry.imageFile?.let { put("imageFile", it) }
+                if (entry.fontFiles.isNotEmpty()) put("fontFiles", JSONObject(entry.fontFiles))
             }) }
         }
         val json = JSONObject().apply {
@@ -181,7 +196,17 @@ internal class ThemeRepository private constructor(context: Context) {
                         require(image.matches(Regex("[a-f0-9-]{36}\\.png")))
                         require(File(directory, image).isFile) { "Missing theme image" }
                     }
-                    entries += InstalledTheme(theme, image)
+                    val fontRecord = if (record.has("fontFiles")) record.getJSONObject("fontFiles") else JSONObject()
+                    require(fontRecord.keys().asSequence().toSet() == theme.fonts.map { it.id }.toSet()) {
+                        "Missing or unexpected theme fonts"
+                    }
+                    val fonts = theme.fonts.associate { font ->
+                        val name = fontRecord.get(font.id) as? String ?: error("Invalid font file")
+                        require(name.matches(Regex("[a-f0-9-]{36}\\.font"))) { "Invalid font path" }
+                        font.id to name
+                    }
+                    require(fonts.values.sumOf { File(directory, it).length() } <= ThemeFonts.MAX_PACKAGE_BYTES)
+                    entries += InstalledTheme(theme, image, fonts, fonts.mapValues { ThemeFonts.load(File(directory, it.value)) })
                 } catch (failure: Exception) { errors += "Theme ${position + 1}: ${failure.message}" }
             }
         } catch (_: java.io.FileNotFoundException) {
@@ -207,8 +232,8 @@ internal class ThemeRepository private constructor(context: Context) {
             if (stored == null) try { persist(state) }
             catch (failure: Exception) { return state.copy(loadErrors = listOf("Theme migration: ${failure.message}")) }
             resetRemovedStyles(state)
-            val used = entries.mapNotNull { it.imageFile }.toSet()
-            directory.listFiles()?.filter { it.extension == "png" && it.name !in used }?.forEach { it.delete() }
+            val used = entries.flatMap { listOfNotNull(it.imageFile) + it.fontFiles.values }.toSet()
+            directory.listFiles()?.filter { it.extension in listOf("png", "font") && it.name !in used }?.forEach { it.delete() }
         }
         return state
     }
