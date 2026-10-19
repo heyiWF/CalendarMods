@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#0D1724" />
+        </shape>
+    </item>
+    <!-- The launcher exposes the central 72dp of each 108dp adaptive layer. -->
+    <item>
+        <inset android:insetLeft="12.5%" android:insetTop="12.5%"
+            android:insetRight="12.5%" android:insetBottom="12.5%">
+            <bitmap android:src="@drawable/ic_launcher_artwork" android:gravity="fill" android:filter="true" />
+        </inset>
+    </item>
+</layer-list>

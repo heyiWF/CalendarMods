@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Keep the explicit adaptive-icon qualifier. With this toolchain moving
+         these files to unqualified anydpi drops them from the linked resources. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+    <!-- This bitmap is an opaque adaptive BACKGROUND, not a legacy square icon.
+         The launcher supplies the silhouette; transparency would expose gaps. -->
+    <issue id="IconLauncherShape">
+        <ignore path="src/main/res/drawable-nodpi/ic_launcher_artwork.png" />
+    </issue>
+</lint>

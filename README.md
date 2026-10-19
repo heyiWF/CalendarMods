@@ -1,5 +1,7 @@
 # CalendarMods
 
+<img src="docs/media/app-icon-playstore.png" width="112" alt="CalendarMods：深蓝金属质感与珊瑚橙日历图标">
+
 **把一页喜欢的日历，留在屏幕上。**
 
 CalendarMods 是一款专注于日历展示的 Android 应用。七种各具风格的纸质日历主题，将日期、农历、节气与每日文句放在一起；轻点进入全屏，让手机或平板成为一页随时间更新的日历。
