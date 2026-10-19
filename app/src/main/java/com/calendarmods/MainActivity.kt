@@ -56,10 +56,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
-    val context = LocalContext.current
-    val repository = remember { ThemeRepository.get(context) }
-    val inventory by repository.inventory.collectAsState()
-    CalendarContent(clock, inventory, repository)
+    val context = LocalContext.current.applicationContext
+    // Index migration and packaged font validation can touch many files on a cold launch.
+    val repository by produceState<ThemeRepository?>(null, context) {
+        value = withContext(Dispatchers.IO) { ThemeRepository.get(context) }
+    }
+    val ready = repository
+    if (ready == null) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        val inventory by ready.inventory.collectAsState()
+        CalendarContent(clock, inventory, ready)
+    }
 }
 
 @Composable
@@ -143,7 +153,9 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     }
     val cycle = rememberAlmanacCycle(data, enabled = !storeOpen)
     val goodDayCycle = rememberAlmanacCycle(data, centered = true, enabled = !storeOpen)
-    val themeImages = inventory.catalog.mapNotNull { t -> repository.imagePath(t)?.let { t.id to it } }.toMap()
+    val themeImages = remember(inventory.installed, repository) {
+        inventory.installed.mapNotNull { entry -> repository.imagePath(entry.theme)?.let { entry.theme.id to it } }.toMap()
+    }
     val savedScreens = rememberSaveableStateHolder()
     CompositionLocalProvider(LocalThemeStyles provides styles, LocalThemeImages provides themeImages,
         LocalThemeFonts provides remember(inventory.installed) { inventory.installed.associate { it.theme.id to it.fontFamilies } },

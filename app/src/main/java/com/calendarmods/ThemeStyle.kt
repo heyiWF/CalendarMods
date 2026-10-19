@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
-import android.util.LruCache
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,7 +21,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -118,14 +119,10 @@ internal class ThemeStyleStore(private val context: Context) {
         if (path == null) return
         val file = File(path)
         if (file.parentFile?.canonicalFile == File(context.filesDir, "theme-images").canonicalFile) {
-            imageCache.remove(path)
+            ThemeImages.discard(path)
             file.delete()
         }
     }
-}
-
-private val imageCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
-    override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
 }
 
 @Composable
@@ -138,23 +135,24 @@ internal fun ThemeImage(theme: CalendarTheme, modifier: Modifier) {
     }
     val defaultPath = LocalThemeImages.current[theme.id]
     val path = style.imagePath ?: defaultPath
-    val bitmap by produceState<Bitmap?>(path?.let(imageCache::get), path, defaultPath) {
-        value = withContext(Dispatchers.IO) {
-            listOfNotNull(path, defaultPath).distinct().firstNotNullOfOrNull { candidate ->
-                imageCache.get(candidate) ?: runCatching {
-                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(File(candidate)))
-                        .also { imageCache.put(candidate, it) }
-                }.getOrNull()
-            }
-        }
+    val resources = LocalResources.current
+    val window = LocalWindowInfo.current.containerSize
+    val edge = ThemeImages.targetEdge(window.width, window.height)
+    val resource = if (theme.renderer.image == BuiltInImage.BEAR) R.drawable.winter_bear else R.drawable.sunset_memory
+    val sources = remember(path, defaultPath, resource) {
+        listOfNotNull(path, defaultPath).distinct().map { ThemeImageSource(path = it) } + ThemeImageSource(resource = resource)
+    }
+    var bitmap by remember(sources, edge) { mutableStateOf(ThemeImages.peek(sources, edge)) }
+    LaunchedEffect(sources, edge, resources) {
+        bitmap = ThemeImages.load(resources, sources, edge)
     }
     val description = if (path != null) "自选日历图片" else when (theme.renderer.image) {
         BuiltInImage.BEAR -> "雪地里的小熊与热可可"
         else -> "日落海边的温暖合影"
     }
-    if (bitmap != null) Image(bitmap!!.asImageBitmap(), description, modifier, contentScale = style.fill.scale)
-    else Image(painterResource(if (theme.renderer.image == BuiltInImage.BEAR) R.drawable.winter_bear else R.drawable.sunset_memory),
-        description, modifier, contentScale = style.fill.scale)
+    Box(modifier.semantics { contentDescription = description }) {
+        bitmap?.let { Image(it.asImageBitmap(), null, Modifier.matchParentSize(), contentScale = style.fill.scale) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

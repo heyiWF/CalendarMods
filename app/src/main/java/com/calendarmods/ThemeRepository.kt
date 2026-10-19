@@ -28,7 +28,7 @@ internal data class ThemeInventory(
 ) {
     val catalog: List<CalendarTheme> = CalendarTheme.entries + installed.map { it.theme }
     val byId = catalog.associateBy { it.id }
-    val themes: List<CalendarTheme> get() = library.order.mapNotNull(byId::get)
+    val themes: List<CalendarTheme> = library.order.mapNotNull(byId::get)
 }
 
 /** Single-process durable catalog. Future download/import clients call install after acquisition.

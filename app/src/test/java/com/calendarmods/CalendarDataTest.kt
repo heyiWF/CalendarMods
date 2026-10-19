@@ -7,6 +7,39 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 class CalendarDataTest {
+    @Test fun resumeReusesDataAndMidnightReusesOnlyTheMonthGrid() {
+        val date = LocalDate.of(2028, 2, 28)
+        val first = CalendarData.create(date)
+        assertSame(first, CalendarData.create(date))
+        val leapDay = CalendarData.create(date.plusDays(1))
+        assertSame(first.cells, leapDay.cells)
+        assertEquals("29", leapDay.day)
+        assertNotEquals(first.today, leapDay.today)
+        val march = CalendarData.create(date.plusDays(2))
+        assertNotSame(leapDay.cells, march.cells)
+        assertEquals(31, march.cells.count { it.inMonth })
+        assertEquals(29, leapDay.cells.count { it.inMonth })
+    }
+
+    @Test fun dateCacheIsBoundedAndEvictionPreservesResults() {
+        val date = LocalDate.of(2030, 1, 1)
+        val first = CalendarData.create(date)
+        (1L..5L).forEach { CalendarData.create(date.plusMonths(it)) }
+        val reloaded = CalendarData.create(date)
+        assertNotSame(first, reloaded)
+        assertNotSame(first.cells, reloaded.cells)
+        assertEquals(first, reloaded)
+    }
+
+    @Test fun simultaneousReadersShareTheSameComputedDay() {
+        val workers = java.util.concurrent.Executors.newFixedThreadPool(4)
+        try {
+            val results = (1..8).map { workers.submit<CalendarData> { CalendarData.create(LocalDate.of(2029, 6, 1)) } }
+                .map { it.get() }
+            results.forEach { assertSame(results.first(), it) }
+        } finally { workers.shutdownNow() }
+    }
+
     @Test fun solarTermsOnlyLabelTheActualTermDate() {
         val qingming = CalendarData.create(LocalDate.of(2024, 4, 4))
         val followingDay = CalendarData.create(LocalDate.of(2024, 4, 5))

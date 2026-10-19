@@ -32,6 +32,11 @@ data class CalendarData(
     val chineseMonth get() = listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二")[today.monthValue - 1] + "月"
 
     companion object {
+        // Dates are zone-independent once resolved by CalendarClock. Keep only a few
+        // recent days/months so resume, rotation and midnight do not rebuild 42 cells.
+        private val days = LinkedHashMap<LocalDate, CalendarData>(4, .75f, true)
+        private val months = LinkedHashMap<YearMonth, List<CalendarCell>>(2, .75f, true)
+
         // Same rules/order as ClockMods LunarAlmanac.festivals(). A term labels only
         // its actual starting date, never every day in that two-week period.
         private fun festivals(solar: SolarDay): List<String> = buildSet {
@@ -49,7 +54,23 @@ data class CalendarData(
             return List(42) { start.plusDays(it.toLong()) }
         }
 
-        fun create(date: LocalDate): CalendarData {
+        @Synchronized
+        fun create(date: LocalDate): CalendarData = days[date] ?: calculate(date).also {
+            days[date] = it
+            if (days.size > 4) days.remove(days.keys.first())
+        }
+
+        private fun monthCells(month: YearMonth): List<CalendarCell> = months[month] ?: monthDates(month).map { date ->
+            val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
+            val lunar = solar.lunarDay
+            CalendarCell(date, YearMonth.from(date) == month,
+                if (lunar.day == 1) lunar.lunarMonth.name else lunar.name, festivals(solar))
+        }.also {
+            months[month] = it
+            if (months.size > 2) months.remove(months.keys.first())
+        }
+
+        private fun calculate(date: LocalDate): CalendarData {
             val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
             val lunar = solar.lunarDay
             val cycle = solar.sixtyCycleDay
@@ -61,13 +82,7 @@ data class CalendarData(
                 festivals = festivals(solar),
                 recommends = lunar.recommends.map { it.name },
                 avoids = lunar.avoids.map { it.name },
-                cells = monthDates(YearMonth.from(date)).map { cellDate ->
-                    val cellSolar = SolarDay.fromYmd(cellDate.year, cellDate.monthValue, cellDate.dayOfMonth)
-                    val cellLunar = cellSolar.lunarDay
-                    CalendarCell(cellDate, cellDate.month == date.month,
-                        if (cellLunar.day == 1) cellLunar.lunarMonth.name else cellLunar.name,
-                        festivals(cellSolar))
-                },
+                cells = monthCells(YearMonth.from(date)),
             )
         }
     }

@@ -38,6 +38,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var storeMotionOnly = false
     private val dayMotion = AtomicReference<Pair<LocalDate, Boolean>>()
     private var performanceOnly = false
+    private var corePerformanceOnly = false
+    private var resourcesOnly = false
+    private val expectedDates = mutableMapOf<LocalDate, CalendarData>()
     private var interruptionsOnly = false
     private var midnightOnly = false
     private var denseOnly = false
@@ -46,6 +49,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     override fun onCreate(arguments: Bundle?) {
         refinementsOnly = arguments?.getString("refinements") == "true"
         performanceOnly = arguments?.getString("performance") == "true"
+        corePerformanceOnly = arguments?.getString("corePerformance") == "true"
+        resourcesOnly = arguments?.getString("resources") == "true"
         storeOnly = arguments?.getString("store") == "true"
         storeMotionOnly = arguments?.getString("storeMotion") == "true"
         interruptionsOnly = arguments?.getString("interruptions") == "true"
@@ -77,7 +82,11 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (fontsOnly) {
+            if (resourcesOnly) {
+                verifyImageResources(checks)
+            } else if (corePerformanceOnly) {
+                verifyCorePerformance(checks)
+            } else if (fontsOnly) {
                 verifyThemeFonts(checks)
             } else if (storeMotionOnly) {
                 verifyStoreMotion(checks)
@@ -258,6 +267,13 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
             press("store-tab-0")
             await("unfavorite batch committed on leave") { CalendarTheme.GOLDEN.id !in repository.inventory.value.library.favorites }
+            // The repository publishes before the outgoing favorites grid finishes its animation.
+            // Wait for the incoming grid, otherwise a faster refresh can click stale card bounds.
+            await("recommended grid ready after favorite commit") {
+                val tree = nodes()
+                tree.any { it.viewIdResourceName == "store-grid-0" } &&
+                    tree.any { it.viewIdResourceName == "favorite-GOLDEN" && it.isEnabled }
+            }
             press("favorite-GOLDEN")
             await("refavorite persisted") { CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites }
             checks += "deferred unfavorite remains visible, survives rotation, undo and atomic commit on tab leave PASS"
@@ -285,9 +301,14 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             check(nodes().any { it.text?.toString() == "将从已安装主题中移除“${CalendarTheme.GOLDEN.title}”" })
             uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
             press("store-tab-2")
+            await("installed grid ready before scrolling") {
+                val tree = nodes()
+                tree.any { it.viewIdResourceName == "store-grid-2" } &&
+                    tree.any { it.viewIdResourceName?.startsWith("add-use-") == true && it.isEnabled }
+            }
             // Re-added theme is last; scroll the grid until its use action is visible.
             repeat(3) {
-                if (nodes().none { it.viewIdResourceName == "add-use-GOLDEN" }) {
+                if (nodes().none { it.viewIdResourceName == "add-use-GOLDEN" && it.isVisibleToUser }) {
                     val bounds = Rect().also { b -> nodes().first { it.viewIdResourceName == "store-grid-2" }.getBoundsInScreen(b) }
                     dragPoints(bounds.exactCenterX(), bounds.bottom - 60f, bounds.exactCenterX(), bounds.top + 60f)
                 }
@@ -443,6 +464,42 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             check(nodes().any { it.text?.toString() == "应用" })
             checks += "failed acquisition leaves theme uninstalled and restores retry action PASS"
         } finally { shell("settings put global animator_duration_scale $originalScale") }
+    }
+
+    private fun verifyCorePerformance(checks: MutableList<String>) {
+        val date = LocalDate.of(2026, 10, 19)
+        val durations = List(30) {
+            val start = SystemClock.elapsedRealtimeNanos()
+            check(CalendarData.create(date).today == date)
+            (SystemClock.elapsedRealtimeNanos() - start) / 1_000.0
+        }.sorted()
+        checks += "same-day data x30: median=${durations[15]}us p95=${durations[28]}us max=${durations.last()}us"
+        val activity = activities.lastActivity as MainActivity
+        val frames = java.util.Collections.synchronizedList(mutableListOf<Long>())
+        val listener = android.view.Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
+            frames.add(metrics.getMetric(android.view.FrameMetrics.TOTAL_DURATION))
+        }
+        runOnMainSync { activity.window.addOnFrameMetricsAvailableListener(listener,
+            android.os.Handler(android.os.Looper.getMainLooper())) }
+        try {
+            repeat(3) {
+                swipe(left = true); awaitTheme(CalendarTheme.TEDDY)
+                press("art-TEDDY"); awaitImmersive(CalendarTheme.TEDDY)
+                if (it == 0) { SystemClock.sleep(500); capture("core-performance-photo") }
+                press("immersive-TEDDY", long = true); awaitTheme(CalendarTheme.TEDDY)
+                swipe(left = true); awaitTheme(CalendarTheme.PHOTO)
+                swipe(left = false); awaitTheme(CalendarTheme.TEDDY)
+                swipe(left = false); awaitTheme(CalendarTheme.GOLDEN)
+            }
+            val samples = synchronized(frames) { frames.toList().sorted() }
+            check(samples.isNotEmpty())
+            val info = android.os.Debug.MemoryInfo().also(android.os.Debug::getMemoryInfo)
+            checks += "photo swipe/fullscreen x3: frames=${samples.size}, p50=${samples[samples.size / 2] / 1_000_000}ms " +
+                "p95=${samples[((samples.size - 1) * .95).toInt()] / 1_000_000}ms max=${samples.last() / 1_000_000}ms " +
+                "over100ms=${samples.count { it > 100_000_000 }}, pss=${info.totalPss / 1024}MiB"
+        } finally {
+            runOnMainSync { activity.window.removeOnFrameMetricsAvailableListener(listener) }
+        }
     }
 
     private fun verifyStorePerformance(checks: MutableList<String>) {
@@ -1267,7 +1324,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         }
         SystemClock.sleep(350)
         val tree = nodes()
-        val dateData = CalendarData.create(expectedDate)
+        // Assertions must not add repeated lunar calculations to the frame benchmark.
+        val dateData = expectedDates.getOrPut(expectedDate) { CalendarData.create(expectedDate) }
         val displayedText = tree.mapNotNull { it.text?.toString() }
         when (theme) {
             CalendarTheme.GOOD_DAY -> check(displayedText.any { it in almanacPages(dateData.recommends, 1) }) { "Good-day almanac is not computed data" }
