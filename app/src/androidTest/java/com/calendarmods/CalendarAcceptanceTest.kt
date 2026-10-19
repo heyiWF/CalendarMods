@@ -403,7 +403,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                                 gate.get().await()
                                 if (failure.get()) throw java.io.IOException("fixture install failure")
                                 fixture = fixture.copy(library = fixture.library.add(id, 1L))
-                            }, onFavorite = {}, onSaveFavorites = {}, onError = { error.set(it) },
+                            }, onFavorite = {}, onSaveFavorites = {}, onMessage = { error.set(it) },
                             onDelete = {}, onReorder = { fixture = fixture.copy(library = fixture.library.reorder(it)) }, onUse = {})
                         }
                     }

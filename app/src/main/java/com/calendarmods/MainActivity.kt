@@ -197,7 +197,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
                             onBack = { storeOpen = false }, onAdd = { id, _ -> repository.add(id) },
                             onFavorite = { operation { repository.toggleFavorite(it) } },
                             onSaveFavorites = { repository.setFavorites(it) },
-                            onError = { message -> scope.launch { snackbar.showSnackbar(message) } }, onDelete = ::requestDelete,
+                            onMessage = { message -> scope.launch { snackbar.showSnackbar(message) } }, onDelete = ::requestDelete,
                             onReorder = { ids -> operation { repository.reorder(ids) } },
                             onUse = { id ->
                                 returningFromStoreUse = true

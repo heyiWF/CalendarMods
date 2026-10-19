@@ -6,7 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -40,7 +39,7 @@ internal val LocalStoreTabMotionObserver = staticCompositionLocalOf<((Float, Int
 @Composable
 internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Boolean, modifier: Modifier,
     onBack: () -> Unit, onAdd: suspend (String, (Float?) -> Unit) -> Unit, onFavorite: (String) -> Unit,
-    onSaveFavorites: suspend (Map<String, Boolean>) -> Unit, onError: (String) -> Unit,
+    onSaveFavorites: suspend (Map<String, Boolean>) -> Unit, onMessage: (String) -> Unit,
     onDelete: (String) -> Unit, onReorder: (List<String>) -> Unit, onUse: (String) -> Unit,
     previewsEnabled: Boolean = true, session: Int = 0) {
     var tab by rememberSaveable(session) { mutableIntStateOf(0) }
@@ -64,7 +63,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                 delay((400L - (android.os.SystemClock.uptimeMillis() - started)).coerceAtLeast(0L))
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
-                onError("应用失败，请重试")
+                onMessage("应用失败，请重试")
             } finally { applyingId = null; applicationProgress = null }
         }
     }
@@ -80,7 +79,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
                 pendingUnfavorites = emptyList()
-                onError("收藏保存失败，请重试")
+                onMessage("收藏保存失败，请重试")
             } finally { savingFavorites = false }
         }
     }
@@ -261,7 +260,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
                                             if (theme.id in pendingUnfavorites) pendingUnfavorites = pendingUnfavorites - theme.id
                                             else {
                                                 pendingUnfavorites = pendingUnfavorites + theme.id
-                                                Toast.makeText(context, "已取消收藏", Toast.LENGTH_SHORT).show()
+                                                onMessage("已取消收藏")
                                             }
                                         } else onFavorite(theme.id)
                                     },
