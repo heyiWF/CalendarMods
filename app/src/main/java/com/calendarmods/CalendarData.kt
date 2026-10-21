@@ -57,7 +57,7 @@ data class CalendarData(
         @Synchronized
         fun create(date: LocalDate): CalendarData = days[date] ?: calculate(date).also {
             days[date] = it
-            if (days.size > 4) days.remove(days.keys.first())
+            if (days.size > 8) days.remove(days.keys.first())
         }
 
         private fun monthCells(month: YearMonth): List<CalendarCell> = months[month] ?: monthDates(month).map { date ->
@@ -67,7 +67,7 @@ data class CalendarData(
                 if (lunar.day == 1) lunar.lunarMonth.name else lunar.name, festivals(solar))
         }.also {
             months[month] = it
-            if (months.size > 2) months.remove(months.keys.first())
+            if (months.size > 4) months.remove(months.keys.first())
         }
 
         private fun calculate(date: LocalDate): CalendarData {

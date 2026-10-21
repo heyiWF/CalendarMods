@@ -43,6 +43,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private val expectedDates = mutableMapOf<LocalDate, CalendarData>()
     private var interruptionsOnly = false
     private var midnightOnly = false
+    private var pagingOnly = false
     private var denseOnly = false
     private var centeredRotation: Int? = null
     private var anchoredRotation: Int? = null
@@ -55,6 +56,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         storeMotionOnly = arguments?.getString("storeMotion") == "true"
         interruptionsOnly = arguments?.getString("interruptions") == "true"
         midnightOnly = arguments?.getString("midnight") == "true"
+        pagingOnly = arguments?.getString("paging") == "true"
         contractOnly = arguments?.getString("contract") == "true"
         fontsOnly = arguments?.getString("fonts") == "true"
         denseOnly = arguments?.getString("dense") == "true"
@@ -82,7 +84,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (resourcesOnly) {
+            if (pagingOnly) {
+                verifyCalendarPaging(checks)
+            } else if (resourcesOnly) {
                 verifyImageResources(checks)
             } else if (corePerformanceOnly) {
                 verifyCorePerformance(checks)
@@ -154,12 +158,14 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             report.putString("stream", "\nPASS ${checks.size} checks\n" + checks.joinToString("\n"))
         } catch (failure: Throwable) {
             result = Activity.RESULT_CANCELED
-            report.putString("stream", "\nFAIL after ${checks.size} checks\n" + failure.stackTraceToString())
+            report.putString("stream", "\nFAIL after ${checks.size} checks\n" + checks.joinToString("\n") + "\n" + failure.stackTraceToString())
         } finally {
-            shell("cmd alarm set-timezone $savedZone")
+            // Preserve the actual failure and restore preferences even if another
+            // instrumentation session disconnects this test's UiAutomation.
+            runCatching { shell("cmd alarm set-timezone $savedZone") }
             preferences.edit().putString("theme_id", savedThemeId).putInt("theme", savedTheme).putBoolean("immersive", savedImmersive).commit()
             if (::activities.isInitialized) removeMonitor(activities)
-            uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE)
+            runCatching { uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE) }
             finish(result, report)
         }
     }
@@ -592,6 +598,149 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         }
         inject(MotionEvent.ACTION_UP, endX, endY)
         SystemClock.sleep(700)
+    }
+
+    private fun verifyCalendarPaging(checks: MutableList<String>) {
+        val preferences = targetContext.getSharedPreferences("theme_styles", 0)
+        val saved = preferences.all.toMap()
+        val calendar = targetContext.getSharedPreferences("calendar", 0)
+        val styles = ThemeStyleStore(targetContext)
+        val date = LocalDate.of(2028, 1, 31)
+        fun launch(theme: CalendarTheme, fullscreen: Boolean = true, productionClock: Boolean = false): MainActivity {
+            calendar.edit().putString("theme_id", theme.id).putBoolean("immersive", fullscreen).commit()
+            val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+            if (!productionClock) runOnMainSync { activity.setContent { MaterialTheme {
+                CalendarApp(CalendarClock { date.atTime(12, 0).atZone(ZoneId.systemDefault()) })
+            } } }
+            return activity
+        }
+        fun awaitDate(expected: LocalDate) = await("paged date $expected") {
+            nodes().any { it.viewIdResourceName == "calendar-date-pager" &&
+                it.stateDescription?.toString() == "日期：$expected" }
+        }
+        try {
+            CalendarTheme.entries.forEach { theme ->
+                val original = styles.read(theme)
+                styles.save(theme, original.copy(interactive = false, pageAnimation = true))
+                launch(theme, fullscreen = false)
+                awaitTheme(theme, date)
+                press("style-${theme.name}")
+                press("interactive-calendar")
+                press("page-animation")
+                await("independent settings saved") {
+                    styles.read(theme) == original.copy(interactive = true, pageAnimation = false)
+                }
+                capture("paging-style-${theme.name.lowercase()}")
+                press("style-done")
+                awaitTheme(theme, date)
+                press("art-${theme.name}")
+                awaitDate(date)
+                swipe(true, tag = "calendar-date-pager")
+                awaitDate(if (theme.renderer.pagesByMonth) date.plusMonths(1) else date.plusDays(1))
+                press("calendar-today"); awaitDate(date)
+                // Restart reads the persisted switches and remains interactive.
+                launch(theme); awaitDate(date)
+                checks += "${theme.name}: both switches, independent persistence, instant paging and today PASS"
+                styles.save(theme, original.copy(interactive = true, pageAnimation = true))
+            }
+            for (rotation in 0..1) {
+                uiAutomation.setRotation(rotation)
+                SystemClock.sleep(700)
+                CalendarTheme.entries.forEach { theme ->
+                    val activity = launch(theme)
+                    awaitDate(date)
+                    SystemClock.sleep(1_000)
+                    val frames = java.util.Collections.synchronizedList(mutableListOf<Long>())
+                    val listener = android.view.Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
+                        frames.add(metrics.getMetric(android.view.FrameMetrics.TOTAL_DURATION))
+                    }
+                    runOnMainSync { activity.window.addOnFrameMetricsAvailableListener(listener,
+                        android.os.Handler(android.os.Looper.getMainLooper())) }
+                    try {
+                        swipe(true, fraction = .06f, duration = 550, tag = "calendar-date-pager")
+                        awaitDate(date)
+                        val bounds = Rect().also { nodes().first { it.viewIdResourceName == "calendar-date-pager" }.getBoundsInScreen(it) }
+                        dragPoints(bounds.left + bounds.width() * .8f, bounds.exactCenterY(),
+                            bounds.left + bounds.width() * .2f, bounds.exactCenterY(), 400,
+                            "paging-$rotation-${theme.name.lowercase()}-drag")
+                        val next = if (theme.renderer.pagesByMonth) date.plusMonths(1) else date.plusDays(1)
+                        awaitDate(next)
+                        val paperBounds = Rect().also { nodes().first { it.viewIdResourceName == "calendar-date-pager" }.getBoundsInScreen(it) }
+                        val returnBounds = Rect().also { nodes().first { it.viewIdResourceName == "calendar-today" }.getBoundsInScreen(it) }
+                        check(returnBounds.top >= paperBounds.bottom) { "Today button covers the printed calendar" }
+                        capture("paging-$rotation-${theme.name.lowercase()}")
+                        // Measure settled, warm paging separately from screenshot capture
+                        // and the unrelated shared transition back to the theme chooser.
+                        SystemClock.sleep(250)
+                        frames.clear()
+                        swipe(true, tag = "calendar-date-pager")
+                        awaitDate(if (theme.renderer.pagesByMonth) date.plusMonths(2) else date.plusDays(2))
+                        swipe(false, tag = "calendar-date-pager"); awaitDate(next)
+                        press("calendar-today"); awaitDate(date)
+                        val samples = synchronized(frames) { frames.toList().sorted() }
+                        press("immersive-${theme.name}", long = true)
+                        awaitTheme(theme, date)
+                        check(samples.isNotEmpty())
+                        checks += "${theme.name}: rotation=$rotation short-drag, forward/reverse, today, long-press PASS; " +
+                            "frames=${samples.size}, p95=${samples[((samples.size - 1) * .95).toInt()] / 1_000_000}ms, " +
+                            "max=${samples.last() / 1_000_000}ms"
+                    } finally {
+                        runOnMainSync { activity.window.removeOnFrameMetricsAvailableListener(listener) }
+                    }
+                }
+            }
+            val theme = CalendarTheme.GOLDEN
+            // Activity recreation must use the same production composition entry point;
+            // a test setContent tree has different rememberSaveable registration keys.
+            val realToday = LocalDate.now()
+            launch(theme, productionClock = true); awaitDate(realToday)
+            swipe(true, tag = "calendar-date-pager"); awaitDate(realToday.plusDays(1))
+            uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+            await("paging survives recreation") { targetContext.resources.configuration.orientation == 1 }
+            awaitDate(realToday.plusDays(1))
+            checks += "browsed date survives production Activity recreation on rotation PASS"
+            styles.save(theme, styles.read(theme).copy(interactive = false, pageAnimation = false))
+            launch(theme)
+            awaitImmersive(theme, date)
+            swipe(true, tag = "immersive-${theme.name}")
+            check(nodes().none { it.viewIdResourceName == "calendar-date-pager" })
+            awaitImmersive(theme, date)
+            checks += "disabled interaction ignores swipe, disabled animation preserved PASS"
+            for (interactive in listOf(false, true)) for (animated in listOf(false, true)) {
+                val shown = mutableStateOf(CalendarData.create(date))
+                val activity = activities.lastActivity as MainActivity
+                runOnMainSync { activity.setContent { MaterialTheme {
+                    CompositionLocalProvider(LocalThemeStyles provides mapOf(theme.id to
+                        ThemeStyle(interactive = interactive, pageAnimation = animated))) {
+                        ImmersiveCalendar(theme, shown.value, onExit = {}, animateDay = true)
+                    }
+                } } }
+                await("initial paper") { nodes().any { it.viewIdResourceName == "midnight-paper" &&
+                    it.stateDescription?.toString() == "静止：$date" } }
+                SystemClock.sleep(500)
+                runOnMainSync { shown.value = CalendarData.create(date.plusDays(1)) }
+                if (animated) {
+                    await("enabled date animation") { nodes().any { it.viewIdResourceName == "midnight-paper" &&
+                        it.stateDescription?.toString() == "跨日过渡：${date.plusDays(1)}" } }
+                }
+                await("new date settled") { nodes().any { it.viewIdResourceName == "midnight-paper" &&
+                    it.stateDescription?.toString() == "静止：${date.plusDays(1)}" } }
+                if (!animated) check(nodes().none { it.stateDescription?.startsWith("跨日过渡") == true })
+                if (interactive) awaitDate(date.plusDays(1))
+                checks += "automatic day change: interactive=$interactive animation=$animated PASS"
+            }
+        } finally {
+            val restore = preferences.edit().clear()
+            saved.forEach { (key, value) -> when (value) {
+                is String -> restore.putString(key, value)
+                is Boolean -> restore.putBoolean(key, value)
+                is Int -> restore.putInt(key, value)
+                is Long -> restore.putLong(key, value)
+                is Float -> restore.putFloat(key, value)
+            } }
+            restore.commit()
+        }
     }
 
     private fun verifyMidnightMotions(checks: MutableList<String>) {

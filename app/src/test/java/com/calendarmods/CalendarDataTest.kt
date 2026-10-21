@@ -24,11 +24,18 @@ class CalendarDataTest {
     @Test fun dateCacheIsBoundedAndEvictionPreservesResults() {
         val date = LocalDate.of(2030, 1, 1)
         val first = CalendarData.create(date)
-        (1L..5L).forEach { CalendarData.create(date.plusMonths(it)) }
+        (1L..9L).forEach { CalendarData.create(date.plusMonths(it)) }
         val reloaded = CalendarData.create(date)
         assertNotSame(first, reloaded)
         assertNotSame(first.cells, reloaded.cells)
         assertEquals(first, reloaded)
+    }
+
+    @Test fun pagingKeepsNeighbouringMonthGridsWarm() {
+        val date = LocalDate.of(2031, 1, 1)
+        val first = CalendarData.create(date)
+        listOf(-1L, 1L, 2L).forEach { CalendarData.create(date.plusMonths(it)) }
+        assertSame(first.cells, CalendarData.create(date.plusDays(1)).cells)
     }
 
     @Test fun simultaneousReadersShareTheSameComputedDay() {

@@ -6,7 +6,10 @@ enum class ThemeRenderer(val wireId: String, val image: BuiltInImage? = null) {
     PHOTO("photo.v1", BuiltInImage.SUNSET), GOOD_DAY("good-day.v1"),
     VERSE("verse.v1"), ALMANAC("almanac.v1"), HANGING("hanging.v1");
 
-    val settings: List<ThemeSetting> get() = if (image == null) emptyList() else listOf(
+    val settings: List<ThemeSetting> get() = listOf(
+        ThemeSetting.Toggle("page_animation", "翻页动画", true),
+        ThemeSetting.Toggle("interactive", "交互式日历", false),
+    ) + if (image == null) emptyList() else listOf(
         ThemeSetting.Image("image", "日历图片"),
         ThemeSetting.Choice("fill", "图片填充方式", listOf("crop", "fit", "stretch")),
     )
@@ -24,6 +27,7 @@ data class ThemeFont(val id: String, val title: String) {
 
 /** Settings are advertised by the renderer that actually consumes them. */
 sealed class ThemeSetting(val key: String, val title: String) {
+    class Toggle(key: String, title: String, val default: Boolean) : ThemeSetting(key, title)
     class Image(key: String, title: String) : ThemeSetting(key, title)
     class Choice(key: String, title: String, val choices: List<String>) : ThemeSetting(key, title)
 }

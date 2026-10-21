@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,7 +45,7 @@ internal enum class ImageFill(val title: String, val description: String, val sc
 }
 
 internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFill = ImageFill.CROP,
-    val fontId: String? = null)
+    val fontId: String? = null, val pageAnimation: Boolean = true, val interactive: Boolean = false)
 internal fun CalendarTheme.defaultStyle() = ThemeStyle(fill = ImageFill.entries.single { it.name.lowercase() == defaultFill })
 internal val LocalThemeStyles = staticCompositionLocalOf<Map<String, ThemeStyle>> { emptyMap() }
 internal val LocalThemeImages = staticCompositionLocalOf<Map<String, String>> { emptyMap() }
@@ -52,7 +53,6 @@ internal val LocalThemeImages = staticCompositionLocalOf<Map<String, String>> { 
 internal class ThemeStyleStore(private val context: Context) {
     private val preferences = context.getSharedPreferences("theme_styles", Context.MODE_PRIVATE)
     fun read(theme: CalendarTheme): ThemeStyle {
-        if (theme.settings.isEmpty()) return theme.defaultStyle()
         // Migrate once, including an explicit reset, so old values cannot reappear later.
         val key = theme.id
         val legacy = CalendarTheme.entries.firstOrNull { it.id == key }?.name
@@ -65,7 +65,9 @@ internal class ThemeStyleStore(private val context: Context) {
         }
         return ThemeStyle(preferences.getString("$key.image", null),
             ImageFill.entries.firstOrNull { it.name == preferences.getString("$key.fill", null) } ?: theme.defaultStyle().fill,
-            preferences.getString("$key.font", null)?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } })
+            preferences.getString("$key.font", null)?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } },
+            preferences.getBoolean("$key.page_animation", true),
+            preferences.getBoolean("$key.interactive", false))
     }
     fun save(theme: CalendarTheme, style: ThemeStyle) {
         val previous = read(theme)
@@ -75,6 +77,8 @@ internal class ThemeStyleStore(private val context: Context) {
             if (style.fill != previous.fill) putString("${theme.id}.fill", style.fill.name)
             putString("${theme.id}.font", style.fontId?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } })
             putBoolean("${theme.id}.migrated", true)
+            putBoolean("${theme.id}.page_animation", style.pageAnimation)
+            putBoolean("${theme.id}.interactive", style.interactive)
         }
     }
 
@@ -89,6 +93,7 @@ internal class ThemeStyleStore(private val context: Context) {
         preferences.edit(commit = true) {
             remove("${theme.id}.image"); remove("${theme.id}.fill")
             remove("${theme.id}.font")
+            remove("${theme.id}.page_animation"); remove("${theme.id}.interactive")
             putBoolean("${theme.id}.migrated", true)
         }
     }
@@ -185,70 +190,76 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
         sheetState = sheetState,
         sheetGesturesEnabled = !importing,
         modifier = Modifier.testTag("theme-style-sheet").semantics { testTagsAsResourceId = true }) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
-            .padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("${theme.title.substringBefore(" · ")}样式", style = MaterialTheme.typography.headlineSmall)
-            val imageSetting = theme.settings.filterIsInstance<ThemeSetting.Image>().singleOrNull()
-            val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull { it.key == "fill" }
-            if (theme.fonts.isNotEmpty()) {
-                Text("日历字体", style = MaterialTheme.typography.titleMedium)
-                val defaultTitle = theme.fonts.firstOrNull { it.id == theme.defaultFont }?.title ?: "模板原字体"
-                val choices = listOf(null to "跟随主题默认 · $defaultTitle", "template" to "模板原字体") +
-                    theme.fonts.map { it.id to it.title }
-                Column(Modifier.selectableGroup()) {
-                    choices.forEach { (id, title) ->
-                        val family = LocalThemeFonts.current[theme.id]?.get(theme.resolveFont(id))
-                        Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).selectable(
-                            selected = style.fontId == id, enabled = !importing, role = Role.RadioButton,
-                            onClick = { onChange(style.copy(fontId = id)) }).testTag("font-${id ?: "default"}"),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            RadioButton(selected = style.fontId == id, onClick = null, enabled = !importing)
-                            Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                                Text(title, style = MaterialTheme.typography.bodyLarge)
-                                Text("日月成章 ABC 0123456789", fontFamily = family,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("${theme.title.substringBefore(" · ")}样式", style = MaterialTheme.typography.headlineSmall)
+                StyleSwitch("翻页动画", "日期切换时播放动画；关闭后直接切换。",
+                    style.pageAnimation, !importing, "page-animation") { onChange(style.copy(pageAnimation = it)) }
+                StyleSwitch("交互式日历",
+                    if (theme.renderer.pagesByMonth) "全屏时左右滑动切换月份，点击“回到今天”恢复。"
+                    else "全屏时左右滑动切换日期，点击“回到今天”恢复。",
+                    style.interactive, !importing, "interactive-calendar") { onChange(style.copy(interactive = it)) }
+                HorizontalDivider()
+                val imageSetting = theme.settings.filterIsInstance<ThemeSetting.Image>().singleOrNull()
+                val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull { it.key == "fill" }
+                if (theme.fonts.isNotEmpty()) {
+                    Text("日历字体", style = MaterialTheme.typography.titleMedium)
+                    val defaultTitle = theme.fonts.firstOrNull { it.id == theme.defaultFont }?.title ?: "模板原字体"
+                    val choices = listOf(null to "跟随主题默认 · $defaultTitle", "template" to "模板原字体") +
+                        theme.fonts.map { it.id to it.title }
+                    Column(Modifier.selectableGroup()) {
+                        choices.forEach { (id, title) ->
+                            val family = LocalThemeFonts.current[theme.id]?.get(theme.resolveFont(id))
+                            Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).selectable(
+                                selected = style.fontId == id, enabled = !importing, role = Role.RadioButton,
+                                onClick = { onChange(style.copy(fontId = id)) }).testTag("font-${id ?: "default"}"),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                RadioButton(selected = style.fontId == id, onClick = null, enabled = !importing)
+                                Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                                    Text(title, style = MaterialTheme.typography.bodyLarge)
+                                    Text("日月成章 ABC 0123456789", fontFamily = family,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
+                    HorizontalDivider()
                 }
-                HorizontalDivider()
-            }
-            if (imageSetting != null && fillSetting != null) {
-                Text(imageSetting.title, style = MaterialTheme.typography.titleMedium)
-                ThemeImage(theme, Modifier.fillMaxWidth().height(128.dp))
-                Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    enabled = !importing, modifier = Modifier.fillMaxWidth().testTag("choose-image")) {
-                    Text(if (importing) "正在保存图片…" else "选择本机图片")
-                }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-                HorizontalDivider()
-                Text(fillSetting.title, style = MaterialTheme.typography.titleMedium)
-                Column(Modifier.selectableGroup()) {
-                    ImageFill.entries.filter { it.name.lowercase() in fillSetting.choices }.forEach { fill ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).selectable(
-                            selected = style.fill == fill, enabled = !importing, role = Role.RadioButton,
-                            onClick = { onChange(style.copy(fill = fill)) }).testTag("fill-${fill.name}"),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            RadioButton(selected = style.fill == fill, onClick = null, enabled = !importing)
-                            Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                                Text(fill.title, style = MaterialTheme.typography.bodyLarge)
-                                Text(fill.description, style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (imageSetting != null && fillSetting != null) {
+                    Text(imageSetting.title, style = MaterialTheme.typography.titleMedium)
+                    ThemeImage(theme, Modifier.fillMaxWidth().height(128.dp))
+                    Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        enabled = !importing, modifier = Modifier.fillMaxWidth().testTag("choose-image")) {
+                        Text(if (importing) "正在保存图片…" else "选择本机图片")
+                    }
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                    HorizontalDivider()
+                    Text(fillSetting.title, style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.selectableGroup()) {
+                        ImageFill.entries.filter { it.name.lowercase() in fillSetting.choices }.forEach { fill ->
+                            Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).selectable(
+                                selected = style.fill == fill, enabled = !importing, role = Role.RadioButton,
+                                onClick = { onChange(style.copy(fill = fill)) }).testTag("fill-${fill.name}"),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                RadioButton(selected = style.fill == fill, onClick = null, enabled = !importing)
+                                Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                                    Text(fill.title, style = MaterialTheme.typography.bodyLarge)
+                                    Text(fill.description, style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
+                    TextButton(onClick = {
+                        val old = style.imagePath
+                        onResetImage()
+                        scope.launch(Dispatchers.IO) { store.discard(old) }
+                    }, enabled = !importing, modifier = Modifier.testTag("restore-image")) {
+                        Text("恢复默认图片与填充方式")
+                    }
                 }
-                TextButton(onClick = {
-                    val old = style.imagePath
-                    onResetImage()
-                    scope.launch(Dispatchers.IO) { store.discard(old) }
-                }, enabled = !importing, modifier = Modifier.testTag("restore-image")) {
-                    Text("恢复默认图片与填充方式")
-                }
-            } else if (theme.fonts.isEmpty()) {
-                Text("此主题暂无可调整的样式。", style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             TextButton(onClick = {
                 if (!dismissing) {
@@ -259,9 +270,25 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
                     }
                 }
             }, enabled = !importing && !dismissing,
-                modifier = Modifier.align(androidx.compose.ui.Alignment.End).testTag("style-done")) {
+                modifier = Modifier.align(androidx.compose.ui.Alignment.End).padding(horizontal = 24.dp)
+                    .testTag("style-done")) {
                 Text("完成")
             }
         }
+    }
+}
+
+@Composable
+private fun StyleSwitch(title: String, description: String, checked: Boolean, enabled: Boolean,
+    tag: String, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 72.dp)
+        .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange).testTag(tag),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(description, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked, onCheckedChange = null, enabled = enabled)
     }
 }

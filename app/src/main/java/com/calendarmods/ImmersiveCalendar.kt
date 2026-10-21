@@ -35,12 +35,15 @@ internal val LocalPaperInsets = staticCompositionLocalOf<PaddingValues> { Paddin
 
 @Composable
 fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Unit, modifier: Modifier = Modifier, animateDay: Boolean = false) {
+    val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
+    var displayedDate by remember(theme.id, data.today) { mutableStateOf(data.today) }
     val exit by rememberUpdatedState(onExit)
     val haptics = LocalHapticFeedback.current
     Box(modifier.fillMaxSize().testTag("immersive-${theme.name}")
         .semantics {
             testTagsAsResourceId = true
-            contentDescription = "${theme.title}，${data.today}，${data.weekdayChinese}，农历${data.lunar}"
+            contentDescription = if (displayedDate == data.today) "${theme.title}，${data.today}，${data.weekdayChinese}，农历${data.lunar}"
+                else "${theme.title}，$displayedDate"
             onLongClick("返回主题选择") { exit(); true }
         }
         .pointerInput(Unit) {
@@ -49,11 +52,12 @@ fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Un
                 exit()
             })
         }
-        .pointerInput(Unit) {
+        .then(if (style.interactive) Modifier else Modifier.pointerInput(Unit) {
             // Consume motion after touch slop so a slow swipe cannot become a long press.
             detectDragGestures { change, _ -> change.consume() }
-        }) {
-        MidnightPaper(theme, data, animateDay)
+        })) {
+        if (style.interactive) InteractiveCalendar(theme, data, animateDay, style.pageAnimation) { displayedDate = it }
+        else MidnightPaper(theme, data, animateDay && style.pageAnimation)
     }
 }
 

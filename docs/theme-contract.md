@@ -55,7 +55,11 @@ flowchart TD
 | `almanac` | `almanac.v1` | 复古黄历、节日、完整宜忌、月历 | 无 |
 | `hanging` | `hanging.v1` | 悬挂装订、大日期、双项宜忌轮播 | 无 |
 
-`ThemeRenderer.settings` 声明表中的模板能力，`CalendarTheme.settings` 再根据 v2 的字体目录加入 `font` 选项。`ThemeSetting.Image` 声明本机图片选择，`ThemeSetting.Choice` 声明有限选项；设置面板按属性 key 查找选项，不通过主题 ID 判断能力。主题不能自称支持渲染器没有消费的属性。
+上表列出模板专属属性；所有模板还提供 `page_animation`（默认 true）与 `interactive`（默认 false）两个 `ThemeSetting.Toggle` 开关。它们由宿主提供，按稳定主题 ID 保存为用户偏好，不增加 manifest 字段或改变 v1/v2 包格式。卸载主题时一并重置。
+
+`ThemeRenderer.settings` 声明模板能力，`CalendarTheme.settings` 再根据 v2 的字体目录加入 `font` 选项。`ThemeSetting.Image` 声明本机图片选择，`ThemeSetting.Choice` 声明有限选项；设置面板按属性 key 查找选项，不通过主题 ID 判断能力。主题不能自称支持渲染器没有消费的属性。
+
+交互模式只作用于全屏日历，插画与照片模板按月翻页，其余模板按天翻页；相邻月保留期望日号并在短月截断。浏览状态可跨旋转保留，离开全屏后重置，返回今天后继续跟随系统日期。动画开关同时控制自动跨日与手动翻页，关闭后仍可用滑动手势直接切换。
 
 | 属性 | 类型 / 默认 | 约束与消费方 |
 | --- | --- | --- |

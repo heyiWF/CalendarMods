@@ -10,7 +10,9 @@ class ThemeContractTest {
         assertEquals(7, CalendarTheme.entries.map { it.id }.toSet().size)
         assertEquals(ThemeRenderer.entries.toSet(), CalendarTheme.entries.map { it.renderer }.toSet())
         CalendarTheme.entries.forEach { theme ->
-            assertEquals(theme.renderer.image != null, theme.settings.isNotEmpty())
+            assertEquals(theme.renderer.image != null, theme.settings.any { it is ThemeSetting.Image })
+            assertEquals(mapOf("page_animation" to true, "interactive" to false),
+                theme.settings.filterIsInstance<ThemeSetting.Toggle>().associate { it.key to it.default })
             assertEquals(theme.renderer.name, theme.name)
         }
     }
