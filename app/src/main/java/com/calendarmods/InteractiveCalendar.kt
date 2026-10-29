@@ -2,12 +2,18 @@ package com.calendarmods
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -51,9 +57,12 @@ internal fun InteractiveCalendar(theme: CalendarTheme, today: CalendarData, anim
             pager.scrollToPage(paging.home)
         }
     }
-    Column(Modifier.fillMaxSize().background(Color(theme.surfaces.paper))) {
+    val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
+    val environment = LocalAlmanacEnvironment.current
+    val palette = if (theme.renderer.isTongSheng) almanacPalette(theme, style, environment.minute, environment.ambientDark) else null
+    Box(Modifier.fillMaxSize().background(Color(palette?.paper ?: theme.surfaces.paper))) {
         HorizontalPager(pager, userScrollEnabled = animation, beyondViewportPageCount = 1,
-            modifier = Modifier.weight(1f).fillMaxWidth().testTag("calendar-date-pager").semantics {
+            modifier = Modifier.fillMaxSize().testTag("calendar-date-pager").semantics {
                 stateDescription = "日期：$date"
                 customActions = listOf(
                     CustomAccessibilityAction(if (paging.monthly) "上个月" else "前一天") {
@@ -93,17 +102,20 @@ internal fun InteractiveCalendar(theme: CalendarTheme, today: CalendarData, anim
                 }
             }
         }
-        // Reserve this space even on today so paging never resizes the printed page
-        // and the return action cannot cover lunar text, mottos or month-grid cells.
-        Box(Modifier.fillMaxWidth()
+        // An overlay never changes the printed page's constraints, including during its transition.
+        AnimatedVisibility(visible = date != today.today,
+            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 2 },
+            exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-            .height(56.dp), contentAlignment = Alignment.Center) {
-            if (date != today.today) {
-                FilledTonalButton(onClick = ::returnToday, modifier = Modifier.testTag("calendar-today")) {
-                    Text("回到今天")
-                }
-            } else Text(if (paging.monthly) "左右滑动切换月份" else "左右滑动切换日期",
-                style = MaterialTheme.typography.bodySmall, color = Color(theme.surfaces.chrome))
+            .padding(bottom = 16.dp)) {
+            FilledTonalButton(onClick = ::returnToday, modifier = Modifier.testTag("calendar-today"),
+                elevation = ButtonDefaults.filledTonalButtonElevation(defaultElevation = 6.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = Color(palette?.ink ?: theme.surfaces.chrome),
+                    contentColor = Color(palette?.paper ?: theme.surfaces.paper))) {
+                Text("回到今天")
+            }
         }
     }
 }

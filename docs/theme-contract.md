@@ -53,7 +53,13 @@ flowchart TD
 | `good-day` | `good-day.v1` | 衬线大日期、节日、居中宜事项轮播 | 无 |
 | `verse` | `verse.v1` | 竖排文句、月历、每日心语 | 无 |
 | `almanac` | `almanac.v1` | 复古黄历、节日、完整宜忌、月历 | 无 |
+| `traditional` | `traditional.v1` | 南洋手撕通胜、完整黄历分栏、九宫与民俗栏目 | 无 |
+| `canton` | `canton.v1` | 岭南红历、星座生肖、横排时辰与黄历表格 | 无 |
+| `auspicious` | `auspicious.v1` | 经典皇历、左右月周、花边与横向宜忌 | 无 |
 | `hanging` | `hanging.v1` | 悬挂装订、大日期、双项宜忌轮播 | 无 |
+
+三款黄历渲染器统一声明 `ALMANAC` 数据能力，通过宿主共享的[黄历引擎接口](almanac-engine.md)取数，
+支持独立配色、节庆版式和手动/定时/环境光深色模式。
 
 上表列出模板专属属性；所有模板还提供 `page_animation`（默认 true）与 `interactive`（默认 false）两个 `ThemeSetting.Toggle` 开关。它们由宿主提供，按稳定主题 ID 保存为用户偏好，不增加 manifest 字段或改变 v1/v2 包格式。卸载主题时一并重置。
 
@@ -162,3 +168,5 @@ adb shell am instrument -w com.calendarmods.test/com.calendarmods.CalendarAccept
 商店的 `onAdd(id, reportProgress)` 为挂起接口：准备/安装阶段传入 `null`，有实际下载字节进度时传入 `0..1`。使用 Material 3 [`CircularWavyProgressIndicator`](https://developer.android.com/reference/kotlin/androidx/compose/material3/CircularWavyProgressIndicator.composable) 的不确定/确定进度变体；本地预设不模拟联网下载百分比。等待期间拦截重复操作，成功后显示已安装，失败恢复应用按钮并提示。指示器使用 `material3:1.5.0-beta01` 提供的新式组件。
 
 每次进入商店重置到推荐页，旋转保留当前标签，三页滚动位置继续保存。“使用”单独采用商店淡出、目标预览滑入的过渡；普通返回沿商店入口容器收起。样式面板的完成操作等待 `SheetState.hide()` 结束才移除面板。删除手势在纵向超过触摸阈值后锁定整段指针事件，抑制横向翻页，抬手/取消后释放；垃圾桶围绕固定圆心弹性缩放。
+
+`com.calendarmods.peitaiyi`（时和 · 电子老黄历）使用 `peitaiyi.v1`，追加在旧主题之后；声明相同 `ALMANAC` 数据能力并复用所有黄历设置。

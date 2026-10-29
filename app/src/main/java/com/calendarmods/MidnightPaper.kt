@@ -41,6 +41,7 @@ internal val ThemeRenderer.dayMotion: DayMotion get() = when (this) {
     ThemeRenderer.VERSE -> DayMotion.VERSE_REVEAL
     ThemeRenderer.ALMANAC -> DayMotion.ALMANAC_PEEL
     ThemeRenderer.HANGING -> DayMotion.HANGING_PAGE
+    ThemeRenderer.TRADITIONAL, ThemeRenderer.CANTON, ThemeRenderer.AUSPICIOUS, ThemeRenderer.PEITAIYI -> DayMotion.ALMANAC_PEEL
 }
 
 /** Optional host observer used by device acceptance to sample sub-second transitions reliably. */

@@ -45,6 +45,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var midnightOnly = false
     private var pagingOnly = false
     private var denseOnly = false
+    private var traditionalOnly = false
+    private var overlayOnly = false
+    private var showcaseOnly = false
     private var centeredRotation: Int? = null
     private var anchoredRotation: Int? = null
     override fun onCreate(arguments: Bundle?) {
@@ -60,6 +63,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         contractOnly = arguments?.getString("contract") == "true"
         fontsOnly = arguments?.getString("fonts") == "true"
         denseOnly = arguments?.getString("dense") == "true"
+        traditionalOnly = arguments?.getString("traditional") == "true"
+        overlayOnly = arguments?.getString("overlay") == "true"
+        showcaseOnly = arguments?.getString("showcase") == "true"
         centeredRotation = arguments?.getString("centered")?.toIntOrNull()
         anchoredRotation = arguments?.getString("anchored")?.toIntOrNull()
         super.onCreate(arguments); start()
@@ -84,7 +90,11 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (pagingOnly) {
+            if (overlayOnly) {
+                verifyCalendarOverlay(checks)
+            } else if (traditionalOnly || showcaseOnly) {
+                verifyTraditional(checks)
+            } else if (pagingOnly) {
                 verifyCalendarPaging(checks)
             } else if (resourcesOnly) {
                 verifyImageResources(checks)
@@ -170,6 +180,215 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         }
     }
 
+    private fun verifyCalendarOverlay(checks: MutableList<String>) {
+        val date = LocalDate.of(2026, 10, 30)
+        for (rotation in 0..1) {
+            uiAutomation.setRotation(rotation); SystemClock.sleep(600)
+            for (theme in CalendarTheme.entries) {
+                val style = mutableStateOf(ThemeStyle(interactive = false))
+                val activity = activities.lastActivity as MainActivity
+                runOnMainSync {
+                    activity.window.insetsController?.hide(WindowInsets.Type.systemBars())
+                    activity.setContent { MaterialTheme {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalThemeStyles provides mapOf(theme.id to style.value)) {
+                        ImmersiveCalendar(theme, CalendarData.create(date), onExit = {})
+                    }
+                } } }
+                await("static ${theme.name}") { nodes().any { it.viewIdResourceName == "immersive-${theme.name}" } }
+                SystemClock.sleep(650)
+                val before = checkNotNull(uiAutomation.takeScreenshot())
+                runOnMainSync { style.value = style.value.copy(interactive = true) }
+                await("interactive ready") { nodes().any { it.viewIdResourceName == "calendar-date-pager" } }
+                SystemClock.sleep(650)
+                val after = checkNotNull(uiAutomation.takeScreenshot())
+                val bounds = Rect().also { nodes().first { it.viewIdResourceName == "calendar-date-pager" }.getBoundsInScreen(it) }
+                var different = 0
+                for (y in bounds.top + 4 until bounds.bottom - 4 step 7) for (x in bounds.left + 4 until bounds.right - 4 step 7) {
+                    if (before.getPixel(x, y) != after.getPixel(x, y)) different++
+                }
+                before.recycle(); after.recycle()
+                check(different == 0) { "${theme.name} interactive mode changed $different paper samples" }
+                check(nodes().none { it.viewIdResourceName == "calendar-today" || it.text?.toString()?.contains("左右滑动切换日") == true })
+                swipe(true, tag = "calendar-date-pager")
+                await("floating today appears") { nodes().any { it.viewIdResourceName == "calendar-today" } }
+                SystemClock.sleep(300)
+                val button = Rect().also { nodes().first { it.viewIdResourceName == "calendar-today" }.getBoundsInScreen(it) }
+                val paged = Rect().also { nodes().first { it.viewIdResourceName == "calendar-date-pager" }.getBoundsInScreen(it) }
+                check(bounds == paged && bounds.contains(button) && kotlin.math.abs(button.centerX() - bounds.centerX()) < 3)
+                if (theme == CalendarTheme.CANTON) capture("CANTON-floating-today-$rotation")
+                press("calendar-today")
+                await("floating today disappears") { nodes().none { it.viewIdResourceName == "calendar-today" } }
+                checks += "${theme.name} rotation=$rotation: interactive/static identical pixels, centered overlay, return and animated dismissal PASS"
+            }
+        }
+    }
+
+    private fun verifyTraditional(checks: MutableList<String>) {
+        val styles = ThemeStyleStore(targetContext)
+        val themes = listOf(CalendarTheme.TRADITIONAL, CalendarTheme.CANTON, CalendarTheme.AUSPICIOUS, CalendarTheme.PEITAIYI)
+        val originals = themes.associateWith(styles::read)
+        val prefs = targetContext.getSharedPreferences("calendar", 0)
+        fun show(theme: CalendarTheme, date: LocalDate, style: ThemeStyle = ThemeStyle(interactive = true),
+            environment: AlmanacEnvironment? = null) {
+            styles.save(theme, style)
+            prefs.edit().putString("theme_id", theme.id).putBoolean("immersive", false).commit()
+            val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+            runOnMainSync { activity.setContent {
+                androidx.compose.runtime.CompositionLocalProvider(LocalAlmanacEnvironmentOverride provides environment) {
+                    MaterialTheme { CalendarApp(CalendarClock { date.atTime(12, 0).atZone(ZoneId.systemDefault()) }) }
+                }
+            } }
+            awaitTheme(theme, date)
+        }
+        try {
+            if (showcaseOnly) {
+                for (rotation in 0..1) {
+                    uiAutomation.setRotation(rotation); SystemClock.sleep(600)
+                    for (value in listOf("2025-04-03", "2026-04-05", "2026-09-25")) {
+                        val date = LocalDate.parse(value)
+                        for (dark in listOf(false, true)) {
+                            show(CalendarTheme.PEITAIYI, date, ThemeStyle(dark = dark))
+                            press("art-PEITAIYI"); awaitImmersive(CalendarTheme.PEITAIYI, date)
+                            SystemClock.sleep(350)
+                            capture("PEITAIYI-final-$date-$rotation-${if (dark) "night" else "day"}")
+                            checks += "PEITAIYI final $date rotation=$rotation dark=$dark screenshot PASS"
+                        }
+                    }
+                }
+                return
+            }
+            for (rotation in 0..1) {
+                uiAutomation.setRotation(rotation)
+                SystemClock.sleep(600)
+                for (theme in themes) {
+                  val reference = when (theme) {
+                      CalendarTheme.CANTON -> LocalDate.of(2022, 1, 9)
+                      CalendarTheme.AUSPICIOUS -> LocalDate.of(2021, 1, 9)
+                      else -> LocalDate.of(2025, 4, 3)
+                  }
+                  for (date in listOf(reference, LocalDate.of(2028, 2, 29), LocalDate.of(2026, 1, 22))) {
+                    show(theme, date)
+                    if (date == reference) capture("${theme.name}-preview-$rotation")
+                    press("art-${theme.name}"); awaitImmersive(theme, date)
+                    await("complete traditional fields") { nodes().any {
+                        it.viewIdResourceName == "traditional-fields" && it.contentDescription?.contains("岁时") == true &&
+                            it.contentDescription?.contains(date.toString()) == true
+                    } }
+                    check(nodes().first { it.viewIdResourceName == "traditional-fields" }.contentDescription?.contains("取名") != true)
+                    capture("${theme.name}-$date-$rotation")
+                    if (rotation == 1 && date == reference) {
+                        val bitmap = checkNotNull(uiAutomation.takeScreenshot())
+                        val background = bitmap.getPixel(0, 0)
+                        var inkPixels = 0
+                        for (y in (bitmap.height * .87f).toInt() until (bitmap.height * .94f).toInt() step 4) {
+                            for (x in (bitmap.width * .55f).toInt() until (bitmap.width * .94f).toInt() step 4) {
+                                val color = bitmap.getPixel(x, y)
+                                val contrast = kotlin.math.abs(android.graphics.Color.red(color) - android.graphics.Color.red(background)) +
+                                    kotlin.math.abs(android.graphics.Color.green(color) - android.graphics.Color.green(background)) +
+                                    kotlin.math.abs(android.graphics.Color.blue(color) - android.graphics.Color.blue(background))
+                                if (contrast > 100) inkPixels++
+                            }
+                        }
+                        bitmap.recycle()
+                        check(inkPixels > 100) { "${theme.name}: landscape leaves blank space below table ($inkPixels ink samples)" }
+                    }
+                    swipe(true, tag = "calendar-date-pager")
+                    await("traditional next date") { nodes().any { it.viewIdResourceName == "calendar-date-pager" &&
+                        it.stateDescription?.toString() == "日期：${date.plusDays(1)}" } }
+                    await("traditional fields refresh") { nodes().any { it.viewIdResourceName == "traditional-fields" &&
+                        it.contentDescription?.contains(date.plusDays(1).toString()) == true } }
+                    press("calendar-today")
+                    await("traditional today") { nodes().any { it.viewIdResourceName == "calendar-date-pager" &&
+                        it.stateDescription?.toString() == "日期：$date" } }
+                    press("immersive-${theme.name}", long = true); awaitTheme(theme, date)
+                    checks += "${theme.name} $date rotation=$rotation: fields, fullscreen, paging, today, long-press PASS"
+                  }
+                  show(theme, reference, ThemeStyle(dark = true, ink = AlmanacInk.BLUE))
+                  press("art-${theme.name}"); awaitImmersive(theme, reference)
+                  await("night palette") { nodes().any { it.viewIdResourceName == "traditional-fields" && it.contentDescription?.contains("深色") == true } }
+                  capture("${theme.name}-night-$rotation")
+                  checks += "${theme.name} rotation=$rotation: night palette PASS"
+                }
+            }
+            uiAutomation.setRotation(0); SystemClock.sleep(600)
+            val holidays = listOf(CalendarTheme.TRADITIONAL to LocalDate.of(2026, 2, 17),
+                CalendarTheme.TRADITIONAL to LocalDate.of(2026, 2, 18), CalendarTheme.TRADITIONAL to LocalDate.of(2026, 2, 19),
+                CalendarTheme.CANTON to LocalDate.of(2026, 9, 25), CalendarTheme.AUSPICIOUS to LocalDate.of(2026, 10, 1),
+                CalendarTheme.AUSPICIOUS to LocalDate.of(2026, 1, 1),
+                CalendarTheme.PEITAIYI to LocalDate.of(2026, 2, 17), CalendarTheme.PEITAIYI to LocalDate.of(2026, 9, 25),
+                CalendarTheme.PEITAIYI to LocalDate.of(2026, 10, 1))
+            holidays.forEach { (theme, date) ->
+                show(theme, date); press("art-${theme.name}"); awaitImmersive(theme, date)
+                val title = festiveDay(date)!!.title
+                await("festival $title") { nodes().any { it.viewIdResourceName == "traditional-fields" && it.contentDescription?.contains(title) == true } }
+                capture("${theme.name}-festival-$date")
+                checks += "${theme.name} $title: festive layout PASS"
+            }
+            for (rotation in 0..1) {
+                uiAutomation.setRotation(rotation); SystemClock.sleep(600)
+                val solarDate = LocalDate.of(2026, 4, 5)
+                show(CalendarTheme.PEITAIYI, solarDate)
+                press("art-PEITAIYI"); awaitImmersive(CalendarTheme.PEITAIYI, solarDate)
+                check(CalendarData.create(solarDate).solarTerm == "清明")
+                capture("PEITAIYI-solar-qingming-$rotation")
+                val moonDate = LocalDate.of(2026, 9, 25)
+                show(CalendarTheme.PEITAIYI, moonDate, ThemeStyle(dark = true, ink = AlmanacInk.BLUE))
+                press("art-PEITAIYI"); awaitImmersive(CalendarTheme.PEITAIYI, moonDate)
+                capture("PEITAIYI-moon-night-$rotation")
+                checks += "PEITAIYI rotation=$rotation: solar term edition and festival night illustration PASS"
+            }
+            uiAutomation.setRotation(0); SystemClock.sleep(600)
+            val theme = CalendarTheme.TRADITIONAL
+            val date = LocalDate.of(2025, 4, 3)
+            listOf(1320 to true, 420 to false).forEach { (minute, dark) ->
+                show(theme, date, ThemeStyle(scheduledDark = true), AlmanacEnvironment(minute))
+                press("art-${theme.name}"); awaitImmersive(theme, date)
+                await("schedule boundary $minute") { nodes().any { it.viewIdResourceName == "traditional-fields" &&
+                    it.contentDescription?.contains(if (dark) "深色" else "浅色") == true } }
+            }
+            show(theme, date, ThemeStyle(ambientDark = true), AlmanacEnvironment(720, ambientDark = true, lightAvailable = true, lux = 5f))
+            press("art-${theme.name}"); awaitImmersive(theme, date)
+            await("injected ambient state") { nodes().any { it.viewIdResourceName == "traditional-fields" && it.contentDescription?.contains("深色") == true } }
+            checks += "schedule boundaries and injected ambient state drive palette independently of browsed date PASS"
+            show(theme, date)
+            press("style-${theme.name}")
+            await("style sheet ready") { nodes().any { it.viewIdResourceName == "style-scroll" } }
+            SystemClock.sleep(400)
+            fun reveal(tag: String) {
+                repeat(6) {
+                    val viewport = Rect().also { b -> nodes().first { it.viewIdResourceName == "style-scroll" }.getBoundsInScreen(b) }
+                    val area = nodes().firstOrNull { it.viewIdResourceName == tag }?.let { Rect().also(it::getBoundsInScreen) }
+                    if (area != null && area.height() > 0 && area.centerY() in viewport.top + 15..viewport.bottom - 15) return
+                    dragPoints(viewport.exactCenterX(), viewport.bottom - 50f, viewport.exactCenterX(), viewport.top + 100f)
+                    SystemClock.sleep(200)
+                }
+                error("Setting not reachable: $tag")
+            }
+            reveal("almanac-ink-PURPLE"); press("almanac-ink-PURPLE")
+            await("ink persists") { styles.read(theme).ink == AlmanacInk.PURPLE }
+            reveal("almanac-dark"); press("almanac-dark")
+            await("manual night persists") { styles.read(theme).dark }
+            reveal("almanac-schedule"); press("almanac-schedule")
+            await("schedule persists") { styles.read(theme).scheduledDark }
+            capture("TRADITIONAL-night-settings")
+            press("almanac-night-start")
+            await("native time picker") { nodes().any { it.className?.toString()?.contains("TimePicker") == true || it.text?.toString() == "22" } }
+            uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            await("time picker closed") { nodes().none { it.className?.toString()?.contains("TimePicker") == true } }
+            SystemClock.sleep(400)
+            press("style-done")
+            awaitTheme(theme, date)
+            check(styles.read(CalendarTheme.CANTON).ink != AlmanacInk.PURPLE)
+            val saved = styles.read(theme)
+            show(theme, date, saved)
+            press("art-${theme.name}"); awaitImmersive(theme, date)
+            capture("TRADITIONAL-purple-persisted")
+            check(styles.read(theme) == saved)
+            checks += "settings: color/night/schedule persist across relaunch, native time picker opens, themes remain independent PASS"
+        } finally { originals.forEach { (theme, original) -> styles.save(theme, original) } }
+    }
+
     private fun verifyStore(checks: MutableList<String>) = kotlinx.coroutines.runBlocking {
         val root = File(targetContext.cacheDir, "library-test").apply { deleteRecursively(); mkdirs() }
         val testContext = object : android.content.ContextWrapper(targetContext) {
@@ -183,7 +402,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         testIndex.parentFile!!.mkdirs()
         testIndex.writeText(org.json.JSONArray().put(org.json.JSONObject().put("manifest", org.json.JSONObject(ThemeManifest.encode(fixture)))).toString())
         val isolated = ThemeRepository.reopen(testContext)
-        check(isolated.inventory.value.themes.size == 8)
+        check(isolated.inventory.value.themes.size == CalendarTheme.entries.size + 1)
         val teddy = CalendarTheme.TEDDY
         val styles = ThemeStyleStore(testContext)
         val image = File(root, "theme-images/custom.png").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1)) }
@@ -268,7 +487,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             } finally { failedWrite.deleteRecursively() }
             press("favorite-GOLDEN")
             backgroundToHome()
-            shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+            shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
             await("favorites restored from background") { nodes().any { it.viewIdResourceName == "store-grid-1" } }
             check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
             press("store-tab-0")
@@ -668,7 +887,9 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                         awaitDate(next)
                         val paperBounds = Rect().also { nodes().first { it.viewIdResourceName == "calendar-date-pager" }.getBoundsInScreen(it) }
                         val returnBounds = Rect().also { nodes().first { it.viewIdResourceName == "calendar-today" }.getBoundsInScreen(it) }
-                        check(returnBounds.top >= paperBounds.bottom) { "Today button covers the printed calendar" }
+                        check(paperBounds.contains(returnBounds) && kotlin.math.abs(returnBounds.centerX() - paperBounds.centerX()) < 3) {
+                            "Today button must float at bottom center inside the unchanged calendar"
+                        }
                         capture("paging-$rotation-${theme.name.lowercase()}")
                         // Measure settled, warm paging separately from screenshot capture
                         // and the unrelated shared transition back to the theme chooser.
@@ -811,7 +1032,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         val (_, clock) = start()
         backgroundToHome()
         clock.set(ZonedDateTime.of(2028, 2, 29, 12, 0, 0, 0, ZoneId.systemDefault()).toInstant())
-        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+        shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
         awaitImmersive(CalendarTheme.GOLDEN, LocalDate.of(2028, 2, 29))
         check(!moving())
         checks += "background across midnight resumes at current date without replay PASS"
@@ -1455,7 +1676,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         checks += "single tap and ordinary swipe do not exit immersive mode or change theme PASS"
         backgroundToHome()
         // Resume as an external user launch; the app itself must not bypass background-start restrictions.
-        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+        shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
         awaitImmersive(theme)
         checks += "immersive resume reapplies hidden bars and current date PASS"
         check(uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
@@ -1538,25 +1759,25 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             swipe(left = true)
             awaitTheme(theme, LocalDate.of(2027, 1, 1))
         }
-        checks += "all seven themes share new date, lunar date, festivals and almanac PASS"
+        checks += "all bundled themes share new date, lunar date, festivals and almanac PASS"
 
         // Use a fixed instant so the two real system zones fall on different dates.
         clock.set(Instant.parse("2027-01-01T05:00:00Z"))
         shell("cmd alarm set-timezone Pacific/Kiritimati")
-        awaitTheme(CalendarTheme.HANGING, LocalDate.of(2027, 1, 1))
+        awaitTheme(CalendarTheme.entries.last(), LocalDate.of(2027, 1, 1))
         shell("cmd alarm set-timezone Pacific/Honolulu")
-        awaitTheme(CalendarTheme.HANGING, LocalDate.of(2026, 12, 31))
+        awaitTheme(CalendarTheme.entries.last(), LocalDate.of(2026, 12, 31))
         checks += "system timezone broadcast immediately changes displayed calendar date PASS"
         shell("cmd alarm set-timezone $savedZone")
 
         backgroundToHome()
         await("app backgrounded") { !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
         clock.set(ZonedDateTime.of(2028, 2, 29, 12, 0, 0, 0, ZoneId.systemDefault()).toInstant())
-        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
-        awaitTheme(CalendarTheme.HANGING, LocalDate.of(2028, 2, 29))
+        shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
+        awaitTheme(CalendarTheme.entries.last(), LocalDate.of(2028, 2, 29))
         checks += "resume after background refreshes to leap day with complete calendar data PASS"
         runOnMainSync { activity.setContent { MaterialTheme { CalendarApp() } } }
-        awaitTheme(CalendarTheme.HANGING)
+        awaitTheme(CalendarTheme.entries.last())
         checks += "restored production clock shows actual device date PASS"
     }
 

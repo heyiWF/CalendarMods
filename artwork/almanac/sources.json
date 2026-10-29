@@ -1,0 +1,158 @@
+[
+  {
+    "file": "rat.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Rat.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/0/04/Rat.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "d0963b90eb71a94c8b78e003baed90526ffb8be8b8954441f2c242f6a93d4b9a"
+  },
+  {
+    "file": "ox.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Ox.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/9/9d/Ox.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "96eb3311958a42ded9488571ead6fd66771ca3ab8ab3ae944e3da04714033f3f"
+  },
+  {
+    "file": "tiger.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Tiger.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Tiger.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "84b2b91b27cbce7d0c64fae238652b92cd1cac6caa38d3bc57e741cf07bda759"
+  },
+  {
+    "file": "rabbit.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Rabbit.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/2/24/Rabbit.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "e96a514c29d398aee360850e025345600dba899a3d357c03b994ad733988f02e"
+  },
+  {
+    "file": "dragon.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Dragon_2.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/1/12/Dragon_2.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "CC BY-SA 3.0, Rev",
+    "sha256": "e7d1dcfcee2bbfc1c4772b5cd7403b3f60648923b09d156903e51c21352db992"
+  },
+  {
+    "file": "snake.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Snake.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/1/1d/Snake.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "e4b824b8875ddd812fd684b418090cc06691eca316663d2dad1ee47016eac7e0"
+  },
+  {
+    "file": "horse.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Horse.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/7/76/Horse.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "ac2b3c40d718653462da6bd3702b7db0b25f61d2f78607bd0b59c8a7c6bd15c4"
+  },
+  {
+    "file": "goat.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Goat.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/2/2d/Goat.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "Public domain (see file page)",
+    "sha256": "251e15dd3a671035ed718f50a626897eea0eee9fcd3139c89b9447913c870cc5"
+  },
+  {
+    "file": "monkey.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Monkey_2.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/9/96/Monkey_2.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "CC BY-SA 3.0, Angelus",
+    "sha256": "f35dd44ad2d6b5aca0e80e3bf86ce363b558ff2aede332b0b8ce3cc0e5bf32d6"
+  },
+  {
+    "file": "rooster.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Rooster.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/0/06/Rooster.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "CC BY-SA 3.0, Angelus",
+    "sha256": "35459c554fb78bdd243c29481219ba88e944d0c4dd6f627fb76b04ad9c669f6a"
+  },
+  {
+    "file": "dog.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Dog_2.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Dog_2.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "CC BY-SA 3.0, Angelus",
+    "sha256": "49529dbc30dc44dc7a3edd206cadc4065a4e3cc3eb6aeb579ac0d6e0b8f4fefa"
+  },
+  {
+    "file": "pig.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Boar.svg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/d/d7/Boar.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+    "license": "CC BY-SA 3.0, Angelus",
+    "sha256": "56d603402f4b4671bcfa460ebc47fdcf9e3eb6a758246e4e3849b352ac12ed34"
+  },
+  {
+    "file": "zodiac-aries.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-aries.svg",
+    "license": "MIT",
+    "sha256": "e9a2bd72bc021297888741c3c78eb5f0c2794b55d6f4fe628f1f00ec5e1c52e2"
+  },
+  {
+    "file": "zodiac-taurus.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-taurus.svg",
+    "license": "MIT",
+    "sha256": "370edfe766301d887de76f70cf667b14c7cecc88a45e38c58db20e20ecfcc7f0"
+  },
+  {
+    "file": "zodiac-gemini.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-gemini.svg",
+    "license": "MIT",
+    "sha256": "0bb57b839f2ccf87263970ea9d003446b8eb8ae5ed51cc1a0229d2183579e10a"
+  },
+  {
+    "file": "zodiac-cancer.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-cancer.svg",
+    "license": "MIT",
+    "sha256": "4777d39a664e254e9fcf057b7591269a6722957cf78f1e1389da93d6608d2c0d"
+  },
+  {
+    "file": "zodiac-leo.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-leo.svg",
+    "license": "MIT",
+    "sha256": "5e71f0e063000eeccc76ce56f0aa0cc5d9b68c0edc9950e9ce280d143bd9b16b"
+  },
+  {
+    "file": "zodiac-virgo.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-virgo.svg",
+    "license": "MIT",
+    "sha256": "a92998f83aa911cba88759c04d743b419e7ac691dd13b7a392a310dfedb95e23"
+  },
+  {
+    "file": "zodiac-libra.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-libra.svg",
+    "license": "MIT",
+    "sha256": "d4cbc70d80f39fe234f8a586eeaf4682514e35eab0bb0b5f6b2fb521bffdd7dc"
+  },
+  {
+    "file": "zodiac-scorpio.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-scorpio.svg",
+    "license": "MIT",
+    "sha256": "34a971f0c46e95f430c77a9e22fb8f81c9f0f1de0becb3c175ecbaed4bc3d234"
+  },
+  {
+    "file": "zodiac-sagittarius.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-sagittarius.svg",
+    "license": "MIT",
+    "sha256": "e24ddd009c69c639872a387b14e23286fcd2381df8dd08714f4c25bab9d797f8"
+  },
+  {
+    "file": "zodiac-capricorn.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-capricorn.svg",
+    "license": "MIT",
+    "sha256": "d8e53fdf94630d5f11014891462e7166dac142ee75beb2bbbccbfb4e5ddaeb38"
+  },
+  {
+    "file": "zodiac-aquarius.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-aquarius.svg",
+    "license": "MIT",
+    "sha256": "31dff5f9505af2b1654f154bd316521a73ef4ab0b7f7444af8a7cc5a60b95b03"
+  },
+  {
+    "file": "zodiac-pisces.svg",
+    "source": "https://raw.githubusercontent.com/tabler/tabler-icons/v3.46.0/icons/outline/zodiac-pisces.svg",
+    "license": "MIT",
+    "sha256": "ffbe3896ca8837a95f5c556ea38916bf700acd6b76cc2482a78402fae7bc6998"
+  }
+]

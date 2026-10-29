@@ -139,17 +139,21 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     LaunchedEffect(selectedId) { preferences.edit { putString("theme_id", selectedId) } }
     LaunchedEffect(immersive) { preferences.edit { putBoolean("immersive", immersive) } }
     val theme = themes.find { it.id == selectedId } ?: themes.first()
+    val selectedStyle = styles[theme.id] ?: theme.defaultStyle()
+    val almanacEnvironment = rememberAlmanacEnvironment(theme.renderer.isTongSheng && selectedStyle.ambientDark)
+    val almanacColors = if (theme.renderer.isTongSheng) almanacPalette(theme, selectedStyle,
+        almanacEnvironment.minute, almanacEnvironment.ambientDark) else null
     val displayTransition = updateTransition(if (storeOpen) 2 else if (immersive) 1 else 0, label = "calendar screen")
     val fullScreenWindow = immersive || displayTransition.currentState == 1
     CalendarWindow(fullScreenWindow)
     BackHandler(enabled = fullScreenWindow) { immersive = false }
-    val background by animateColorAsState(if (storeOpen || atStoreEntry) MaterialTheme.colorScheme.surface else theme.background,
+    val background by animateColorAsState(if (storeOpen || atStoreEntry) MaterialTheme.colorScheme.surface else almanacColors?.let { Color(it.backdrop) } ?: theme.background,
         label = "theme background")
-    val foreground = if (atStoreEntry) MaterialTheme.colorScheme.onSurface else Color(theme.surfaces.chrome)
+    val foreground = if (atStoreEntry) MaterialTheme.colorScheme.onSurface else Color(almanacColors?.ink ?: theme.surfaces.chrome)
     SideEffect {
         val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window?.insetsController?.setSystemBarsAppearance(
-            if (storeOpen || atStoreEntry || theme.surfaces.darkSystemBarIcons) mask else 0, mask)
+            if (storeOpen || atStoreEntry || (almanacColors?.let { !it.dark } ?: theme.surfaces.darkSystemBarIcons)) mask else 0, mask)
     }
     val cycle = rememberAlmanacCycle(data, enabled = !storeOpen)
     val goodDayCycle = rememberAlmanacCycle(data, centered = true, enabled = !storeOpen)
@@ -158,6 +162,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     }
     val savedScreens = rememberSaveableStateHolder()
     CompositionLocalProvider(LocalThemeStyles provides styles, LocalThemeImages provides themeImages,
+        LocalAlmanacEnvironment provides almanacEnvironment,
         LocalThemeFonts provides remember(inventory.installed) { inventory.installed.associate { it.theme.id to it.fontFamilies } },
         LocalAlmanacCycle provides cycle, LocalGoodDayCycle provides goodDayCycle,
         LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).asPaddingValues()) {

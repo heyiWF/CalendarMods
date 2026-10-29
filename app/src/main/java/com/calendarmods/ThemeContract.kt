@@ -4,18 +4,30 @@ package com.calendarmods
 enum class ThemeRenderer(val wireId: String, val image: BuiltInImage? = null) {
     GOLDEN("golden.v1"), TEDDY("illustration.v1", BuiltInImage.BEAR),
     PHOTO("photo.v1", BuiltInImage.SUNSET), GOOD_DAY("good-day.v1"),
-    VERSE("verse.v1"), ALMANAC("almanac.v1"), HANGING("hanging.v1");
+    VERSE("verse.v1"), ALMANAC("almanac.v1"), HANGING("hanging.v1"),
+    TRADITIONAL("traditional.v1"), CANTON("canton.v1"), AUSPICIOUS("auspicious.v1"), PEITAIYI("peitaiyi.v1");
+
+    val isTongSheng: Boolean get() = this in listOf(TRADITIONAL, CANTON, AUSPICIOUS, PEITAIYI)
+    val dataCapabilities: Set<ThemeDataCapability> get() = setOf(ThemeDataCapability.CALENDAR) +
+        if (isTongSheng) setOf(ThemeDataCapability.ALMANAC) else emptySet()
 
     val settings: List<ThemeSetting> get() = listOf(
         ThemeSetting.Toggle("page_animation", "翻页动画", true),
         ThemeSetting.Toggle("interactive", "交互式日历", false),
-    ) + if (image == null) emptyList() else listOf(
+    ) + (if (isTongSheng) listOf(
+        ThemeSetting.Choice("ink", "字体颜色", listOf("default", "green", "red", "blue", "brown", "purple", "black")),
+        ThemeSetting.Toggle("night", "深色模式", false),
+        ThemeSetting.Toggle("night_schedule", "定时深色模式", false),
+        ThemeSetting.Toggle("night_ambient", "环境光自适应", false),
+        ThemeSetting.Toggle("festive", "节日特别版式", true),
+    ) else emptyList()) + if (image == null) emptyList() else listOf(
         ThemeSetting.Image("image", "日历图片"),
         ThemeSetting.Choice("fill", "图片填充方式", listOf("crop", "fit", "stretch")),
     )
 }
 
 enum class BuiltInImage { BEAR, SUNSET }
+enum class ThemeDataCapability { CALENDAR, ALMANAC }
 
 /** A regular TTF/OTF face supplied by the author, addressed by ID rather than a path. */
 data class ThemeFont(val id: String, val title: String) {
@@ -84,7 +96,16 @@ data class CalendarTheme(
         val ALMANAC = CalendarTheme("com.calendarmods.almanac", "岁时 · 复古黄历", ThemeRenderer.ALMANAC,
             ThemeSurfaces(0xFF53534D, 0xFF30312D, 0xFFEAE1C9, false))
         val HANGING = CalendarTheme("com.calendarmods.hanging", "一页 · 悬挂日历", ThemeRenderer.HANGING, ThemeSurfaces(0xFFE6E8E1))
-        val entries: List<CalendarTheme> = listOf(GOLDEN, TEDDY, PHOTO, GOOD_DAY, VERSE, ALMANAC, HANGING)
+        val TRADITIONAL = CalendarTheme("com.calendarmods.traditional", "南洋 · 手撕通胜", ThemeRenderer.TRADITIONAL,
+            ThemeSurfaces(0xFFE2DFD2, 0xFFF2F0E5, 0xFF246B39))
+        val CANTON = CalendarTheme("com.calendarmods.canton", "福历 · 岭南通胜", ThemeRenderer.CANTON,
+            ThemeSurfaces(0xFFE9DDD4, 0xFFFFFAF2, 0xFFC5443D))
+        val AUSPICIOUS = CalendarTheme("com.calendarmods.auspicious", "鸿运 · 经典皇历", ThemeRenderer.AUSPICIOUS,
+            ThemeSurfaces(0xFFE8D8CD, 0xFFFFF8ED, 0xFFB82E24))
+        val PEITAIYI = CalendarTheme("com.calendarmods.peitaiyi", "时和 · 电子老黄历", ThemeRenderer.PEITAIYI,
+            ThemeSurfaces(0xFFEDE2CC, 0xFFF9F0DF, 0xFF3E7A43))
+        // Append only: legacy installations still address the original seven by ordinal.
+        val entries: List<CalendarTheme> = listOf(GOLDEN, TEDDY, PHOTO, GOOD_DAY, VERSE, ALMANAC, HANGING, TRADITIONAL, CANTON, AUSPICIOUS, PEITAIYI)
     }
 }
 

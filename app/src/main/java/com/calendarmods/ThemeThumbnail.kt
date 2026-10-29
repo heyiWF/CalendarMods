@@ -67,13 +67,16 @@ internal fun ThemeThumbnail(theme: CalendarTheme, data: CalendarData) {
     val density = LocalDensity.current
     val window = LocalWindowInfo.current.containerSize
     val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
+    val environment = LocalAlmanacEnvironment.current
+    val renderedStyle = if (theme.renderer.isTongSheng) style.copy(dark = AlmanacNightPolicy.dark(style,
+        environment.minute, environment.ambientDark)) else style
     val asset = LocalThemeImages.current[theme.id]
     val path = style.imagePath ?: asset
     val revision = remember(path) { path?.let { File(it).lastModified() } ?: 0L }
     BoxWithConstraints(Modifier.fillMaxSize().clearAndSetSemantics { }) {
         val size = IntSize(constraints.maxWidth.coerceAtLeast(1), constraints.maxHeight.coerceAtLeast(1))
-        val key = remember(theme, data.today, style, asset, revision, window, size, density) {
-            ThumbnailKey(theme, data.today, style, asset, revision, window, size, density.density, density.fontScale)
+        val key = remember(theme, data.today, renderedStyle, asset, revision, window, size, density) {
+            ThumbnailKey(theme, data.today, renderedStyle, asset, revision, window, size, density.density, density.fontScale)
         }
         // Keep the visible bitmap when this keyed item moves between slightly different columns.
         var image by remember(key.copy(size = IntSize.Zero)) { mutableStateOf(ThemeThumbnails.get(key)) }

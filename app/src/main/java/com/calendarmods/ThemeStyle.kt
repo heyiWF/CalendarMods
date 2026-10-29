@@ -45,7 +45,10 @@ internal enum class ImageFill(val title: String, val description: String, val sc
 }
 
 internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFill = ImageFill.CROP,
-    val fontId: String? = null, val pageAnimation: Boolean = true, val interactive: Boolean = false)
+    val fontId: String? = null, val pageAnimation: Boolean = true, val interactive: Boolean = false,
+    val ink: AlmanacInk = AlmanacInk.DEFAULT, val dark: Boolean = false,
+    val scheduledDark: Boolean = false, val darkStart: Int = 22 * 60, val darkEnd: Int = 7 * 60,
+    val ambientDark: Boolean = false, val festive: Boolean = true)
 internal fun CalendarTheme.defaultStyle() = ThemeStyle(fill = ImageFill.entries.single { it.name.lowercase() == defaultFill })
 internal val LocalThemeStyles = staticCompositionLocalOf<Map<String, ThemeStyle>> { emptyMap() }
 internal val LocalThemeImages = staticCompositionLocalOf<Map<String, String>> { emptyMap() }
@@ -67,7 +70,12 @@ internal class ThemeStyleStore(private val context: Context) {
             ImageFill.entries.firstOrNull { it.name == preferences.getString("$key.fill", null) } ?: theme.defaultStyle().fill,
             preferences.getString("$key.font", null)?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } },
             preferences.getBoolean("$key.page_animation", true),
-            preferences.getBoolean("$key.interactive", false))
+            preferences.getBoolean("$key.interactive", false),
+            AlmanacInk.entries.firstOrNull { it.name == preferences.getString("$key.ink", null) } ?: AlmanacInk.DEFAULT,
+            preferences.getBoolean("$key.dark", false), preferences.getBoolean("$key.dark_schedule", false),
+            preferences.getInt("$key.dark_start", 1320).coerceIn(0, 1439),
+            preferences.getInt("$key.dark_end", 420).coerceIn(0, 1439),
+            preferences.getBoolean("$key.dark_ambient", false), preferences.getBoolean("$key.festive", true))
     }
     fun save(theme: CalendarTheme, style: ThemeStyle) {
         val previous = read(theme)
@@ -79,6 +87,13 @@ internal class ThemeStyleStore(private val context: Context) {
             putBoolean("${theme.id}.migrated", true)
             putBoolean("${theme.id}.page_animation", style.pageAnimation)
             putBoolean("${theme.id}.interactive", style.interactive)
+            putString("${theme.id}.ink", style.ink.name)
+            putBoolean("${theme.id}.dark", style.dark)
+            putBoolean("${theme.id}.dark_schedule", style.scheduledDark)
+            putInt("${theme.id}.dark_start", style.darkStart.coerceIn(0, 1439))
+            putInt("${theme.id}.dark_end", style.darkEnd.coerceIn(0, 1439))
+            putBoolean("${theme.id}.dark_ambient", style.ambientDark)
+            putBoolean("${theme.id}.festive", style.festive)
         }
     }
 
@@ -94,6 +109,8 @@ internal class ThemeStyleStore(private val context: Context) {
             remove("${theme.id}.image"); remove("${theme.id}.fill")
             remove("${theme.id}.font")
             remove("${theme.id}.page_animation"); remove("${theme.id}.interactive")
+            listOf("ink", "dark", "dark_schedule", "dark_start", "dark_end", "dark_ambient", "festive")
+                .forEach { remove("${theme.id}.$it") }
             putBoolean("${theme.id}.migrated", true)
         }
     }
@@ -191,7 +208,7 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
         sheetGesturesEnabled = !importing,
         modifier = Modifier.testTag("theme-style-sheet").semantics { testTagsAsResourceId = true }) {
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState())
+            Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState()).testTag("style-scroll")
                 .padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("${theme.title.substringBefore(" · ")}样式", style = MaterialTheme.typography.headlineSmall)
                 StyleSwitch("翻页动画", "日期切换时播放动画；关闭后直接切换。",
@@ -201,6 +218,10 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
                     else "全屏时左右滑动切换日期，点击“回到今天”恢复。",
                     style.interactive, !importing, "interactive-calendar") { onChange(style.copy(interactive = it)) }
                 HorizontalDivider()
+                if (theme.renderer.isTongSheng) {
+                    AlmanacStyleOptions(style, !importing, onChange)
+                    HorizontalDivider()
+                }
                 val imageSetting = theme.settings.filterIsInstance<ThemeSetting.Image>().singleOrNull()
                 val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull { it.key == "fill" }
                 if (theme.fonts.isNotEmpty()) {
@@ -279,7 +300,7 @@ internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: The
 }
 
 @Composable
-private fun StyleSwitch(title: String, description: String, checked: Boolean, enabled: Boolean,
+internal fun StyleSwitch(title: String, description: String, checked: Boolean, enabled: Boolean,
     tag: String, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 72.dp)
         .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange).testTag(tag),

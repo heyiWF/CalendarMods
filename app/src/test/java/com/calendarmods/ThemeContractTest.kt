@@ -7,11 +7,12 @@ class ThemeContractTest {
     private val custom = CalendarTheme.TEDDY.copy(id = "org.example.winter", title = "Winter", author = "Example")
 
     @Test fun builtInsHaveUniqueStableIdsAndRendererContracts() {
-        assertEquals(7, CalendarTheme.entries.map { it.id }.toSet().size)
+        assertEquals(11, CalendarTheme.entries.map { it.id }.toSet().size)
         assertEquals(ThemeRenderer.entries.toSet(), CalendarTheme.entries.map { it.renderer }.toSet())
         CalendarTheme.entries.forEach { theme ->
             assertEquals(theme.renderer.image != null, theme.settings.any { it is ThemeSetting.Image })
-            assertEquals(mapOf("page_animation" to true, "interactive" to false),
+            assertEquals(mapOf("page_animation" to true, "interactive" to false) + if (theme.renderer.isTongSheng)
+                mapOf("night" to false, "night_schedule" to false, "night_ambient" to false, "festive" to true) else emptyMap(),
                 theme.settings.filterIsInstance<ThemeSetting.Toggle>().associate { it.key to it.default })
             assertEquals(theme.renderer.name, theme.name)
         }

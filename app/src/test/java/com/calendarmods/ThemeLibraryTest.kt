@@ -9,7 +9,7 @@ class ThemeLibraryTest {
 
     @Test fun defaultsInstallEveryPresetOnceInCatalogOrder() {
         assertEquals(ids, ThemeLibrary().order)
-        assertEquals(7, ThemeLibrary().addedAt.size)
+        assertEquals(11, ThemeLibrary().addedAt.size)
         assertEquals(ThemeLibrary(), ThemeLibrary().add(ids.first(), 123))
     }
 
@@ -50,7 +50,7 @@ class ThemeLibraryTest {
     @Test fun deletionChoosesNextThenPreviousAndReorderDoesNotChangeIdentity() {
         val state = ThemeLibrary()
         assertEquals(ids[3], state.selectionAfterRemoval(ids[2], ids[2]))
-        assertEquals(ids[5], state.selectionAfterRemoval(ids[6], ids[6]))
+        assertEquals(ids[ids.lastIndex - 1], state.selectionAfterRemoval(ids.last(), ids.last()))
         assertEquals(ids[2], state.selectionAfterRemoval(ids[2], ids[1]))
     }
 
