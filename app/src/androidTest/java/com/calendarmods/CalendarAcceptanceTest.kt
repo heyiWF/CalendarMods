@@ -245,7 +245,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             if (showcaseOnly) {
                 for (rotation in 0..1) {
                     uiAutomation.setRotation(rotation); SystemClock.sleep(600)
-                    for (value in listOf("2025-04-03", "2026-04-05", "2026-09-25")) {
+                    for (value in listOf("2025-04-03", "2026-04-05", "2026-09-25", "2026-11-07")) {
                         val date = LocalDate.parse(value)
                         for (dark in listOf(false, true)) {
                             show(CalendarTheme.PEITAIYI, date, ThemeStyle(dark = dark))

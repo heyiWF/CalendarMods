@@ -40,10 +40,11 @@ private fun TongShengPlate.webHero(bottom: Float) {
         verticalFitted("清风入户添新意", 60f, top + 15f, 65f, area - 30f, 34f)
         verticalFitted("好日临门报吉祥", 1075f, top + 15f, 65f, area - 30f, 34f)
     } else {
-        // The picture and the date occupy separate columns, never covering each other.
-        art.draw(c, feature.second, 415f, top, 735f, area, ink, paper)
-        text(data.today.dayOfMonth.toString(), 50f, top, 365f, area * .62f, 370f, true)
-        text(feature.first.replace(" · ", "\n"), 52f, top + area * .65f, 350f, area * .28f, 57f, true)
+        // Match the webpage's cover/center-top illustration layer. Date and title are
+        // printed over its quiet left side, sharing the same full-width artwork area.
+        art.draw(c, feature.second, 28f, top, 1144f, area, ink, paper, cover = true)
+        text(data.today.dayOfMonth.toString(), 70f, top + area * .07f, 390f, area * .43f, 430f, true)
+        text(feature.first.replace(" · ", "\n"), 65f, top + area * .61f, 410f, area * .23f, 76f, true)
     }
     text(a.festivals, 70f, bottom - 105f, 1060f, 35f, 28f)
     text(a.pengZu, 70f, bottom - 67f, 1060f, 30f, 25f)

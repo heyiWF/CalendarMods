@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.LruCache
 import kotlin.math.min
+import kotlin.math.max
 
 /** Artwork selection consumes shared calendar results; it performs no calendar calculations. */
 internal object PeitaiyiArt {
@@ -45,11 +46,13 @@ internal class PeitaiyiArtwork(private val context: Context) {
             BitmapFactory.decodeStream(input, null, BitmapFactory.Options().apply { inSampleSize = if (path.endsWith(".webp")) 2 else 1 })!!
         }.also { cache.put(path, it) }
     }
-    fun draw(canvas: Canvas, path: String, x: Float, y: Float, w: Float, h: Float, ink: Int, paper: Int, mask: Boolean = false) {
+    fun draw(canvas: Canvas, path: String, x: Float, y: Float, w: Float, h: Float, ink: Int, paper: Int,
+        mask: Boolean = false, cover: Boolean = false) {
         val image = bitmap(path)
-        val scale = min(w / image.width, h / image.height)
-        val rect = RectF(x + (w - image.width * scale) / 2, y + (h - image.height * scale) / 2,
-            x + (w + image.width * scale) / 2, y + (h + image.height * scale) / 2)
+        val scale = if (cover) max(w / image.width, h / image.height) else min(w / image.width, h / image.height)
+        val left = x + (w - image.width * scale) / 2
+        val top = if (cover) y else y + (h - image.height * scale) / 2
+        val rect = RectF(left, top, left + image.width * scale, top + image.height * scale)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         if (mask) paint.colorFilter = PorterDuffColorFilter(ink, PorterDuff.Mode.SRC_IN)
         else {
@@ -63,7 +66,11 @@ internal class PeitaiyiArtwork(private val context: Context) {
             matrix[18] = 1f
             paint.colorFilter = ColorMatrixColorFilter(matrix)
         }
-        canvas.drawBitmap(image, null, rect, paint)
+        val checkpoint = canvas.save()
+        try {
+            if (cover) canvas.clipRect(x, y, x + w, y + h)
+            canvas.drawBitmap(image, null, rect, paint)
+        } finally { canvas.restoreToCount(checkpoint) }
     }
     fun animal(canvas: Canvas, name: String, x: Float, y: Float, size: Float, ink: Int, paper: Int) {
         val index = "鼠牛虎兔龙蛇马羊猴鸡狗猪".indexOf(name)
