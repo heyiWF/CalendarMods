@@ -35,15 +35,16 @@ private fun TongShengPlate.webHero(bottom: Float) {
     text("${data.weekday} · ${a.hijriDay}hb", 735f, 299f, 416f, 37f, 27f)
     val top = 350f
     val area = (bottom - top - 114f).coerceAtLeast(210f)
+    val day = data.today.dayOfMonth.toString()
     if (feature == null) {
-        text(data.today.dayOfMonth.toString(), 200f, top, 800f, area, 1050f, true)
+        dayNumber(day, 600f, top, area, 800f)
         verticalFitted("清风入户添新意", 60f, top + 15f, 65f, area - 30f, 34f)
         verticalFitted("好日临门报吉祥", 1075f, top + 15f, 65f, area - 30f, 34f)
     } else {
         // Match the webpage's cover/center-top illustration layer. Date and title are
         // printed over its quiet left side, sharing the same full-width artwork area.
         art.draw(c, feature.second, 28f, top, 1144f, area, ink, paper, cover = true)
-        text(data.today.dayOfMonth.toString(), 70f, top + area * .07f, 390f, area * .43f, 430f, true)
+        dayNumber(day, 265f, top + area * .07f, area * .43f, 390f)
         text(feature.first.replace(" · ", "\n"), 65f, top + area * .61f, 410f, area * .23f, 76f, true)
     }
     text(a.festivals, 70f, bottom - 105f, 1060f, 35f, 28f)

@@ -267,6 +267,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                       CalendarTheme.AUSPICIOUS -> LocalDate.of(2021, 1, 9)
                       else -> LocalDate.of(2025, 4, 3)
                   }
+                  val dayHeights = mutableMapOf<LocalDate, Int>()
                   for (date in listOf(reference, LocalDate.of(2028, 2, 29), LocalDate.of(2026, 1, 22))) {
                     show(theme, date)
                     if (date == reference) capture("${theme.name}-preview-$rotation")
@@ -277,6 +278,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                     } }
                     check(nodes().first { it.viewIdResourceName == "traditional-fields" }.contentDescription?.contains("取名") != true)
                     capture("${theme.name}-$date-$rotation")
+                    if (rotation == 0) dayHeights[date] = dayNumeralHeight()
                     if (rotation == 1 && date == reference) {
                         val bitmap = checkNotNull(uiAutomation.takeScreenshot())
                         val background = bitmap.getPixel(0, 0)
@@ -303,6 +305,14 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                         it.stateDescription?.toString() == "日期：$date" } }
                     press("immersive-${theme.name}", long = true); awaitTheme(theme, date)
                     checks += "${theme.name} $date rotation=$rotation: fields, fullscreen, paging, today, long-press PASS"
+                  }
+                  if (rotation == 0) {
+                      val single = dayHeights.getValue(reference)
+                      val double = dayHeights.getValue(LocalDate.of(2028, 2, 29))
+                      check(kotlin.math.abs(single - double) <= 3) {
+                          "${theme.name}: single-digit day ${single}px and two-digit day ${double}px do not share one size"
+                      }
+                      checks += "${theme.name}: single- and two-digit days share a ${single}px numeral PASS"
                   }
                   show(theme, reference, ThemeStyle(dark = true, ink = AlmanacInk.BLUE))
                   press("art-${theme.name}"); awaitImmersive(theme, reference)
@@ -1849,6 +1859,32 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         }
         inject(MotionEvent.ACTION_UP, SystemClock.uptimeMillis(), x + delta)
         SystemClock.sleep(600)
+    }
+
+    /** Ink height of the day numeral, sampled in the middle column where only it prints. */
+    private fun dayNumeralHeight(): Int {
+        val paper = Rect().also { bounds ->
+            nodes().first { it.viewIdResourceName == "traditional-fields" }.getBoundsInScreen(bounds)
+        }
+        val bitmap = checkNotNull(uiAutomation.takeScreenshot())
+        val background = bitmap.getPixel(paper.left + 3, paper.top + 3)
+        var top = Int.MAX_VALUE
+        var bottom = -1
+        for (y in (paper.top + paper.height() * .18f).toInt() until (paper.top + paper.height() * .5f).toInt()) {
+            for (x in (paper.left + paper.width() * .28f).toInt() until (paper.left + paper.width() * .72f).toInt()) {
+                val color = bitmap.getPixel(x, y)
+                val contrast = kotlin.math.abs(android.graphics.Color.red(color) - android.graphics.Color.red(background)) +
+                    kotlin.math.abs(android.graphics.Color.green(color) - android.graphics.Color.green(background)) +
+                    kotlin.math.abs(android.graphics.Color.blue(color) - android.graphics.Color.blue(background))
+                if (contrast > 120) {
+                    if (y < top) top = y
+                    bottom = y
+                }
+            }
+        }
+        bitmap.recycle()
+        check(bottom >= top) { "day numeral not found in a ${paper.width()}x${paper.height()} paper" }
+        return bottom - top + 1
     }
 
     private fun capture(name: String) {

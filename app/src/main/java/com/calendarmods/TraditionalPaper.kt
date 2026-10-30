@@ -110,6 +110,19 @@ internal class TongShengPlate(
             }
         }
     }
+    /** One numeral size per plate: a two-digit day sets it, so 3 and 28 print at the same size. */
+    internal fun daySize(maxWidth: Float, maxHeight: Float): Float {
+        p.typeface = Typeface.create(bold, 1000, false); p.textSize = 1000f
+        val reference = Rect(); p.getTextBounds("28", 0, 2, reference)
+        return 1000f * min(maxWidth / reference.width().toFloat().coerceAtLeast(1f),
+            maxHeight / reference.height().toFloat().coerceAtLeast(1f))
+    }
+    /** Prints the day at the shared size, optically centred in its box; no leading zeroes. */
+    internal fun dayNumber(day: String, centerX: Float, top: Float, height: Float, maxWidth: Float) {
+        p.typeface = Typeface.create(bold, 1000, false); p.textSize = daySize(maxWidth, height); p.color = ink
+        val bounds = Rect(); p.getTextBounds(day, 0, day.length, bounds)
+        c.drawText(day, centerX - bounds.exactCenterX(), top + (height - bounds.height()) / 2 - bounds.top, p)
+    }
     internal fun words(items: List<String>, x: Float, y: Float, w: Float, h: Float, size: Float = 32f, top: Boolean = false) {
         val values = items.ifEmpty { listOf("无") }
         p.typeface = regular
@@ -205,13 +218,7 @@ internal class TongShengPlate(
         val malay = listOf("Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu", "Ahad")[data.today.dayOfWeek.value - 1]
         text("$malay\n${a.hijriDay}hb", 958f, 121f, 210f, 87f, 34f, true)
         val heroHeight = bottom - 218f - if (festival == null) 0f else 105f
-        // Actual glyph bounds make 3 and 28 fill the same visual height, without leading zeroes.
-        val day = data.today.dayOfMonth.toString()
-        p.typeface = Typeface.create(bold, 1000, false); p.textSize = 1000f; p.color = ink
-        val bounds = Rect(); p.getTextBounds(day, 0, day.length, bounds)
-        val factor = min(760f / bounds.width(), (heroHeight - 28f) / bounds.height())
-        p.textSize *= factor; p.getTextBounds(day, 0, day.length, bounds)
-        c.drawText(day, 600f - bounds.exactCenterX(), 211f + (heroHeight - bounds.height()) / 2 - bounds.top, p)
+        dayNumber(data.today.dayOfMonth.toString(), 600f, 225f, heroHeight - 28f, 760f)
         text("风\n水", 37f, 230f, 75f, 98f, 42f, true)
         vertical(a.editorial.fengShui, 36f, 340f, 100f, (bottom - 420).coerceAtLeast(200f), 27f)
         vertical(a.editorial.observances, 146f, (bottom - 235).coerceAtLeast(350f), 100f, 205f, 27f)
@@ -413,12 +420,7 @@ internal class TongShengPlate(
         }
         val top = if (classic) 205f else 230f
         val dayBottom = bottom - if (festival == null) 60f else 155f
-        val day = data.today.dayOfMonth.toString()
-        p.typeface = Typeface.create(bold, 1000, false); p.textSize = 1000f; p.color = ink
-        val bounds = Rect(); p.getTextBounds(day, 0, day.length, bounds)
-        p.textSize *= min(760f / bounds.width(), (dayBottom - top).coerceAtLeast(220f) / bounds.height())
-        p.getTextBounds(day, 0, day.length, bounds)
-        c.drawText(day, 600f - bounds.exactCenterX(), top + (dayBottom - top - bounds.height()) / 2 - bounds.top, p)
+        dayNumber(data.today.dayOfMonth.toString(), 600f, top, (dayBottom - top).coerceAtLeast(220f), 760f)
         verticalFitted(a.editorial.fengShui, 35f, sideTop, 150f, bottom - sideTop - 24, 23f)
         verticalFitted("诸葛择日：${a.editorial.zhuge}", 1015f, sideTop, 150f, bottom - sideTop - 24, 23f)
         festival?.let { festiveBanner(250f, bottom - 143f, 700f, 84f, it) }
