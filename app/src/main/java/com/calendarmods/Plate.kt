@@ -2,6 +2,7 @@ package com.calendarmods
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
@@ -152,32 +153,45 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
         return result
     }
 
-    /** The oversized date numeral, optically centred. */
     /**
-     * Day numeral sized to the box it is given, never to a fixed fraction of the page: the glyph
-     * is measured once at 1000 and scaled so both width and height fit, using a two-digit sample
-     * so 3 and 28 always print at the same size.
+     * The oversized date numeral, fitted to the box the layout hands over.
+     *
+     * Drawn from the glyph outline instead of drawText: a vendor ROM can resolve a requested
+     * family to a face that measures but paints nothing, and a degenerate measurement used to
+     * blow the text size up until nothing landed inside the box. Fitting the outline keeps the
+     * numeral inside its band on every screen and falls back to the default face when needed.
      */
     fun bigDay(day: String, x: Float, y: Float, w: Float, h: Float, color: Int = ink,
         typeface: Typeface? = bold, scale: Float = .82f) {
         if (w <= 1f || h <= 1f || day.isEmpty()) return
         paint.reset(); paint.isAntiAlias = true
-        paint.typeface = typeface ?: bold
         paint.color = color
+        paint.typeface = typeface ?: bold
         paint.textSize = 1000f
-        val reference = Rect(); paint.getTextBounds("28", 0, 2, reference)
-        var size = min(w * scale / reference.width().coerceAtLeast(1),
-            h * scale / reference.height().coerceAtLeast(1)) * 1000f
-        if (size <= 0f) return
-        paint.textSize = size
-        val bounds = Rect(); paint.getTextBounds(day, 0, day.length, bounds)
-        if (bounds.width() > w) {
-            size *= w / bounds.width()
-            paint.textSize = size
-            paint.getTextBounds(day, 0, day.length, bounds)
+        val outline = Path()
+        val bounds = RectF()
+        paint.getTextPath(day, 0, day.length, 0f, 0f, outline)
+        outline.computeBounds(bounds, true)
+        if (bounds.width() < .01f || bounds.height() < .01f) {
+            // The requested family produced no outline; the default bold face always will.
+            paint.typeface = bold
+            paint.getTextPath(day, 0, day.length, 0f, 0f, outline)
+            outline.computeBounds(bounds, true)
+            if (bounds.width() < .01f || bounds.height() < .01f) return
         }
-        canvas.drawText(day, x + (w - bounds.width()) / 2f - bounds.left,
-            y + (h - bounds.height()) / 2f - bounds.top, paint)
+        // Same size rule as the Compose original: the text is min(0.72 w, 0.9 h) tall, so 1 and
+        // 28 print at one size; only shrink further when the outline would leave the box.
+        var fit = min(w * .72f, h * .9f) / 1000f
+        if (bounds.width() * fit > w || bounds.height() * fit > h) {
+            fit = min(w * scale / bounds.width(), h * scale / bounds.height())
+        }
+        if (!fit.isFinite() || fit <= 0f) return
+        val place = Matrix()
+        place.postScale(fit, fit)
+        place.postTranslate(x + (w - bounds.width() * fit) / 2f - bounds.left * fit,
+            y + (h - bounds.height() * fit) / 2f - bounds.top * fit)
+        outline.transform(place)
+        canvas.drawPath(outline, paint)
     }
 
     /** Sunday-first month grid copied from the Compose layout, including the lunar row. */

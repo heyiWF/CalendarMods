@@ -16,3 +16,7 @@ internal val ThemeRenderer.dayMotion: DayMotion get() = when (this) {
     ThemeRenderer.HANGING -> DayMotion.HANGING_PAGE
     ThemeRenderer.TRADITIONAL, ThemeRenderer.CANTON, ThemeRenderer.AUSPICIOUS, ThemeRenderer.PEITAIYI -> DayMotion.ALMANAC_PEEL
 }
+
+/** Themes that page the 宜 / 忌 lines instead of printing the whole list at once. */
+internal val ThemeRenderer.pagesAlmanacLines: Boolean
+    get() = this == ThemeRenderer.HANGING || this == ThemeRenderer.GOOD_DAY

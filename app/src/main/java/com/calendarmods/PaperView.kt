@@ -54,6 +54,20 @@ internal class PaperView(context: Context) : View(context) {
     private var downY = 0f
     private var downAt = 0L
 
+    // The 宜 / 忌 lines page every two seconds while the page is on screen; without a redraw
+    // timer the canvas kept whatever was printed the first time.
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private var ticking = false
+    private var attached = false
+    private val tick = object : Runnable {
+        override fun run() {
+            ticking = false
+            if (!attached) return
+            invalidate()
+            scheduleTick()
+        }
+    }
+
     fun setPage(theme: CalendarTheme, data: CalendarData, style: ThemeStyle,
         environment: AlmanacEnvironment, inventory: ThemeInventory, animate: Boolean) {
         val previousData = this.data
@@ -70,6 +84,7 @@ internal class PaperView(context: Context) : View(context) {
         this.environment = environment
         this.inventory = inventory
         animDuration = theme.renderer.dayMotion.millis
+        if (theme.renderer.pagesAlmanacLines) startTicker() else stopTicker()
         image = null
         font = Ui.themeFont(theme, style, inventory)
         requestImage()
@@ -203,8 +218,33 @@ internal class PaperView(context: Context) : View(context) {
         return true
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        attached = true
+        if (theme?.renderer?.pagesAlmanacLines == true) startTicker()
+    }
+
     override fun onDetachedFromWindow() {
+        attached = false
+        stopTicker()
         recycleOutgoing()
         super.onDetachedFromWindow()
+    }
+
+    private fun startTicker() {
+        if (ticking) return
+        scheduleTick()
+    }
+
+    private fun stopTicker() {
+        ticking = false
+        ticker.removeCallbacks(tick)
+    }
+
+    /** Land just after each two second boundary so a step is never skipped or shown twice. */
+    private fun scheduleTick() {
+        ticker.removeCallbacks(tick)
+        ticker.postDelayed(tick, 2_000 - System.currentTimeMillis() % 2_000 + 24)
+        ticking = true
     }
 }
