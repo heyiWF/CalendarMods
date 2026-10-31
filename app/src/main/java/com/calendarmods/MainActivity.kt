@@ -274,7 +274,7 @@ class MainActivity : Activity() {
             }
             val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-            params.bottomMargin = dp(28f).toInt()
+            params.bottomMargin = dp(72f).toInt()
             root.addView(this, params)
         }
         todayButton = button

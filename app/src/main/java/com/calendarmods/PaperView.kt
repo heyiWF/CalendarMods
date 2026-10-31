@@ -7,10 +7,12 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.view.GestureDetector
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.animation.DecelerateInterpolator
+import kotlin.math.abs
 
 /**
  * One full-window calendar page. The midnight change turns the printed page away from the
@@ -44,24 +46,13 @@ internal class PaperView(context: Context) : View(context) {
     private val camera = Camera()
     private val matrix = Matrix()
 
-    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            onTap?.invoke()
-            return true
-        }
-
-        override fun onLongPress(e: MotionEvent) {
-            onLongPress?.invoke()
-        }
-
-        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (kotlin.math.abs(velocityX) > kotlin.math.abs(velocityY) * 1.5f && kotlin.math.abs(velocityX) > 320f) {
-                onSwipe?.invoke(if (velocityX < 0) 1 else -1)
-                return true
-            }
-            return false
-        }
-    })
+    // Touch is tracked by hand: GestureDetector reports a long press before it reports the fling
+    // when a swipe is delivered slowly, which used to drop the page while browsing dates.
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private val longPressMillis = ViewConfiguration.getLongPressTimeout().toLong()
+    private var downX = 0f
+    private var downY = 0f
+    private var downAt = 0L
 
     fun setPage(theme: CalendarTheme, data: CalendarData, style: ThemeStyle,
         environment: AlmanacEnvironment, inventory: ThemeInventory, animate: Boolean) {
@@ -193,7 +184,23 @@ internal class PaperView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        return gestures.onTouchEvent(event) || super.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x; downY = event.y; downAt = SystemClock.uptimeMillis()
+            }
+            MotionEvent.ACTION_UP -> {
+                val dx = event.x - downX
+                val dy = event.y - downY
+                val elapsed = SystemClock.uptimeMillis() - downAt
+                when {
+                    abs(dx) > touchSlop * 2 && abs(dx) > abs(dy) * 1.4f ->
+                        onSwipe?.invoke(if (dx < 0) 1 else -1)
+                    elapsed >= longPressMillis -> onLongPress?.invoke()
+                    else -> onTap?.invoke()
+                }
+            }
+        }
+        return true
     }
 
     override fun onDetachedFromWindow() {
