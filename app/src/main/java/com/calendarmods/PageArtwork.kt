@@ -30,9 +30,13 @@ internal class PageArtwork(
     private val almanacDay: AlmanacDay? = if (theme.renderer.isTongSheng)
         Almanacs.shared.day(data.today) else null
 
+    /** Red on weekends and festival days, the shared default for all four almanac plates. */
+    private val festiveInk: Boolean get() = data.today.dayOfWeek >= 6 || data.festivals.isNotEmpty() ||
+        (style.festive && almanacDay?.festivalEdition != null)
+
     fun paperColor(): Int {
         val color = if (theme.renderer.isTongSheng)
-            almanacPalette(theme, style, environment.minute, environment.ambientDark).paper
+            almanacPalette(theme, style, environment.minute, environment.ambientDark, festiveInk).paper
         else theme.surfaces.paper
         return color.toInt()
     }
@@ -73,7 +77,7 @@ internal class PageArtwork(
             val top = header + 22f
             val innerH = height - top - 22f
             p.text(data.month.uppercase(Locale.ENGLISH), 22f, top, leftW, 26f, 22f, bold = true)
-            p.bigDay(data.today.dayOfMonth.toString(), 22f, top + 26f, leftW, innerH - 52f)
+            p.bigDay(data.today.dayOfMonth.toString(), 22f, top + 26f, leftW, (innerH - 52f).coerceAtLeast(80f))
             p.text(data.today.year.toString(), 22f, top + innerH - 26f, leftW, 26f, 22f)
 
             val rightX = 22f + leftW + 20f
@@ -164,7 +168,8 @@ internal class PageArtwork(
             val leftW = (width - 50f) * .55f
             val contentH = height - 50f
             p.text("${data.month} ${data.chineseMonth}", 25f, top, leftW, 26f, 22f, typeface = p.serif)
-            p.bigDay(data.today.dayOfMonth.toString(), 25f, top + 26f, leftW, contentH - 54f, typeface = p.serifBold)
+            p.bigDay(data.today.dayOfMonth.toString(), 25f, top + 26f, leftW, (contentH - 54f).coerceAtLeast(80f),
+                typeface = p.serifBold)
             p.text(data.weekdayChinese, 25f, top + contentH - 20f, leftW, 20f, 17f, typeface = p.serif)
 
             val x = 25f + leftW + 26f
@@ -372,11 +377,8 @@ internal class PageArtwork(
 
     private fun traditional(canvas: Canvas) {
         val almanac = almanacDay ?: return
-        val palette = almanacPalette(theme, style, environment.minute, environment.ambientDark)
-        val webRed = theme.renderer == ThemeRenderer.PEITAIYI && style.ink == AlmanacInk.DEFAULT &&
-            (data.today.dayOfWeek >= 6 || (style.festive &&
-                PeitaiyiArt.feature(data, almanac)?.second?.startsWith("festivals_") == true))
-        val ink = if (webRed) (if (palette.dark) AlmanacInk.RED.night else 0xFFB5372A) else palette.ink
+        val palette = almanacPalette(theme, style, environment.minute, environment.ambientDark, festiveInk)
+        val ink = palette.ink
         val festival = if (style.festive) almanac.festivalEdition else null
         val regular = installedFont ?: Typeface.create("serif", Typeface.NORMAL)
         val bold = Typeface.create("sans-serif", Typeface.BOLD)

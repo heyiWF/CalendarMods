@@ -151,7 +151,11 @@ internal class StyleSheetDialog(
         }
         content.addView(labels)
 
-        toggle("节日特别版式", "节日换上花边与题签；时和主题同时展示节日和二十四节气插画。", style.festive) {
+        // Each theme describes only its own festive layout.
+        val festiveCopy = if (theme.renderer == ThemeRenderer.PEITAIYI)
+            "节日换成花边与题签，并展示节日和节气插画。"
+        else "节日换成花边与题签。"
+        toggle("节日特别版式", festiveCopy, style.festive) {
             apply(style.copy(festive = it))
         }
         divider()

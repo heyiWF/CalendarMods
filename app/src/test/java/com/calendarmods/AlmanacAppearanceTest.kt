@@ -14,15 +14,29 @@ class AlmanacAppearanceTest {
         assertFalse(AlmanacNightPolicy.scheduled(900, 600, 900))
         assertFalse(AlmanacNightPolicy.scheduled(600, 600, 600))
     }
-    @Test fun ambientNeedsSustainedDarknessAndBrightnessWithHysteresis() {
+    @Test fun ambientUsesOneThresholdWithHysteresis() {
         val gate = AmbientDarkGate()
         assertFalse(gate.update(5f, 0))
         assertFalse(gate.update(5f, 29_999))
         assertTrue(gate.update(5f, 30_000))
-        assertTrue(gate.update(25f, 60_000)) // neutral band never oscillates
-        assertTrue(gate.update(80f, 61_000))
-        assertTrue(gate.update(80f, 70_999))
-        assertFalse(gate.update(80f, 71_000))
+        // 25 lx is a normally lit room: it starts the ten second release, no dead band.
+        assertTrue(gate.update(25f, 60_000))
+        assertTrue(gate.update(80f, 69_999))
+        assertFalse(gate.update(80f, 70_000))
+        // ... and back to dark only after thirty seconds below the threshold.
+        assertFalse(gate.update(5f, 80_000))
+        assertFalse(gate.update(5f, 109_999))
+        assertTrue(gate.update(5f, 110_000))
+    }
+    @Test fun defaultInkIsRedOnFestiveDaysAndGreenOtherwise() {
+        val style = ThemeStyle()
+        listOf(CalendarTheme.TRADITIONAL, CalendarTheme.CANTON, CalendarTheme.AUSPICIOUS,
+            CalendarTheme.PEITAIYI).forEach { theme ->
+            assertEquals(AlmanacInk.GREEN.light, almanacPalette(theme, style, 720, false, false).ink)
+            assertEquals(AlmanacInk.RED.light, almanacPalette(theme, style, 720, false, true).ink)
+            assertEquals(AlmanacInk.BLUE.light,
+                almanacPalette(theme, style.copy(ink = AlmanacInk.BLUE), 720, false, true).ink)
+        }
     }
     @Test fun interruptedAndInvalidLightReadingsDoNotTriggerNight() {
         val gate = AmbientDarkGate()

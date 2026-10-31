@@ -30,20 +30,29 @@ internal class AmbientDarkGate {
     private var since = 0L
     fun update(lux: Float?, now: Long): Boolean {
         if (lux == null || !lux.isFinite() || lux < 0) { candidate = null; return dark }
-        val wanted = when { lux <= 10f -> true; lux >= 40f -> false; else -> null }
-        if (wanted == null || wanted == dark) candidate = null
-        else {
-            if (candidate != wanted) { candidate = wanted; since = now }
-            if (now - since >= if (wanted) 30_000L else 10_000L) { dark = wanted; candidate = null }
-        }
+        // A single threshold: below it the room is dark (30 s to engage), at or above it the
+        // room is lit (10 s to release). A dead band kept dim rooms dark forever.
+        val wanted = lux < DARK_LUX
+        if (wanted == dark) { candidate = null; return dark }
+        if (candidate != wanted) { candidate = wanted; since = now }
+        if (now - since >= if (wanted) 30_000L else 10_000L) { dark = wanted; candidate = null }
         return dark
+    }
+
+    private companion object {
+        const val DARK_LUX = 10f
     }
 }
 
-internal fun almanacPalette(theme: CalendarTheme, style: ThemeStyle, minute: Int, ambient: Boolean): AlmanacPalette {
+/**
+ * The four almanac plates share one default ink rule: red on weekends and festival days, green on
+ * ordinary days. An explicit choice in the style sheet still wins.
+ */
+internal fun almanacPalette(theme: CalendarTheme, style: ThemeStyle, minute: Int, ambient: Boolean,
+    festiveDay: Boolean = false): AlmanacPalette {
     val dark = AlmanacNightPolicy.dark(style, minute, ambient)
     val ink = style.ink.takeUnless { it == AlmanacInk.DEFAULT }
-        ?: if (theme.renderer in listOf(ThemeRenderer.TRADITIONAL, ThemeRenderer.PEITAIYI)) AlmanacInk.GREEN else AlmanacInk.RED
-    return AlmanacPalette(if (dark) ink.night else if (style.ink == AlmanacInk.DEFAULT) theme.surfaces.chrome else ink.light,
+        ?: if (festiveDay) AlmanacInk.RED else AlmanacInk.GREEN
+    return AlmanacPalette(if (dark) ink.night else ink.light,
         if (dark) 0xFF161B19 else theme.surfaces.paper, if (dark) 0xFF101512 else theme.surfaces.backdrop, dark)
 }

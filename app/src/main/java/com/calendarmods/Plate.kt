@@ -153,20 +153,31 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
     }
 
     /** The oversized date numeral, optically centred. */
+    /**
+     * Day numeral sized to the box it is given, never to a fixed fraction of the page: the glyph
+     * is measured once at 1000 and scaled so both width and height fit, using a two-digit sample
+     * so 3 and 28 always print at the same size.
+     */
     fun bigDay(day: String, x: Float, y: Float, w: Float, h: Float, color: Int = ink,
-        typeface: Typeface? = bold, scale: Float = .72f) {
+        typeface: Typeface? = bold, scale: Float = .82f) {
+        if (w <= 1f || h <= 1f || day.isEmpty()) return
         paint.reset(); paint.isAntiAlias = true
         paint.typeface = typeface ?: bold
         paint.color = color
-        // Same rule as the Compose version: the numeral box sets the size, never the glyph.
-        var size = min(w * scale, h * .9f)
+        paint.textSize = 1000f
+        val reference = Rect(); paint.getTextBounds("28", 0, 2, reference)
+        var size = min(w * scale / reference.width().coerceAtLeast(1),
+            h * scale / reference.height().coerceAtLeast(1)) * 1000f
+        if (size <= 0f) return
         paint.textSize = size
-        val measured = paint.measureText(day)
-        if (measured > w) size *= w / measured
-        paint.textSize = size
-        val bounds = Rect()
-        paint.getTextBounds(day, 0, day.length, bounds)
-        canvas.drawText(day, x + (w - bounds.width()) / 2f - bounds.left, y + (h - bounds.height()) / 2f - bounds.top, paint)
+        val bounds = Rect(); paint.getTextBounds(day, 0, day.length, bounds)
+        if (bounds.width() > w) {
+            size *= w / bounds.width()
+            paint.textSize = size
+            paint.getTextBounds(day, 0, day.length, bounds)
+        }
+        canvas.drawText(day, x + (w - bounds.width()) / 2f - bounds.left,
+            y + (h - bounds.height()) / 2f - bounds.top, paint)
     }
 
     /** Sunday-first month grid copied from the Compose layout, including the lunar row. */
