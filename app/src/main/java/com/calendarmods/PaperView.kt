@@ -139,12 +139,13 @@ internal class PaperView(context: Context) : View(context) {
         val w = width.toFloat()
         val h = height.toFloat()
         val wide = w > h
-        val artwork = PageArtwork(theme, data, style, environment, wide, w, h,
+        // The page is laid out in design units; the canvas supplies the pixel scale.
+        val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
+        val artwork = PageArtwork(theme, data, style, environment, wide, w / unit, h / unit,
             if (theme.renderer.image == null) null else image,
             font, icons,
             if (theme.renderer == ThemeRenderer.PEITAIYI) artwork else null)
         canvas.drawColor(artwork.paperColor())
-        val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
         canvas.save()
         canvas.scale(unit, unit)
         artwork.draw(canvas)

@@ -79,15 +79,15 @@ internal object PreviewCache {
             return null
         }
         val canvas = Canvas(bitmap)
-        val artwork = PageArtwork(theme, data, style, environment, width > height,
-            width.toFloat(), height.toFloat(),
+        val wide = width > height
+        val unit = if (wide) minOf(width / 640f, height / 360f) else minOf(width / 360f, height / 600f)
+        val artwork = PageArtwork(theme, data, style, environment, wide,
+            width / unit, height / unit,
             if (theme.renderer.image == null) null else
                 Ui.themeImage(context, theme, style, inventory, ThemeImages.targetEdge(width, height)),
             Ui.themeFont(theme, style, inventory), AlmanacIcons(context),
             if (theme.renderer == ThemeRenderer.PEITAIYI) PeitaiyiArtwork(context) else null)
         canvas.drawColor(artwork.paperColor())
-        val unit = if (width > height) minOf(width / 640f, height / 360f)
-        else minOf(width / 360f, height / 600f)
         canvas.scale(unit, unit)
         artwork.draw(canvas)
         cache.put(key, bitmap)

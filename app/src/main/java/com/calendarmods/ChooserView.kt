@@ -27,8 +27,6 @@ internal class ChooserView(context: Context) : View(context) {
 
     var onSelect: ((CalendarTheme) -> Unit)? = null
     var onStyle: ((CalendarTheme) -> Unit)? = null
-    var onStore: (() -> Unit)? = null
-    var onDelete: ((CalendarTheme) -> Unit)? = null
     var onPageChanged: ((CalendarTheme?) -> Unit)? = null
 
     private val scroller = Scroller(context)
@@ -41,20 +39,27 @@ internal class ChooserView(context: Context) : View(context) {
     private var page = 0
     private var lastPage = 0
     private var dragging = false
-    private var verticalDrag = false
     private var downX = 0f
     private var downY = 0f
     private var downAt = 0L
-    private var dragY = 0f
-    private var armedDelete = false
     private var startScroll = 0
 
     private val styleButton = RectF()
+    private var insetTop = 0
+    private var insetBottom = 0
 
     private fun dp(value: Float) = value * density
 
-    private val headerHeight get() = dp(44f)
+    private val headerHeight get() = insetTop + dp(44f)
     private val footerHeight get() = dp(132f)
+
+    /** Android 15 draws edge to edge; older releases already exclude the system bars. */
+    fun setWindowInsets(top: Int, bottom: Int) {
+        if (top == insetTop && bottom == insetBottom) return
+        insetTop = top
+        insetBottom = bottom
+        invalidate()
+    }
 
     val currentTheme: CalendarTheme? get() = themes.getOrNull(page)
 
@@ -75,7 +80,7 @@ internal class ChooserView(context: Context) : View(context) {
     }
 
     fun selectPage(index: Int, animate: Boolean) {
-        val target = index.coerceIn(0, themes.size)
+        val target = index.coerceIn(0, themes.size - 1)
         if (!animate) {
             page = target
             lastPage = target
@@ -91,7 +96,7 @@ internal class ChooserView(context: Context) : View(context) {
 
     private fun previewRect(): RectF {
         val areaTop = headerHeight
-        val areaBottom = height - footerHeight
+        val areaBottom = height - insetBottom - footerHeight
         val areaHeight = (areaBottom - areaTop).coerceAtLeast(1f)
         val ratio = width.toFloat() / height.coerceAtLeast(1)
         val previewW = min(width - dp(36f), areaHeight * ratio)
@@ -110,45 +115,42 @@ internal class ChooserView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val themes = themes
         if (themes.isEmpty()) return
-        val index = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt().coerceIn(0, themes.size)
+        val index = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt()
+            .coerceIn(0, (themes.size - 1).coerceAtLeast(0))
         val theme = themes.getOrNull(index)
         canvas.drawColor(theme?.surfaces?.backdrop?.toInt() ?: 0xFFECEEE9.toInt())
 
         val rect = previewRect()
         canvas.save()
-        if (verticalDrag) canvas.translate(0f, dragY)
-        for (i in 0..themes.size) {
+        themes.forEachIndexed { i, item ->
             val left = (i * width - scrollX).toFloat()
-            if (left > width || left < -width) continue
-            if (i == themes.size) drawStoreEntry(canvas, left, rect)
-            else drawPreview(canvas, themes[i], left, rect)
+            if (left <= width && left >= -width) drawPreview(canvas, item, left, rect)
         }
         canvas.restore()
 
-        val shop = index == themes.size
-        val foreground = if (shop) 0xFF20231E.toInt() else (theme?.surfaces?.chrome?.toInt() ?: 0xFF51554F.toInt())
-        drawChrome(canvas, foreground, index, shop, theme, rect.top)
-        if (verticalDrag) drawDeleteHint(canvas, rect, foreground)
+        val foreground = theme?.surfaces?.chrome?.toInt() ?: 0xFF51554F.toInt()
+        drawChrome(canvas, foreground, index, theme, rect.top)
     }
 
-    private fun drawChrome(canvas: Canvas, foreground: Int, index: Int, shop: Boolean,
+    private fun drawChrome(canvas: Canvas, foreground: Int, index: Int,
         theme: CalendarTheme?, previewTop: Float) {
         paint.reset(); paint.isAntiAlias = true
         paint.color = foreground
         paint.textSize = dp(10f)
         paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-        canvas.drawText("CALENDARMODS", dp(24f), dp(28f), paint)
-        val counter = if (shop) "主题商店" else "${(index + 1).toString().padStart(2, '0')} / ${themes.size.toString().padStart(2, '0')}"
-        canvas.drawText(counter, width - dp(24f) - paint.measureText(counter), dp(28f), paint)
+        canvas.drawText("CALENDARMODS", dp(24f), insetTop + dp(28f), paint)
+        val counter = "${(index + 1).toString().padStart(2, '0')} / ${themes.size.toString().padStart(2, '0')}"
+        canvas.drawText(counter, width - dp(24f) - paint.measureText(counter), insetTop + dp(28f), paint)
 
-        val footerTop = height - footerHeight
-        val title = if (shop) "主题商店" else theme?.title.orEmpty()
+        val footerTop = height - insetBottom - footerHeight
+        val title = theme?.title.orEmpty()
+        val preview = previewRect()
         paint.textSize = dp(13f)
-        canvas.drawText(title, dp(24f), footerTop + dp(30f), paint)
+        canvas.drawText(title, preview.centerX() - paint.measureText(title) / 2f, footerTop + dp(30f), paint)
 
         // Style button, 48 dp circle at the right edge of the footer title row.
-        styleButton.set(width - dp(24f) - dp(48f), footerTop + dp(6f), width - dp(24f), footerTop + dp(54f))
-        if (!shop) {
+        styleButton.set(preview.right - dp(48f), footerTop + dp(6f), preview.right, footerTop + dp(54f))
+        run {
             paint.color = Plate.withAlpha(foreground, .10f)
             canvas.drawCircle(styleButton.centerX(), styleButton.centerY(), dp(24f), paint)
             paint.color = foreground
@@ -160,7 +162,7 @@ internal class ChooserView(context: Context) : View(context) {
         }
 
         // Page dots around the current page.
-        val total = themes.size + 1
+        val total = themes.size
         val start = (index - 4).coerceIn(0, (total - 9).coerceAtLeast(0))
         val dotY = footerTop + dp(72f)
         val count = (min(start + 9, total) - start)
@@ -180,7 +182,7 @@ internal class ChooserView(context: Context) : View(context) {
         paint.color = Plate.withAlpha(foreground, .8f)
         paint.textSize = dp(10f)
         paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-        val hint = if (shop) "发现喜欢的日历 · 管理你的主题" else "左右滑动切换 · 单击全屏 · 上滑删除"
+        val hint = "左右滑动切换 · 单击全屏"
         canvas.drawText(hint, (width - paint.measureText(hint)) / 2f, dotY + dp(26f), paint)
     }
 
@@ -213,38 +215,12 @@ internal class ChooserView(context: Context) : View(context) {
         }
     }
 
-    private fun drawStoreEntry(canvas: Canvas, offset: Float, rect: RectF) {
-        val left = rect.left + offset
-        paint.reset(); paint.isAntiAlias = true
-        paint.color = 0xFFF2F1EC.toInt()
-        canvas.drawRoundRect(RectF(left, rect.top, left + rect.width(), rect.bottom), dp(12f), dp(12f), paint)
-        paint.color = 0xFF51554F.toInt()
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = dp(2f)
-        val cx = left + rect.width() / 2f
-        val cy = rect.top + rect.height() / 2f
-        canvas.drawLine(cx - dp(14f), cy, cx + dp(14f), cy, paint)
-        canvas.drawLine(cx, cy - dp(14f), cx, cy + dp(14f), paint)
-        paint.style = Paint.Style.FILL
-    }
-
-    private fun drawDeleteHint(canvas: Canvas, rect: RectF, foreground: Int) {
-        val alpha = ((-dragY) / dp(120f)).coerceIn(0f, 1f)
-        paint.reset(); paint.isAntiAlias = true
-        paint.color = 0xFFB3261E.toInt(); paint.alpha = (alpha * 255).toInt()
-        val cx = width / 2f
-        val cy = rect.bottom + dp(28f)
-        canvas.drawCircle(cx, cy, dp(22f), paint)
-        paint.color = 0xFFFFFFFF.toInt(); paint.textSize = dp(22f)
-        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-        canvas.drawText("×", cx - paint.measureText("×") / 2f, cy - (paint.descent() + paint.ascent()) / 2f, paint)
-    }
-
     override fun computeScroll() {
         if (scroller.computeScrollOffset()) {
             scrollTo(scroller.currX, 0)
             val newPage = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt()
             if (newPage != page) {
-                page = newPage.coerceIn(0, themes.size)
+                page = newPage.coerceIn(0, themes.size - 1)
                 onPageChanged?.invoke(themes.getOrNull(page))
             }
             invalidate()
@@ -259,26 +235,19 @@ internal class ChooserView(context: Context) : View(context) {
             MotionEvent.ACTION_DOWN -> {
                 scroller.abortAnimation()
                 downX = event.x; downY = event.y; downAt = SystemClock.uptimeMillis()
-                dragging = false; verticalDrag = false; dragY = 0f; armedDelete = false
+                dragging = false
                 startScroll = scrollX
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - downX
                 val dy = event.y - downY
-                if (!dragging && !verticalDrag) {
-                    if (abs(dy) > touchSlop && abs(dy) > abs(dx)) verticalDrag = true
-                    else if (abs(dx) > touchSlop) dragging = true
-                }
-                if (verticalDrag) {
-                    dragY = min(0f, dy)
-                    armedDelete = -dragY > dp(96f)
-                    invalidate()
-                } else if (dragging) {
+                if (!dragging && abs(dx) > touchSlop && abs(dx) >= abs(dy)) dragging = true
+                if (dragging) {
                     scrollTo((startScroll + (downX - event.x)).toInt()
-                        .coerceIn(0, themes.size * width), 0)
+                        .coerceIn(0, (themes.size - 1) * width), 0)
                     val newPage = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt()
                     if (newPage != page) {
-                        page = newPage.coerceIn(0, themes.size)
+                        page = newPage.coerceIn(0, themes.size - 1)
                         onPageChanged?.invoke(themes.getOrNull(page))
                     }
                 }
@@ -288,21 +257,13 @@ internal class ChooserView(context: Context) : View(context) {
                 val dy = event.y - downY
                 val elapsed = SystemClock.uptimeMillis() - downAt
                 when {
-                    verticalDrag -> {
-                        val target = themes.getOrNull(page)
-                        verticalDrag = false
-                        val delete = armedDelete && target != null
-                        dragY = 0f; armedDelete = false
-                        invalidate()
-                        if (delete) onDelete?.invoke(target!!)
-                    }
                     dragging -> {
                         dragging = false
                         vc.computeCurrentVelocity(1000)
                         val vx = vc.xVelocity
                         var target = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt()
                         if (abs(vx) > 400f) target += if (vx < 0) 1 else -1
-                        target = target.coerceIn(0, themes.size)
+                        target = target.coerceIn(0, themes.size - 1)
                         page = target
                         lastPage = target
                         scroller.startScroll(scrollX, 0, target * width - scrollX, 0, 300)
@@ -318,8 +279,8 @@ internal class ChooserView(context: Context) : View(context) {
     }
 
     private fun handleTap(x: Float, y: Float) {
-        val index = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt().coerceIn(0, themes.size)
-        if (index == themes.size) { onStore?.invoke(); return }
+        val index = (scrollX.toFloat() / width.coerceAtLeast(1)).roundToInt()
+            .coerceIn(0, (themes.size - 1).coerceAtLeast(0))
         val theme = themes.getOrNull(index) ?: return
         if (!styleButton.isEmpty() && styleButton.contains(x, y)) { onStyle?.invoke(theme); return }
         val rect = previewRect()

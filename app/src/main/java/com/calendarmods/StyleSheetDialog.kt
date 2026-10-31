@@ -44,13 +44,26 @@ internal class StyleSheetDialog(
 
     override fun show() {
         content.orientation = LinearLayout.VERTICAL
-        content.setBackgroundColor(0xFFFBFAF6.toInt())
+        val background = android.graphics.drawable.GradientDrawable()
+        background.setColor(0xFFFBFAF6.toInt())
+        val radius = dp(20f)
+        background.cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+        content.setBackgroundDrawable(background)
         val scroll = ScrollView(activity)
         scroll.addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT))
         setContentView(scroll, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-            (activity.resources.displayMetrics.heightPixels * .82f).toInt()))
+            ViewGroup.LayoutParams.WRAP_CONTENT))
         build()
+        val maxHeight = (activity.resources.displayMetrics.heightPixels * .82f).toInt()
+        content.post {
+            if (content.height > maxHeight) {
+                scroll.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, maxHeight)
+                scroll.requestLayout()
+            }
+        }
+        window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+        window?.setDimAmount(.55f)
         window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         window?.setGravity(Gravity.BOTTOM)
         super.show()
@@ -87,13 +100,18 @@ internal class StyleSheetDialog(
         fontOptions()
         imageOptions()
         divider()
-        Button(activity).apply {
+        val actions = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        }
+        actions.addView(Button(activity).apply {
             text = "完成"
             setOnClickListener { dismiss() }
             setBackgroundColor(Color.TRANSPARENT)
             setTextColor(0xFF9A6B16.toInt())
-            content.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48f).toInt()))
-        }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48f).toInt()))
+        content.addView(actions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
     }
 
     private fun almanacOptions() {

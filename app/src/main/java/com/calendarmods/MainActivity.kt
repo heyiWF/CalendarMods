@@ -47,6 +47,12 @@ class MainActivity : Activity() {
         selectedId = preferences.getString("theme_id", null)
         root = FrameLayout(this)
         chooser = ChooserView(this)
+        if (Build.VERSION.SDK_INT >= 20) {
+            root.setOnApplyWindowInsetsListener { _, insets ->
+                chooser.setWindowInsets(insets.systemWindowInsetTop, insets.systemWindowInsetBottom)
+                insets
+            }
+        }
         paper = PaperView(this)
         root.addView(chooser, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT))
@@ -54,8 +60,6 @@ class MainActivity : Activity() {
 
         chooser.onSelect = { theme -> enterImmersive(theme) }
         chooser.onStyle = { theme -> openStyleSheet(theme) }
-        chooser.onStore = { startActivity(Intent(this, StoreActivity::class.java)) }
-        chooser.onDelete = { theme -> confirmDelete(theme) }
         chooser.onPageChanged = { theme ->
             if (theme != null) {
                 selectedId = theme.id
@@ -325,24 +329,6 @@ class MainActivity : Activity() {
                 Ui.post { toast("无法读取这张图片，请选择其他图片。") }
             }
         }
-    }
-
-    private fun confirmDelete(theme: CalendarTheme) {
-        if (inventory.themes.size <= 1) {
-            toast("至少保留一个主题")
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("删除主题？")
-            .setMessage("将从已安装主题中移除“${theme.title.substringBefore(" · ")}”")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("删除") { _, _ ->
-                Ui.io {
-                    runCatching { repository.uninstall(theme.id) }
-                        .onFailure { Ui.post { toast("删除失败，请重试") } }
-                }
-            }
-            .show()
     }
 
     private fun toast(message: String) {

@@ -77,7 +77,7 @@ internal class PageArtwork(
             p.text(data.today.year.toString(), 22f, top + innerH - 26f, leftW, 26f, 22f)
 
             val rightX = 22f + leftW + 20f
-            p.text(data.lunar, rightX, top, rightW, 19f, 16f)
+            p.text(data.lunar, rightX, top, rightW, 19f, 16f, typeface = p.serif)
             val weekH = 13f
             val gridTop = top + 19f + 13f
             val gridH = (innerH - 19f - 13f - weekH - 13f).coerceAtLeast(30f)
@@ -163,42 +163,45 @@ internal class PageArtwork(
             val top = 25f
             val leftW = (width - 50f) * .55f
             val contentH = height - 50f
-            p.text("${data.month} ${data.chineseMonth}", 25f, top, leftW, 26f, 22f)
-            p.bigDay(data.today.dayOfMonth.toString(), 25f, top + 26f, leftW, contentH - 54f, typeface = p.regular)
-            p.text(data.weekdayChinese, 25f, top + contentH - 20f, leftW, 20f, 17f)
+            p.text("${data.month} ${data.chineseMonth}", 25f, top, leftW, 26f, 22f, typeface = p.serif)
+            p.bigDay(data.today.dayOfMonth.toString(), 25f, top + 26f, leftW, contentH - 54f, typeface = p.serifBold)
+            p.text(data.weekdayChinese, 25f, top + contentH - 20f, leftW, 20f, 17f, typeface = p.serif)
 
             val x = 25f + leftW + 26f
             val w = width - 25f - x
-            var y = top
-            p.text("${data.today.year} · ${data.lunar}", x, y, w, 16f, 13f)
+            // The right column is a single centred block, matching the Compose row alignment.
+            var blockHeight = 16f + 18f + 37f + 18f + .65f + 18f + 16f
+            if (data.festivals.isNotEmpty()) blockHeight += 30f + 18f
+            var y = top + ((contentH - blockHeight) / 2f).coerceAtLeast(0f)
+            p.text("${data.today.year} · ${data.lunar}", x, y, w, 16f, 13f, typeface = p.serif)
             y += 16f + 18f
             if (data.festivals.isNotEmpty()) { p.festival(data, x, y, w, 30f); y += 30f + 18f }
-            p.carousel("宜", data.recommends, x, y, w, 37f, 30f)
+            p.carousel("宜", data.recommends, x, y, w, 37f, 30f, p.serif)
             y += 37f + 18f
             p.rule(x, y, w)
-            p.text(data.motto, x, y + .65f + 18f, w, 16f, 13f, bold = true)
+            p.text(data.motto, x, y + .65f + 18f, w, 16f, 13f, bold = true, typeface = p.serifBold)
         } else {
             val left = 24f
             val w = width - 48f
             var y = 24f
-            p.text(data.lunar, left, y, w, 17f, 14f, spacing = 2f)
+            p.text(data.lunar, left, y, w, 17f, 14f, spacing = 2f, typeface = p.serif)
             y += 17f + 14f
             if (data.festivals.isNotEmpty()) { p.festival(data, left, y, w, 30f); y += 30f }
-            p.text("${data.month} ${data.chineseMonth}", left, y + 18f, w, 30f, 25f)
+            p.text("${data.month} ${data.chineseMonth}", left, y + 18f, w, 30f, 25f, typeface = p.serif)
             y += 18f + 30f
-            p.text(data.today.year.toString(), left, y + 10f, w, 18f, 15f, bold = true)
+            p.text(data.today.year.toString(), left, y + 10f, w, 18f, 15f, bold = true, typeface = p.serifBold)
             y += 10f + 18f
             val tail = 17f + 18f + 37f + 18f + .65f + 20f + 16f + 24f + 11f
             val dayH = (height - 24f - y - tail).coerceAtLeast(60f)
-            p.bigDay(data.today.dayOfMonth.toString(), left, y, w, dayH, typeface = p.regular)
+            p.bigDay(data.today.dayOfMonth.toString(), left, y, w, dayH, typeface = p.serifBold)
             y += dayH
-            p.text(data.weekdayChinese, left, y, w, 17f, 17f)
+            p.text(data.weekdayChinese, left, y, w, 17f, 17f, typeface = p.serif)
             y += 17f
-            p.carousel("宜", data.recommends, left, y + 18f, w, 37f, 32f)
+            p.carousel("宜", data.recommends, left, y + 18f, w, 37f, 32f, p.serif)
             y += 18f + 37f
             p.rule(left, y + 18f, w)
-            p.text(data.motto, left, y + 18f + .65f + 20f, w, 16f, 13f, bold = true)
-            p.text("把每個平凡的日子，過成喜歡的模樣。", left, height - 24f - 11f, w, 11f, 9f, spacing = 1f)
+            p.text(data.motto, left, y + 18f + .65f + 20f, w, 16f, 13f, bold = true, typeface = p.serifBold)
+            p.text("把每個平凡的日子，過成喜歡的模樣。", left, height - 24f - 11f, w, 11f, 9f, spacing = 1f, typeface = p.serif)
         }
     }
 
@@ -220,8 +223,9 @@ internal class PageArtwork(
         p.text(data.monthShort.uppercase(Locale.ENGLISH), left, firstY + 26f, leftW, 24f, 20f, typeface = p.light)
         val weekdaySize = if (wide) 17f else 23f
         val weekdayBox = weekdaySize * 1.17f * data.weekdayChinese.length
-        val weekdayTop = firstY + rowH - weekdayBox - 12f - 22f
-        val dayH = (weekdayTop - firstY - 50f).coerceAtLeast(40f)
+        // firstY already sits 26 units below the row top; keep the weekday clear of the divider.
+        val dayH = (rowH - 26f - 50f - weekdayBox - 12f - 22f - 8f).coerceAtLeast(40f)
+        val weekdayTop = firstY + 50f + dayH
         p.bigDay(data.today.dayOfMonth.toString(), left, firstY + 50f, leftW, dayH, typeface = p.light)
         p.text(data.weekdayChinese.toCharArray().joinToString("\n"), left, weekdayTop, leftW, weekdayBox,
             weekdaySize, typeface = p.light)
@@ -229,13 +233,13 @@ internal class PageArtwork(
 
         val midX = left + leftW
         val size = min(if (wide) 15f else 17f, rowH / (data.motto.length * 1.17f)).coerceAtLeast(1f)
-        p.text(data.motto.toCharArray().joinToString("\n"), midX, top, midW, rowH, size)
+        p.text(data.motto.toCharArray().joinToString("\n"), midX, top, midW, rowH, size, typeface = p.serif)
 
         val rightX = midX + midW
         val gridH = if (wide) 172f else 117f
         p.monthGrid(data, rightX, top, rightW, gridH, small = !wide, color = 0xFF4D5146.toInt())
         p.text(if (wide) data.lunar else data.lunar.toCharArray().joinToString("\n"),
-            rightX, top + gridH + 24f, rightW, (rowH - gridH - 24f).coerceAtLeast(20f), 14f)
+            rightX, top + gridH + 24f, rightW, (rowH - gridH - 24f).coerceAtLeast(20f), 14f, typeface = p.serif)
 
         val ruleY = top + rowH
         p.rule(left, ruleY, w)
@@ -253,39 +257,57 @@ internal class PageArtwork(
         val left = 26f
         val w = width - 52f
         var y = 26f
-        p.text(data.chineseMonth, left, y, w / 3f, 19f, 16f, align = ALIGN_LEFT)
-        p.text(data.weekdayChinese, left + w / 3f, y, w / 3f, 19f, 16f)
-        p.text("第 ${data.week} 周", left + w * 2f / 3f, y, w / 3f, 19f, 16f, align = ALIGN_RIGHT)
+        p.text(data.chineseMonth, left, y, w / 3f, 19f, 16f, align = ALIGN_LEFT, typeface = p.serif)
+        p.text(data.weekdayChinese, left + w / 3f, y, w / 3f, 19f, 16f, typeface = p.serif)
+        p.text("第 ${data.week} 周", left + w * 2f / 3f, y, w / 3f, 19f, 16f, align = ALIGN_RIGHT, typeface = p.serif)
         y += 19f
-        p.text(data.stems, left, y + 13f, w, 12f, 10f, spacing = 1f)
+        p.text(data.stems, left, y + 13f, w, 12f, 10f, spacing = 1f, typeface = p.serif)
         y += 13f + 12f + 13f
         p.rule(left, y, w)
         y += .65f + 10f
 
         val footer = 12f + 10f
         val contentH = (height - 26f - footer - y).coerceAtLeast(120f)
-        val firstW = w * (if (wide) .49f else .48f)
-        val secondW = w - firstW
-        val dayH = (contentH - 15f - 30f).coerceAtLeast(40f)
-        p.bigDay(data.today.dayOfMonth.toString(), left, y, firstW, dayH, color = 0xFF421E12.toInt(), typeface = p.regular)
-        p.text("${data.today.year} / ${data.today.monthValue.toString().padStart(2, '0')} · 农历${data.lunar}",
-            left, y + dayH, firstW, 15f, 11f)
-        if (data.festivals.isNotEmpty()) p.festival(data, left + 10f, y + dayH + 15f, firstW - 20f, 30f)
-
-        val secondX = left + firstW + if (wide) 20f else 0f
-        var sy = y
-        if (!wide) { p.rule(left, sy, w); sy += .65f }
-        val half = secondW / 2f
-        p.text("宜", secondX, sy + 10f, half - 7f, 24f, 20f, color = 0xFF637051.toInt())
-        p.text(data.suitableText(Int.MAX_VALUE), secondX, sy + 40f, half - 7f, 40f, 10f, color = 0xFF777260.toInt())
-        p.text("忌", secondX + half + 7f, sy + 10f, half - 7f, 24f, 20f, color = 0xFF875C49.toInt())
-        p.text(data.avoidText(Int.MAX_VALUE), secondX + half + 7f, sy + 40f, half - 7f, 40f, 10f, color = 0xFF777260.toInt())
-        val gridTop = sy + 93f
-        p.monthGrid(data, secondX, gridTop, secondW, (y + contentH - gridTop).coerceAtLeast(30f),
-            color = 0xFF665D48.toInt())
+        if (wide) {
+            val firstW = w * .49f
+            val secondW = w - firstW
+            val dayH = (contentH - 15f - 30f).coerceAtLeast(40f)
+            p.bigDay(data.today.dayOfMonth.toString(), left, y, firstW, dayH, color = 0xFF421E12.toInt(), typeface = p.serifBold)
+            p.text("${data.today.year} / ${data.today.monthValue.toString().padStart(2, '0')} · 农历${data.lunar}",
+                left, y + dayH, firstW, 15f, 11f, typeface = p.serif)
+            if (data.festivals.isNotEmpty()) p.festival(data, left + 10f, y + dayH + 15f, firstW - 20f, 30f)
+            val secondX = left + firstW + 20f
+            val half = secondW / 2f
+            p.text("宜", secondX, y + 10f, half - 7f, 24f, 20f, color = 0xFF637051.toInt(), typeface = p.serif)
+            p.text(data.suitableText(Int.MAX_VALUE), secondX, y + 40f, half - 7f, 40f, 10f, color = 0xFF777260.toInt(), typeface = p.serif)
+            p.text("忌", secondX + half + 7f, y + 10f, half - 7f, 24f, 20f, color = 0xFF875C49.toInt(), typeface = p.serif)
+            p.text(data.avoidText(Int.MAX_VALUE), secondX + half + 7f, y + 40f, half - 7f, 40f, 10f, color = 0xFF777260.toInt(), typeface = p.serif)
+            val gridTop = y + 93f
+            p.monthGrid(data, secondX, gridTop, secondW, (y + contentH - gridTop).coerceAtLeast(30f),
+                color = 0xFF665D48.toInt())
+        } else {
+            // Portrait stacks the two panels: date above, 宜忌 and the month grid below.
+            val firstH = contentH * .48f
+            val dayH = (firstH - 15f - 30f).coerceAtLeast(40f)
+            p.bigDay(data.today.dayOfMonth.toString(), left, y, w, dayH, color = 0xFF421E12.toInt(), typeface = p.serifBold)
+            p.text("${data.today.year} / ${data.today.monthValue.toString().padStart(2, '0')} · 农历${data.lunar}",
+                left, y + dayH, w, 15f, 11f, typeface = p.serif)
+            if (data.festivals.isNotEmpty()) p.festival(data, left + 10f, y + dayH + 15f, w - 20f, 30f)
+            var sy = y + firstH
+            p.rule(left, sy, w)
+            sy += .65f
+            val half = w / 2f
+            p.text("宜", left, sy + 10f, half - 7f, 24f, 20f, color = 0xFF637051.toInt(), typeface = p.serif)
+            p.text(data.suitableText(Int.MAX_VALUE), left, sy + 40f, half - 7f, 40f, 10f, color = 0xFF777260.toInt(), typeface = p.serif)
+            p.text("忌", left + half + 7f, sy + 10f, half - 7f, 24f, 20f, color = 0xFF875C49.toInt(), typeface = p.serif)
+            p.text(data.avoidText(Int.MAX_VALUE), left + half + 7f, sy + 40f, half - 7f, 40f, 10f, color = 0xFF777260.toInt(), typeface = p.serif)
+            val gridTop = sy + 93f
+            p.monthGrid(data, left, gridTop, w, (y + contentH - gridTop).coerceAtLeast(30f),
+                color = 0xFF665D48.toInt())
+        }
 
         p.text("岁时有序 · 日月成章", left, height - 26f - footer + 12f, w, 10f, 8f,
-            color = 0xFF8E856E.toInt(), spacing = 2f)
+            color = 0xFF8E856E.toInt(), spacing = 2f, typeface = p.serif)
     }
 
     private fun paintRuled(canvas: Canvas) {
@@ -313,27 +335,36 @@ internal class PageArtwork(
         val top = header + 18f
         val w = width - 48f
         val h = height - top - 18f
-        val firstW = w * (if (wide) .53f else .57f)
-        p.bigDay(data.today.dayOfMonth.toString(), left, top, firstW, h, typeface = p.condensed)
+        val firstW = w * if (wide) .53f else 1f
+        val firstH = if (wide) h else h * .57f
+        p.bigDay(data.today.dayOfMonth.toString(), left, top, firstW, firstH, typeface = p.condensed)
 
-        val x = left + firstW + if (wide) 22f else 0f
-        val secondW = w - firstW - if (wide) 22f else 0f
+        val x = if (wide) left + firstW + 22f else left
+        val secondW = if (wide) w - firstW - 22f else w
+        var contentTop = top
+        var contentH = h
+        if (wide) {
+            contentTop = top
+        } else {
+            contentTop = top + firstH
+            contentH = h - firstH
+        }
         val itemHeights = listOf(28f, 14f, .65f, 66f, .65f, 36f)
-        val gap = ((h - itemHeights.sum()) / (itemHeights.size + 1)).coerceAtLeast(0f)
-        var y = top + gap
-        p.text(data.weekdayChinese, x, y, secondW, 28f, 24f, spacing = 2f)
+        val gap = ((contentH - itemHeights.sum()) / (itemHeights.size + 1)).coerceAtLeast(0f)
+        var y = contentTop + gap
+        p.text(data.weekdayChinese, x, y, secondW, 28f, 24f, bold = true, spacing = 2f)
         y += 28f + gap
         val lunar = data.lunar + if (data.festivals.isEmpty()) "" else " · ${data.festivals.joinToString(" · ")}"
-        p.text(lunar, x, y, secondW, 14f, 12f, color = 0xFF75796E.toInt())
+        p.text(lunar, x, y, secondW, 14f, 12f, color = 0xFF75796E.toInt(), typeface = p.serif)
         y += 14f + gap
         p.rule(x, y, secondW)
         y += .65f + gap
-        p.carousel("宜", data.recommends, x, y, secondW, 31f, 11f)
-        p.carousel("忌", data.avoids, x, y + 31f, secondW, 31f, 11f)
+        p.carousel("宜", data.recommends, x, y, secondW, 31f, 11f, p.serif)
+        p.carousel("忌", data.avoids, x, y + 31f, secondW, 31f, 11f, p.serif)
         y += 66f + gap
         p.rule(x, y, secondW)
         y += .65f + gap
-        p.text(data.motto, x, y, secondW - 50f, 36f, 10f, color = 0xFF696F61.toInt())
+        p.text(data.motto, x, y, secondW - 50f, 36f, 10f, color = 0xFF696F61.toInt(), typeface = p.serif)
         p.cat(x + secondW - 46f, y, 46f, 37f)
     }
 
@@ -362,17 +393,18 @@ internal class PageArtwork(
 }
 
 /** One rotating 宜/忌 line, matching the 2 s cycle of the Compose carousel. */
-private fun Plate.carousel(label: String, items: List<String>, x: Float, y: Float, w: Float, h: Float, size: Float) {
+private fun Plate.carousel(label: String, items: List<String>, x: Float, y: Float, w: Float, h: Float, size: Float,
+    typeface: Typeface) {
     val pages = almanacPages(items, 1)
     val step = ((System.currentTimeMillis() / 2_000) % pages.size).toInt()
     val gap = size * .5f
     paint.reset(); paint.isAntiAlias = true
-    paint.typeface = regular; paint.textSize = size; paint.color = ink
+    paint.typeface = typeface; paint.textSize = size; paint.color = ink
     val labelWidth = paint.measureText(label)
     val itemWidth = paint.measureText(pages[step])
     val left = x + (w - labelWidth - gap - itemWidth) / 2f
-    text(label, left, y, labelWidth + 2f, h, size, align = ALIGN_LEFT)
-    text(pages[step], left + labelWidth + gap, y, itemWidth + 2f, h, size, align = ALIGN_LEFT)
+    text(label, left, y, labelWidth + 2f, h, size, align = ALIGN_LEFT, typeface = typeface)
+    text(pages[step], left + labelWidth + gap, y, itemWidth + 2f, h, size, align = ALIGN_LEFT, typeface = typeface)
 }
 
 internal fun almanacPages(items: List<String>, pageSize: Int): List<String> =

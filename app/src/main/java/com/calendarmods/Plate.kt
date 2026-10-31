@@ -20,7 +20,10 @@ internal const val ALIGN_RIGHT = 2
  */
 internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    val regular: Typeface = Typeface.create("serif", Typeface.NORMAL)
+    // Compose's Print defaulted to sans-serif; themes that asked for serif pass it explicitly.
+    val sans: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+    val serif: Typeface = Typeface.create("serif", Typeface.NORMAL)
+    val serifBold: Typeface = Typeface.create("serif", Typeface.BOLD)
     val bold: Typeface = Typeface.create("sans-serif", Typeface.BOLD)
     val light: Typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
     val condensed: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
@@ -68,7 +71,7 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
         spacing: Float = 0f, maxLines: Int = Int.MAX_VALUE, typeface: Typeface? = null) {
         if (value.isEmpty() || w <= 0f || h <= 0f) return
         paint.reset(); paint.isAntiAlias = true
-        paint.typeface = typeface ?: if (bold) this.bold else regular
+        paint.typeface = typeface ?: if (bold) this.bold else sans
         paint.color = color
         var actual = size
         var lines: List<String>
