@@ -25,7 +25,8 @@ internal class AlmanacIcons(private val context: Context) {
     fun sign(canvas: Canvas, index: Int, x: Float, y: Float, size: Float, color: Int) =
         draw(canvas, signs[index], x, y, size, color)
     private fun draw(canvas: Canvas, id: Int, x: Float, y: Float, size: Float, color: Int) {
-        val drawable = cache.getOrPut(id) { checkNotNull(context.getDrawable(id)).mutate() }
+        // API 14 has no Context.getDrawable or Drawable.setTint; a colour filter is equivalent.
+        val drawable = cache.getOrPut(id) { checkNotNull(context.resources.getDrawable(id)).mutate() }
         canvas.save(); canvas.translate(x, y)
         drawable.setBounds(0, 0, size.toInt(), size.toInt())
         if (id == R.drawable.almanac_pig) {
@@ -36,9 +37,12 @@ internal class AlmanacIcons(private val context: Context) {
                 0f, 0f, 0f, 0f, android.graphics.Color.green(color).toFloat(),
                 0f, 0f, 0f, 0f, android.graphics.Color.blue(color).toFloat(),
                 -.2126f, -.7152f, -.0722f, 1f, 0f))) }
-            canvas.saveLayer(0f, 0f, size, size, filter)
+            canvas.saveLayer(0f, 0f, size, size, filter, Canvas.ALL_SAVE_FLAG)
             drawable.draw(canvas); canvas.restore()
-        } else { drawable.setTint(color); drawable.draw(canvas) }
+        } else {
+            drawable.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
+            drawable.draw(canvas)
+        }
         canvas.restore()
     }
 }

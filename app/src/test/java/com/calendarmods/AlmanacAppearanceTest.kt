@@ -2,7 +2,6 @@ package com.calendarmods
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.time.LocalDate
 
 class AlmanacAppearanceTest {
     @Test fun scheduleHandlesMidnightBoundariesAndEmptyIntervals() {
@@ -48,20 +47,20 @@ class AlmanacAppearanceTest {
         }
     }
     @Test fun festivalsUseLunarDatesIncludingThreeDistinctSpringDays() {
-        val spring = LocalDate.of(2026, 2, 17)
+        val spring = PlainDate.of(2026, 2, 17)
         val titles = (0..2).map { festiveDay(spring.plusDays(it.toLong()))!!.title }
         assertEquals(3, titles.distinct().size)
         assertNull(festiveDay(spring.plusDays(3)))
-        assertEquals(FestiveKind.MOON, festiveDay(LocalDate.of(2026, 9, 25))?.kind)
-        assertEquals(FestiveKind.NATIONAL, festiveDay(LocalDate.of(2026, 10, 1))?.kind)
-        assertEquals(FestiveKind.NEW_YEAR, festiveDay(LocalDate.of(2026, 1, 1))?.kind)
-        assertEquals(FestiveKind.LANTERN, festiveDay(LocalDate.of(2026, 3, 3))?.kind)
-        assertEquals(FestiveKind.DRAGON_BOAT, festiveDay(LocalDate.of(2026, 6, 19))?.kind)
+        assertEquals(FestiveKind.MOON, festiveDay(PlainDate.of(2026, 9, 25))?.kind)
+        assertEquals(FestiveKind.NATIONAL, festiveDay(PlainDate.of(2026, 10, 1))?.kind)
+        assertEquals(FestiveKind.NEW_YEAR, festiveDay(PlainDate.of(2026, 1, 1))?.kind)
+        assertEquals(FestiveKind.LANTERN, festiveDay(PlainDate.of(2026, 3, 3))?.kind)
+        assertEquals(FestiveKind.DRAGON_BOAT, festiveDay(PlainDate.of(2026, 6, 19))?.kind)
     }
     @Test fun westernZodiacWrapsAtYearAndChangesOnBoundary() {
-        assertEquals(0, WesternZodiac.index(LocalDate.of(2026, 1, 19)))
-        assertEquals(1, WesternZodiac.index(LocalDate.of(2026, 1, 20)))
-        assertEquals(11, WesternZodiac.index(LocalDate.of(2026, 12, 21)))
-        assertEquals(0, WesternZodiac.index(LocalDate.of(2026, 12, 22)))
+        assertEquals(0, WesternZodiac.index(PlainDate.of(2026, 1, 19)))
+        assertEquals(1, WesternZodiac.index(PlainDate.of(2026, 1, 20)))
+        assertEquals(11, WesternZodiac.index(PlainDate.of(2026, 12, 21)))
+        assertEquals(0, WesternZodiac.index(PlainDate.of(2026, 12, 22)))
     }
 }

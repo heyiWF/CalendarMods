@@ -3,14 +3,13 @@ package com.calendarmods
 import com.tyme.sixtycycle.EarthBranch
 import com.tyme.sixtycycle.SixtyCycle
 import com.tyme.solar.SolarDay
-import java.time.LocalDate
 
 /** Versioned local rules. No random generation and no dependency on the current clock. */
 internal object TongShengRules {
     const val VERSION = "tongsheng-local-v1"
     enum class ZodiacYearBoundary { LUNAR_NEW_YEAR, START_OF_SPRING }
 
-    fun zodiacNumbers(date: LocalDate, animal: String,
+    fun zodiacNumbers(date: PlainDate, animal: String,
         boundary: ZodiacYearBoundary = ZodiacYearBoundary.LUNAR_NEW_YEAR): List<Int> {
         val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
         val yearBranch = when (boundary) {
@@ -39,7 +38,7 @@ internal object TongShengRules {
             .take(6).map { it.zodiac.name }
 
     /** Decorative six-number column: cycle through the day's element's He Tu endings. */
-    fun luckyNumbers(date: LocalDate, element: String): List<String> {
+    fun luckyNumbers(date: PlainDate, element: String): List<String> {
         val endings = when (element) { "水" -> setOf(1, 6); "火" -> setOf(2, 7); "木" -> setOf(3, 8); "金" -> setOf(4, 9); else -> setOf(0, 5) }
         val values = (1..49).filter { it % 10 in endings }
         val start = Math.floorMod(date.toEpochDay(), values.size.toLong()).toInt()

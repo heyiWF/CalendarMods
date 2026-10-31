@@ -2,46 +2,17 @@ package com.calendarmods
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.unit.dp
-import androidx.core.content.edit
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-internal enum class ImageFill(val title: String, val description: String, val scale: ContentScale) {
-    CROP("等比填充", "铺满图片区域，边缘可能被裁切", ContentScale.Crop),
-    FIT("完整显示", "保留完整图片，空余区域留白", ContentScale.Fit),
-    STRETCH("拉伸填充", "铺满图片区域，可能改变原图比例", ContentScale.FillBounds),
+internal enum class ImageFill(val title: String, val description: String) {
+    CROP("等比填充", "铺满图片区域，边缘可能被裁切"),
+    FIT("完整显示", "保留完整图片，空余区域留白"),
+    STRETCH("拉伸填充", "铺满图片区域，可能改变原图比例"),
 }
 
 internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFill = ImageFill.CROP,
@@ -49,22 +20,22 @@ internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFil
     val ink: AlmanacInk = AlmanacInk.DEFAULT, val dark: Boolean = false,
     val scheduledDark: Boolean = false, val darkStart: Int = 22 * 60, val darkEnd: Int = 7 * 60,
     val ambientDark: Boolean = false, val festive: Boolean = true)
+
 internal fun CalendarTheme.defaultStyle() = ThemeStyle(fill = ImageFill.entries.single { it.name.lowercase() == defaultFill })
-internal val LocalThemeStyles = staticCompositionLocalOf<Map<String, ThemeStyle>> { emptyMap() }
-internal val LocalThemeImages = staticCompositionLocalOf<Map<String, String>> { emptyMap() }
 
 internal class ThemeStyleStore(private val context: Context) {
     private val preferences = context.getSharedPreferences("theme_styles", Context.MODE_PRIVATE)
+
     fun read(theme: CalendarTheme): ThemeStyle {
         // Migrate once, including an explicit reset, so old values cannot reappear later.
         val key = theme.id
         val legacy = CalendarTheme.entries.firstOrNull { it.id == key }?.name
         if (!preferences.contains("$key.migrated") && legacy != null) {
-            preferences.edit {
-                if (preferences.contains("$legacy.image")) putString("$key.image", preferences.getString("$legacy.image", null))
-                if (preferences.contains("$legacy.fill")) putString("$key.fill", preferences.getString("$legacy.fill", null))
-                putBoolean("$key.migrated", true)
-            }
+            val editor = preferences.edit()
+            if (preferences.contains("$legacy.image")) editor.putString("$key.image", preferences.getString("$legacy.image", null))
+            if (preferences.contains("$legacy.fill")) editor.putString("$key.fill", preferences.getString("$legacy.fill", null))
+            editor.putBoolean("$key.migrated", true)
+            editor.apply()
         }
         return ThemeStyle(preferences.getString("$key.image", null),
             ImageFill.entries.firstOrNull { it.name == preferences.getString("$key.fill", null) } ?: theme.defaultStyle().fill,
@@ -77,58 +48,53 @@ internal class ThemeStyleStore(private val context: Context) {
             preferences.getInt("$key.dark_end", 420).coerceIn(0, 1439),
             preferences.getBoolean("$key.dark_ambient", false), preferences.getBoolean("$key.festive", true))
     }
+
     fun save(theme: CalendarTheme, style: ThemeStyle) {
         val previous = read(theme)
-        preferences.edit {
-            // Editing another property must not turn an inherited default into an override.
-            if (style.imagePath != previous.imagePath) putString("${theme.id}.image", style.imagePath)
-            if (style.fill != previous.fill) putString("${theme.id}.fill", style.fill.name)
-            putString("${theme.id}.font", style.fontId?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } })
-            putBoolean("${theme.id}.migrated", true)
-            putBoolean("${theme.id}.page_animation", style.pageAnimation)
-            putBoolean("${theme.id}.interactive", style.interactive)
-            putString("${theme.id}.ink", style.ink.name)
-            putBoolean("${theme.id}.dark", style.dark)
-            putBoolean("${theme.id}.dark_schedule", style.scheduledDark)
-            putInt("${theme.id}.dark_start", style.darkStart.coerceIn(0, 1439))
-            putInt("${theme.id}.dark_end", style.darkEnd.coerceIn(0, 1439))
-            putBoolean("${theme.id}.dark_ambient", style.ambientDark)
-            putBoolean("${theme.id}.festive", style.festive)
+        val editor = preferences.edit()
+        // Editing another property must not turn an inherited default into an override.
+        if (style.imagePath != previous.imagePath) {
+            if (style.imagePath == null) editor.remove("${theme.id}.image") else editor.putString("${theme.id}.image", style.imagePath)
         }
+        if (style.fill != previous.fill) editor.putString("${theme.id}.fill", style.fill.name)
+        editor.putString("${theme.id}.font", style.fontId?.takeIf { it == "template" || theme.fonts.any { font -> font.id == it } })
+        editor.putBoolean("${theme.id}.migrated", true)
+        editor.putBoolean("${theme.id}.page_animation", style.pageAnimation)
+        editor.putBoolean("${theme.id}.interactive", style.interactive)
+        editor.putString("${theme.id}.ink", style.ink.name)
+        editor.putBoolean("${theme.id}.dark", style.dark)
+        editor.putBoolean("${theme.id}.dark_schedule", style.scheduledDark)
+        editor.putInt("${theme.id}.dark_start", style.darkStart.coerceIn(0, 1439))
+        editor.putInt("${theme.id}.dark_end", style.darkEnd.coerceIn(0, 1439))
+        editor.putBoolean("${theme.id}.dark_ambient", style.ambientDark)
+        editor.putBoolean("${theme.id}.festive", style.festive)
+        editor.apply()
     }
 
     fun resetImage(theme: CalendarTheme) {
-        preferences.edit(commit = true) {
-            remove("${theme.id}.image"); remove("${theme.id}.fill")
-            putBoolean("${theme.id}.migrated", true)
-        }
+        preferences.edit().remove("${theme.id}.image").remove("${theme.id}.fill")
+            .putBoolean("${theme.id}.migrated", true).commit()
     }
 
     fun reset(theme: CalendarTheme) {
-        preferences.edit(commit = true) {
-            remove("${theme.id}.image"); remove("${theme.id}.fill")
-            remove("${theme.id}.font")
-            remove("${theme.id}.page_animation"); remove("${theme.id}.interactive")
-            listOf("ink", "dark", "dark_schedule", "dark_start", "dark_end", "dark_ambient", "festive")
-                .forEach { remove("${theme.id}.$it") }
-            putBoolean("${theme.id}.migrated", true)
-        }
+        val editor = preferences.edit()
+        editor.remove("${theme.id}.image"); editor.remove("${theme.id}.fill")
+        editor.remove("${theme.id}.font")
+        editor.remove("${theme.id}.page_animation"); editor.remove("${theme.id}.interactive")
+        listOf("ink", "dark", "dark_schedule", "dark_start", "dark_end", "dark_ambient", "festive")
+            .forEach { editor.remove("${theme.id}.$it") }
+        editor.putBoolean("${theme.id}.migrated", true)
+        editor.commit()
     }
 
-    /** Decode off the UI thread, honor EXIF rotation and cap memory before storing a private copy. */
-    suspend fun importImage(theme: CalendarTheme, uri: Uri): String = withContext(Dispatchers.IO) {
-        val source = ImageDecoder.createSource(context.contentResolver, uri)
-        val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-            val factor = (2048f / max(info.size.width, info.size.height)).coerceAtMost(1f)
-            decoder.setTargetSize((info.size.width * factor).roundToInt().coerceAtLeast(1),
-                (info.size.height * factor).roundToInt().coerceAtLeast(1))
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-        }
+    /** Decode off the UI thread and cap memory before storing a private copy. */
+    fun importImage(theme: CalendarTheme, uri: Uri): String {
+        val bitmap = checkNotNull(ThemeImages.decodeUri(context, uri, 2048)) { "Image could not be decoded" }
         val directory = File(context.filesDir, "theme-images").apply { mkdirs() }
         val file = File(directory, "${theme.id}-${UUID.randomUUID()}.png")
         try {
-            file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-            file.absolutePath
+            FileOutputStream(file).use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            return file.absolutePath
         } catch (failure: Exception) {
             file.delete()
             throw failure
@@ -144,172 +110,5 @@ internal class ThemeStyleStore(private val context: Context) {
             ThemeImages.discard(path)
             file.delete()
         }
-    }
-}
-
-@Composable
-internal fun ThemeImage(theme: CalendarTheme, modifier: Modifier) {
-    val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
-    val thumbnail = LocalThumbnailImage.current
-    if (thumbnail != null) {
-        thumbnail.bitmap?.let { Image(it.asImageBitmap(), null, modifier, contentScale = style.fill.scale) }
-        return
-    }
-    val defaultPath = LocalThemeImages.current[theme.id]
-    val path = style.imagePath ?: defaultPath
-    val resources = LocalResources.current
-    val window = LocalWindowInfo.current.containerSize
-    val edge = ThemeImages.targetEdge(window.width, window.height)
-    val resource = if (theme.renderer.image == BuiltInImage.BEAR) R.drawable.winter_bear else R.drawable.sunset_memory
-    val sources = remember(path, defaultPath, resource) {
-        listOfNotNull(path, defaultPath).distinct().map { ThemeImageSource(path = it) } + ThemeImageSource(resource = resource)
-    }
-    var bitmap by remember(sources, edge) { mutableStateOf(ThemeImages.peek(sources, edge)) }
-    LaunchedEffect(sources, edge, resources) {
-        bitmap = ThemeImages.load(resources, sources, edge)
-    }
-    val description = if (path != null) "自选日历图片" else when (theme.renderer.image) {
-        BuiltInImage.BEAR -> "雪地里的小熊与热可可"
-        else -> "日落海边的温暖合影"
-    }
-    Box(modifier.semantics { contentDescription = description }) {
-        bitmap?.let { Image(it.asImageBitmap(), null, Modifier.matchParentSize(), contentScale = style.fill.scale) }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ThemeStyleSheet(theme: CalendarTheme, style: ThemeStyle, store: ThemeStyleStore,
-    onChange: (ThemeStyle) -> Unit, onResetImage: () -> Unit, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var dismissing by remember { mutableStateOf(false) }
-    val currentStyle by rememberUpdatedState(style)
-    val currentChange by rememberUpdatedState(onChange)
-    var importing by remember { mutableStateOf(false) }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) scope.launch {
-            importing = true
-            error = null
-            try {
-                val path = store.importImage(theme, uri)
-                val old = currentStyle.imagePath
-                currentChange(currentStyle.copy(imagePath = path))
-                withContext(Dispatchers.IO) { store.discard(old) }
-            } catch (failure: Exception) {
-                if (failure is kotlinx.coroutines.CancellationException) throw failure
-                error = "无法读取这张图片，请选择其他图片。"
-            } finally { importing = false }
-        }
-    }
-    ModalBottomSheet(onDismissRequest = { if (!importing) onDismiss() },
-        sheetState = sheetState,
-        sheetGesturesEnabled = !importing,
-        modifier = Modifier.testTag("theme-style-sheet").semantics { testTagsAsResourceId = true }) {
-        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Column(Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState()).testTag("style-scroll")
-                .padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("${theme.title.substringBefore(" · ")}样式", style = MaterialTheme.typography.headlineSmall)
-                StyleSwitch("翻页动画", "日期切换时播放动画；关闭后直接切换。",
-                    style.pageAnimation, !importing, "page-animation") { onChange(style.copy(pageAnimation = it)) }
-                StyleSwitch("交互式日历",
-                    if (theme.renderer.pagesByMonth) "全屏时左右滑动切换月份，点击“回到今天”恢复。"
-                    else "全屏时左右滑动切换日期，点击“回到今天”恢复。",
-                    style.interactive, !importing, "interactive-calendar") { onChange(style.copy(interactive = it)) }
-                HorizontalDivider()
-                if (theme.renderer.isTongSheng) {
-                    AlmanacStyleOptions(style, !importing, onChange)
-                    HorizontalDivider()
-                }
-                val imageSetting = theme.settings.filterIsInstance<ThemeSetting.Image>().singleOrNull()
-                val fillSetting = theme.settings.filterIsInstance<ThemeSetting.Choice>().singleOrNull { it.key == "fill" }
-                if (theme.fonts.isNotEmpty()) {
-                    Text("日历字体", style = MaterialTheme.typography.titleMedium)
-                    val defaultTitle = theme.fonts.firstOrNull { it.id == theme.defaultFont }?.title ?: "模板原字体"
-                    val choices = listOf(null to "跟随主题默认 · $defaultTitle", "template" to "模板原字体") +
-                        theme.fonts.map { it.id to it.title }
-                    Column(Modifier.selectableGroup()) {
-                        choices.forEach { (id, title) ->
-                            val family = LocalThemeFonts.current[theme.id]?.get(theme.resolveFont(id))
-                            Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).selectable(
-                                selected = style.fontId == id, enabled = !importing, role = Role.RadioButton,
-                                onClick = { onChange(style.copy(fontId = id)) }).testTag("font-${id ?: "default"}"),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                RadioButton(selected = style.fontId == id, onClick = null, enabled = !importing)
-                                Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                                    Text(title, style = MaterialTheme.typography.bodyLarge)
-                                    Text("日月成章 ABC 0123456789", fontFamily = family,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                    HorizontalDivider()
-                }
-                if (imageSetting != null && fillSetting != null) {
-                    Text(imageSetting.title, style = MaterialTheme.typography.titleMedium)
-                    ThemeImage(theme, Modifier.fillMaxWidth().height(128.dp))
-                    Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        enabled = !importing, modifier = Modifier.fillMaxWidth().testTag("choose-image")) {
-                        Text(if (importing) "正在保存图片…" else "选择本机图片")
-                    }
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-                    HorizontalDivider()
-                    Text(fillSetting.title, style = MaterialTheme.typography.titleMedium)
-                    Column(Modifier.selectableGroup()) {
-                        ImageFill.entries.filter { it.name.lowercase() in fillSetting.choices }.forEach { fill ->
-                            Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).selectable(
-                                selected = style.fill == fill, enabled = !importing, role = Role.RadioButton,
-                                onClick = { onChange(style.copy(fill = fill)) }).testTag("fill-${fill.name}"),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                RadioButton(selected = style.fill == fill, onClick = null, enabled = !importing)
-                                Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                                    Text(fill.title, style = MaterialTheme.typography.bodyLarge)
-                                    Text(fill.description, style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                    TextButton(onClick = {
-                        val old = style.imagePath
-                        onResetImage()
-                        scope.launch(Dispatchers.IO) { store.discard(old) }
-                    }, enabled = !importing, modifier = Modifier.testTag("restore-image")) {
-                        Text("恢复默认图片与填充方式")
-                    }
-                }
-            }
-            TextButton(onClick = {
-                if (!dismissing) {
-                    dismissing = true
-                    scope.launch {
-                        try { sheetState.hide(); if (!sheetState.isVisible) onDismiss() }
-                        finally { dismissing = false }
-                    }
-                }
-            }, enabled = !importing && !dismissing,
-                modifier = Modifier.align(androidx.compose.ui.Alignment.End).padding(horizontal = 24.dp)
-                    .testTag("style-done")) {
-                Text("完成")
-            }
-        }
-    }
-}
-
-@Composable
-internal fun StyleSwitch(title: String, description: String, checked: Boolean, enabled: Boolean,
-    tag: String, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 72.dp)
-        .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange).testTag(tag),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).padding(end = 16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(description, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked, onCheckedChange = null, enabled = enabled)
     }
 }

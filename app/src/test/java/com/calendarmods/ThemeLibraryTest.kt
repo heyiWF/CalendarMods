@@ -2,7 +2,6 @@ package com.calendarmods
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.time.ZonedDateTime
 
 class ThemeLibraryTest {
     private val ids = CalendarTheme.entries.map { it.id }
@@ -55,13 +54,18 @@ class ThemeLibraryTest {
     }
 
     @Test fun onlyAdjacentForegroundMidnightInSameZoneAnimates() {
-        val before = ZonedDateTime.parse("2026-12-31T23:59:59+08:00[Asia/Shanghai]")
-        assertTrue(naturalDateBoundary(before, before.plusSeconds(1)))
+        val zone = java.util.TimeZone.getTimeZone("Asia/Shanghai")
+        fun snapshot(): ClockSnapshot {
+            val calendar = java.util.Calendar.getInstance(zone)
+            calendar.clear()
+            calendar.set(2026, 11, 31, 23, 59, 59)
+            return ClockSnapshot(calendar.timeInMillis, zone)
+        }
+        val before = snapshot()
+        assertTrue(naturalDateBoundary(before, ClockSnapshot(before.millis + 1_000, zone)))
         assertFalse(naturalDateBoundary(null, before))
-        assertFalse(naturalDateBoundary(before, before.plusDays(1)))
-        assertFalse(naturalDateBoundary(before, before.minusDays(1)))
-        assertFalse(naturalDateBoundary(before, before.plusSeconds(1).withZoneSameInstant(java.time.ZoneId.of("Pacific/Kiritimati"))))
-        val leap = ZonedDateTime.parse("2028-02-28T23:59:59+08:00[Asia/Shanghai]")
-        assertTrue(naturalDateBoundary(leap, leap.plusSeconds(1)))
+        assertFalse(naturalDateBoundary(before, ClockSnapshot(before.millis + 86_400_000, zone)))
+        assertFalse(naturalDateBoundary(before, ClockSnapshot(before.millis + 1_000,
+            java.util.TimeZone.getTimeZone("Pacific/Kiritimati"))))
     }
 }

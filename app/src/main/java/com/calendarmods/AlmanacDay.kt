@@ -1,6 +1,5 @@
 package com.calendarmods
 
-import java.time.LocalDate
 
 /** Calendar calculations and publisher-written columns are deliberately separate. */
 internal data class AlmanacEditorial(
@@ -16,7 +15,7 @@ internal data class AlmanacEditorial(
 internal data class AlmanacHour(val branch: String, val start: String, val end: String, val luck: String)
 
 internal data class AlmanacDay(
-    val date: LocalDate,
+    val date: PlainDate,
     val dayZodiac: String,
     val westernZodiac: Int,
     val festivalEdition: FestiveDay?,

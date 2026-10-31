@@ -1,16 +1,11 @@
 package com.calendarmods
 
 import com.tyme.solar.SolarDay
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.format.TextStyle
-import java.time.temporal.WeekFields
-import java.util.Locale
 
-data class CalendarCell(val date: LocalDate, val inMonth: Boolean, val lunar: String, val festivals: List<String>)
+data class CalendarCell(val date: PlainDate, val inMonth: Boolean, val lunar: String, val festivals: List<String>)
 
 data class CalendarData(
-    val today: LocalDate,
+    val today: PlainDate,
     val lunar: String,
     val stems: String,
     val solarTerm: String?,
@@ -24,18 +19,18 @@ data class CalendarData(
     val motto get() = DailyWords.motto(today)
     val heartWord get() = DailyWords.heartWord(today)
     val day get() = today.dayOfMonth.toString().padStart(2, '0')
-    val month get() = today.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-    val monthShort get() = today.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
-    val weekday get() = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-    val weekdayChinese get() = "星期" + "一二三四五六日"[today.dayOfWeek.value - 1]
-    val week get() = today.get(WeekFields.ISO.weekOfWeekBasedYear())
+    val month get() = today.monthName
+    val monthShort get() = today.monthShort
+    val weekday get() = today.weekdayName
+    val weekdayChinese get() = "星期" + "一二三四五六日"[today.dayOfWeek - 1]
+    val week get() = PlainDate.isoWeek(today)
     val chineseMonth get() = listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二")[today.monthValue - 1] + "月"
 
     companion object {
         // Dates are zone-independent once resolved by CalendarClock. Keep only a few
         // recent days/months so resume, rotation and midnight do not rebuild 42 cells.
-        private val days = LinkedHashMap<LocalDate, CalendarData>(4, .75f, true)
-        private val months = LinkedHashMap<YearMonth, List<CalendarCell>>(2, .75f, true)
+        private val days = LinkedHashMap<PlainDate, CalendarData>(4, .75f, true)
+        private val months = LinkedHashMap<PlainMonth, List<CalendarCell>>(2, .75f, true)
 
         // Same rules/order as ClockMods LunarAlmanac.festivals(). A term labels only
         // its actual starting date, never every day in that two-week period.
@@ -48,29 +43,29 @@ data class CalendarData(
         }.toList()
 
         // Sunday-first, six complete weeks: every theme uses the same date placement.
-        fun monthDates(month: YearMonth): List<LocalDate> {
-            val first = month.atDay(1)
-            val start = first.minusDays((first.dayOfWeek.value % 7).toLong())
+        fun monthDates(month: PlainMonth): List<PlainDate> {
+            val first = PlainDate(month.year, month.month, 1)
+            val start = first.minusDays((first.dayOfWeek % 7).toLong())
             return List(42) { start.plusDays(it.toLong()) }
         }
 
         @Synchronized
-        fun create(date: LocalDate): CalendarData = days[date] ?: calculate(date).also {
+        fun create(date: PlainDate): CalendarData = days[date] ?: calculate(date).also {
             days[date] = it
             if (days.size > 8) days.remove(days.keys.first())
         }
 
-        private fun monthCells(month: YearMonth): List<CalendarCell> = months[month] ?: monthDates(month).map { date ->
+        private fun monthCells(month: PlainMonth): List<CalendarCell> = months[month] ?: monthDates(month).map { date ->
             val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
             val lunar = solar.lunarDay
-            CalendarCell(date, YearMonth.from(date) == month,
+            CalendarCell(date, PlainMonth.from(date) == month,
                 if (lunar.day == 1) lunar.lunarMonth.name else lunar.name, festivals(solar))
         }.also {
             months[month] = it
             if (months.size > 4) months.remove(months.keys.first())
         }
 
-        private fun calculate(date: LocalDate): CalendarData {
+        private fun calculate(date: PlainDate): CalendarData {
             val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
             val lunar = solar.lunarDay
             val cycle = solar.sixtyCycleDay
@@ -82,7 +77,7 @@ data class CalendarData(
                 festivals = festivals(solar),
                 recommends = lunar.recommends.map { it.name },
                 avoids = lunar.avoids.map { it.name },
-                cells = monthCells(YearMonth.from(date)),
+                cells = monthCells(PlainMonth.from(date)),
             )
         }
     }

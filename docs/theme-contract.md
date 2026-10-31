@@ -22,7 +22,7 @@ flowchart TD
 - `ThemeManifest.kt`：严格 JSON 编解码，作为未来包格式和主题编辑器的共同入口。
 - `ThemeRepository.kt`：内置与已安装主题清单、安装/升级/卸载、图片私有副本、原子索引及可观察列表。
 - `ThemeStyle.kt`：由契约声明的设置入口、用户覆盖值、旧数据迁移、图片选择与回退。
-- `ImmersiveCalendar.kt`：唯一模板分发点。绘制仍由 App 内的 Compose 代码负责。
+- `PageArtwork.kt`：唯一模板分发点。绘制由 App 内的系统 Canvas 代码负责，兼容 Android 4.0。
 
 ## 身份、版本与生命周期
 

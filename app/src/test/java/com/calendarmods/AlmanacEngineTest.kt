@@ -2,7 +2,6 @@ package com.calendarmods
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.time.LocalDate
 
 class AlmanacEngineTest {
     @Test fun allFourRenderersShareOneCalculationAndBoundedLruCache() {
@@ -10,10 +9,10 @@ class AlmanacEngineTest {
         val delegate = TymeAlmanacEngine()
         val engine = object : AlmanacEngine {
             override val profile = delegate.profile
-            override fun calculate(date: LocalDate): AlmanacDay { calls++; return delegate.calculate(date) }
+            override fun calculate(date: PlainDate): AlmanacDay { calls++; return delegate.calculate(date) }
         }
         val repository = AlmanacRepository(engine, 2)
-        val date = LocalDate.of(2025, 4, 3)
+        val date = PlainDate.of(2025, 4, 3)
         val first = repository.day(date)
         val renderers = CalendarTheme.entries.filter { ThemeDataCapability.ALMANAC in it.renderer.dataCapabilities }
         assertEquals(4, renderers.size)
@@ -28,7 +27,7 @@ class AlmanacEngineTest {
             override val edition = "test-edition"
             override fun forDay(data: CalendarData) = AlmanacEditorial(fengShui = "替换文稿", zodiacNumbers = "01")
         }
-        val date = LocalDate.of(2025, 4, 3)
+        val date = PlainDate.of(2025, 4, 3)
         val engine = TymeAlmanacEngine(provider)
         val alternative = engine.calculate(date)
         val standard = Almanacs.shared.day(date)

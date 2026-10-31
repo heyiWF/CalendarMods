@@ -4,65 +4,12 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Typeface
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalFontFamilyResolver
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
-
-/** A vector printing plate: crisp at thumbnail and full-screen sizes, no screenshot baked in. */
-@Composable
-internal fun TraditionalPaper(theme: CalendarTheme, data: CalendarData, wide: Boolean) {
-    val repository = LocalAlmanacRepository.current
-    val almanac = remember(data.today, repository) { repository.day(data.today) }
-    val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
-    val environment = LocalAlmanacEnvironment.current
-    val resolvedPalette = almanacPalette(theme, style, environment.minute, environment.ambientDark)
-    val webRed = theme.renderer == ThemeRenderer.PEITAIYI && style.ink == AlmanacInk.DEFAULT &&
-        (data.today.dayOfWeek.value >= 6 || (style.festive && PeitaiyiArt.feature(data, almanac)?.second?.startsWith("festivals_") == true))
-    val palette = if (webRed) resolvedPalette.copy(ink = if (resolvedPalette.dark) AlmanacInk.RED.night else 0xFFB5372A) else resolvedPalette
-    val festival = if (style.festive) almanac.festivalEdition else null
-    val context = LocalContext.current
-    val icons = remember(context) { AlmanacIcons(context) }
-    val webArt = remember(context, theme.renderer) { if (theme.renderer == ThemeRenderer.PEITAIYI) PeitaiyiArtwork(context) else null }
-    val resolver = LocalFontFamilyResolver.current
-    val family = LocalCalendarFont.current
-    val regular = resolver.resolve(family ?: FontFamily.Serif).value as Typeface
-    val bold = resolver.resolve(family ?: FontFamily.SansSerif, FontWeight.Black).value as Typeface
-    val painter = remember(theme, data, almanac, regular, bold, palette, festival, icons, webArt, style.festive) {
-        TongShengPlate(data, almanac, Color(palette.ink).toArgb(), Color(palette.paper).toArgb(), regular, bold,
-            theme.renderer, icons, festival, webArt, style.festive)
-    }
-    Canvas(Modifier.fillMaxSize().testTag("traditional-fields").semantics {
-        contentDescription = "${theme.title}，${if (palette.dark) "深色" else "浅色"}，${festival?.title.orEmpty()}，${almanac.accessibility}"
-    }) {
-        val canvas = drawContext.canvas.nativeCanvas
-        val checkpoint = canvas.save()
-        try {
-            val designWidth = if (wide) 2100f else 1200f
-            val scale = if (wide) size.width / designWidth else min(size.width / designWidth, size.height / 1600f)
-            val height = size.height / scale
-            canvas.translate((size.width - designWidth * scale) / 2, 0f)
-            canvas.scale(scale, scale)
-            painter.draw(canvas, height, wide)
-        } finally { canvas.restoreToCount(checkpoint) }
-    }
-}
 
 internal class TongShengPlate(
     val data: CalendarData, val a: AlmanacDay, val ink: Int, val paper: Int,
@@ -112,14 +59,14 @@ internal class TongShengPlate(
     }
     /** One numeral size per plate: a two-digit day sets it, so 3 and 28 print at the same size. */
     internal fun daySize(maxWidth: Float, maxHeight: Float): Float {
-        p.typeface = Typeface.create(bold, 1000, false); p.textSize = 1000f
+        p.typeface = bold; p.textSize = 1000f
         val reference = Rect(); p.getTextBounds("28", 0, 2, reference)
         return 1000f * min(maxWidth / reference.width().toFloat().coerceAtLeast(1f),
             maxHeight / reference.height().toFloat().coerceAtLeast(1f))
     }
     /** Prints the day at the shared size, optically centred in its box; no leading zeroes. */
     internal fun dayNumber(day: String, centerX: Float, top: Float, height: Float, maxWidth: Float) {
-        p.typeface = Typeface.create(bold, 1000, false); p.textSize = daySize(maxWidth, height); p.color = ink
+        p.typeface = bold; p.textSize = daySize(maxWidth, height); p.color = ink
         val bounds = Rect(); p.getTextBounds(day, 0, day.length, bounds)
         c.drawText(day, centerX - bounds.exactCenterX(), top + (height - bounds.height()) / 2 - bounds.top, p)
     }
@@ -146,7 +93,7 @@ internal class TongShengPlate(
     }
     internal fun label(value: String, x: Float, y: Float, w: Float, size: Float = 28f) {
         p.color = ink
-        c.drawRoundRect(x, y, x + w, y + 36, 9f, 9f, p)
+        c.drawRoundRect(RectF(x, y, x + w, y + 36), 9f, 9f, p)
         text(value, x, y, w, 36f, size, heavy = true, inverse = true)
     }
     private fun vertical(value: String, x: Float, y: Float, w: Float, h: Float, size: Float = 28f) {
@@ -206,7 +153,7 @@ internal class TongShengPlate(
         p.color = paper; c.drawRect(472f, 26f, 729f, 112f, p)
         text(data.month.uppercase(Locale.ENGLISH), 80f, 30f, 355f, 80f, 60f, true)
         text(data.today.year.toString(), 475f, 12f, 250f, 112f, 92f, true)
-        text("${data.chineseMonth} ${if (data.today.lengthOfMonth() == 31) "大" else "小"}", 765f, 30f, 350f, 80f, 58f, true)
+        text("${data.chineseMonth} ${if (data.today.lengthOfMonth == 31) "大" else "小"}", 765f, 30f, 350f, 80f, 58f, true)
         listOf(42f, 1127f).forEach { x ->
             box(x, 42f, 27f, 21f); box(x, 80f, 27f, 21f)
             line(x + 7, 48f, x + 20, 48f); line(x + 7, 48f, x + 7, 57f)
@@ -215,7 +162,7 @@ internal class TongShengPlate(
     }
     private fun hero(bottom: Float) {
         text("${a.hijriYear}\n${a.hijriMonth}", 36f, 121f, 245f, 87f, 35f, true, left = true)
-        val malay = listOf("Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu", "Ahad")[data.today.dayOfWeek.value - 1]
+        val malay = listOf("Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu", "Ahad")[data.today.dayOfWeek - 1]
         text("$malay\n${a.hijriDay}hb", 958f, 121f, 210f, 87f, 34f, true)
         val heroHeight = bottom - 218f - if (festival == null) 0f else 105f
         dayNumber(data.today.dayOfMonth.toString(), 600f, 225f, heroHeight - 28f, 760f)
@@ -405,7 +352,7 @@ internal class TongShengPlate(
             text("通 胜", 488f, 44f, 224f, 68f, 39f)
             box(488f, 44f, 224f, 68f, width = 3f)
             text(data.month.take(3).uppercase(Locale.ENGLISH), 790f, 35f, 330f, 94f, 81f, true)
-            vertical("${data.chineseMonth}${if (data.today.lengthOfMonth() == 31) "大" else "小"}", 82f, 195f, 90f, sideTop - 215f, 72f)
+            vertical("${data.chineseMonth}${if (data.today.lengthOfMonth == 31) "大" else "小"}", 82f, 195f, 90f, sideTop - 215f, 72f)
             vertical(data.weekdayChinese, 1020f, 195f, 90f, sideTop - 215f, 66f)
             text("${a.hijriYear} ${a.hijriMonth} ${a.hijriDay}日", 240f, 135f, 720f, 34f, 27f)
         } else {
@@ -543,12 +490,12 @@ internal class TongShengPlate(
         when (day.kind) {
             FestiveKind.MOON -> {
                 c.drawCircle(cx, cy, 27f, p)
-                c.drawArc(cx - 18, cy - 27, cx + 30, cy + 27, 90f, 180f, false, p)
+                c.drawArc(RectF(cx - 18, cy - 27, cx + 30, cy + 27), 90f, 180f, false, p)
                 line(cx - 33, cy + 34, cx + 35, cy + 34)
             }
             FestiveKind.SPRING, FestiveKind.LANTERN -> {
-                c.drawOval(cx - 24, cy - 27, cx + 24, cy + 24, p)
-                c.drawOval(cx - 12, cy - 27, cx + 12, cy + 24, p)
+                c.drawOval(RectF(cx - 24, cy - 27, cx + 24, cy + 24), p)
+                c.drawOval(RectF(cx - 12, cy - 27, cx + 12, cy + 24), p)
                 line(cx - 16, cy - 29, cx + 16, cy - 29, 5f)
                 line(cx, cy + 24, cx, cy + 39, 3f)
             }

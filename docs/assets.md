@@ -10,7 +10,7 @@ Use case: logo-brand. Generate a new production Android launcher icon for Calend
 
 Android 图标使用自适应遮罩与独立单色层；布局参考 [Android adaptive icons](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive)。
 
-以下两张原创素材使用 Codex 内置 imagegen 工具生成，作为参考图的替代照片/插画，未把实物台历照片直接用作界面。其余纸张、装订环、吊绳、小猫及排版均为 Compose 绘制。
+以下两张原创素材使用 Codex 内置 imagegen 工具生成，作为参考图的替代照片/插画，未把实物台历照片直接用作界面。其余纸张、装订环、吊绳、小猫及排版均由应用内的 Canvas 绘制。
 
 ## winter_bear.png
 

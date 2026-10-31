@@ -38,7 +38,7 @@ internal object PeitaiyiArt {
 internal class PeitaiyiArtwork(private val context: Context) {
     companion object {
         private val cache = object : LruCache<String, Bitmap>(20 * 1024 * 1024) {
-            override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+            override fun sizeOf(key: String, value: Bitmap) = ThemeImages.bitmapBytes(value)
         }
     }
     private fun bitmap(path: String): Bitmap = synchronized(cache) {

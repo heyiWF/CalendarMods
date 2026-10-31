@@ -2,11 +2,10 @@ package com.calendarmods
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.time.LocalDate
 import com.tyme.solar.SolarDay
 
 class TraditionalAlmanacTest {
-    private fun day(value: String) = Almanacs.shared.day(LocalDate.parse(value))
+    private fun day(value: String) = Almanacs.shared.day(PlainDate.parse(value))
 
     @Test fun referencePrintHasCalculatedCalendarAndZodiacFields() {
         val a = day("2025-04-03")
@@ -23,11 +22,11 @@ class TraditionalAlmanacTest {
     }
 
     @Test fun newYearMappingChangesAtLunarNewYearRatherThanJanuaryFirst() {
-        val before = TongShengRules.zodiacNumbers(LocalDate.of(2025, 1, 28), "蛇")
-        val after = TongShengRules.zodiacNumbers(LocalDate.of(2025, 1, 29), "蛇")
+        val before = TongShengRules.zodiacNumbers(PlainDate.of(2025, 1, 28), "蛇")
+        val after = TongShengRules.zodiacNumbers(PlainDate.of(2025, 1, 29), "蛇")
         assertEquals(listOf(12, 24, 36, 48), before)
         assertEquals(listOf(1, 13, 25, 37, 49), after)
-        assertEquals(before, TongShengRules.zodiacNumbers(LocalDate.of(2025, 1, 29), "蛇", TongShengRules.ZodiacYearBoundary.START_OF_SPRING))
+        assertEquals(before, TongShengRules.zodiacNumbers(PlainDate.of(2025, 1, 29), "蛇", TongShengRules.ZodiacYearBoundary.START_OF_SPRING))
     }
 
     @Test fun allColumnsRemainDeterministicAcrossDatesAndYearBoundaries() {

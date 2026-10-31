@@ -23,7 +23,7 @@ flowchart LR
 - `AlmanacProfile` 标识历法、民俗和文稿版本。切换版本创建新引擎/仓库，不混用缓存。
 - `AlmanacEditorialProvider` 可独立更换资料与文稿，不改渲染器或历法实现。
 - `AlmanacRepository` 是有界、同步的 LRU，同日的预览、缩略图和四款主题共用同一个计算结果。
-- `AlmanacHost` 是 Compose 注入点，其他宿主或测试可以整体替换数据服务。
+- `PageArtwork` 是绘制入口，`MainActivity` 通过 `PaperView` 传入 `AlmanacEnvironment`；其他宿主或测试可以整体替换数据服务。
 - `ThemeRenderer.dataCapabilities` 声明所需数据能力；外部主题仍以稳定的 renderer ID 接入，不携带计算代码。
 
 原有 `CalendarData` 继续服务旧主题，新引擎复用其日期、节日与宜忌结果。

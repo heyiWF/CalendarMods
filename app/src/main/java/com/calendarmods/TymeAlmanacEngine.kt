@@ -2,7 +2,6 @@ package com.calendarmods
 
 import com.tyme.solar.SolarDay
 import com.tyme.solar.SolarTime
-import java.time.LocalDate
 
 internal class TymeAlmanacEngine(private val editorials: AlmanacEditorialProvider = TongShengEditorial) : AlmanacEngine {
     // Malay spellings match the bilingual tear-off calendar tradition.
@@ -10,7 +9,7 @@ internal class TymeAlmanacEngine(private val editorials: AlmanacEditorialProvide
         "Jamadilakhir", "Rejab", "Syaaban", "Ramadan", "Syawal", "Zulkaedah", "Zulhijah")
 
     override val profile = AlmanacProfile("tyme-lunar-v1", "tyme4j-1.5.1/LunarDay", TongShengRules.VERSION, editorials.edition)
-    override fun calculate(date: LocalDate): AlmanacDay {
+    override fun calculate(date: PlainDate): AlmanacDay {
         val data = CalendarData.create(date)
         val editorial = editorials.forDay(data)
 

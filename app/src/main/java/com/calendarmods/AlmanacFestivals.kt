@@ -1,11 +1,10 @@
 package com.calendarmods
 
-import java.time.LocalDate
 import com.tyme.solar.SolarDay
 
 internal enum class FestiveKind { NEW_YEAR, SPRING, LANTERN, DRAGON_BOAT, MOON, NATIONAL }
 internal data class FestiveDay(val title: String, val greeting: String, val kind: FestiveKind)
-internal fun festiveDay(date: LocalDate): FestiveDay? {
+internal fun festiveDay(date: PlainDate): FestiveDay? {
     val lunar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth).lunarDay
     if (!lunar.lunarMonth.isLeap) when {
         lunar.month == 1 && lunar.day in 1..3 -> return FestiveDay(

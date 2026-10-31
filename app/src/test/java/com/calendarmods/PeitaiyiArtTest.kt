@@ -3,11 +3,10 @@ package com.calendarmods
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
-import java.time.LocalDate
 
 class PeitaiyiArtTest {
     @Test fun everySolarTermUsesActualCalendarDateAndBundledArtwork() {
-        val first = LocalDate.of(2026, 1, 1)
+        val first = PlainDate.of(2026, 1, 1)
         val seen = mutableSetOf<String>()
         repeat(365) { offset ->
             val date = first.plusDays(offset.toLong())
@@ -27,7 +26,7 @@ class PeitaiyiArtTest {
     @Test fun festivalImagesFollowSharedLunarRulesAndAllAnimalsExist() {
         mapOf("2026-02-17" to "spring_festival", "2026-02-18" to "spring_festival", "2026-02-19" to "spring_festival",
             "2026-09-25" to "mid_autumn", "2026-10-01" to "national_day").forEach { (value, image) ->
-            val date = LocalDate.parse(value)
+            val date = PlainDate.parse(value)
             assertEquals("festivals_tinted/$image.webp", PeitaiyiArt.feature(CalendarData.create(date), Almanacs.shared.day(date))?.second)
         }
         assertEquals(12, PeitaiyiArt.animals.distinct().size)

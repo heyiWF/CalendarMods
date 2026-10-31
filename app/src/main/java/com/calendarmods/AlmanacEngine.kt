@@ -1,11 +1,10 @@
 package com.calendarmods
 
-import java.time.LocalDate
 
 /** Host-owned data capability. No renderer, Android context, colour or font enters this contract. */
 internal interface AlmanacEngine {
     val profile: AlmanacProfile
-    fun calculate(date: LocalDate): AlmanacDay
+    fun calculate(date: PlainDate): AlmanacDay
 }
 
 internal data class AlmanacProfile(val id: String, val calendarRules: String, val folkRules: String,
@@ -20,8 +19,8 @@ internal interface AlmanacEditorialProvider {
 /** One bounded, shared LRU per engine/profile. Rotation, thumbnails and all themes reuse the same day. */
 internal class AlmanacRepository(val engine: AlmanacEngine, private val capacity: Int = 64) {
     init { require(capacity > 0) }
-    private val days = LinkedHashMap<LocalDate, AlmanacDay>(capacity, .75f, true)
-    @Synchronized fun day(date: LocalDate): AlmanacDay = days[date] ?: engine.calculate(date).also {
+    private val days = LinkedHashMap<PlainDate, AlmanacDay>(capacity, .75f, true)
+    @Synchronized fun day(date: PlainDate): AlmanacDay = days[date] ?: engine.calculate(date).also {
         require(it.date == date) { "Engine returned another date" }
         days[date] = it
         if (days.size > capacity) days.remove(days.keys.first())

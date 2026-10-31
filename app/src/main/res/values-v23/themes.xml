@@ -1,0 +1,8 @@
+<resources>
+    <!-- Dark status-bar icons where the framework supports them; ignored on Android 4.0. -->
+    <style name="Theme.CalendarMods" parent="android:style/Theme.Holo.Light.NoActionBar">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#ECEEE9</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

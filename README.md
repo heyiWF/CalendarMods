@@ -12,7 +12,7 @@ CalendarMods 是一款专注于日历展示的 Android 应用。十一种各具�
 十二时辰、九宫八卦、诸葛择日、生肖配数与民俗文案。已有安装可在主题商店中添加。
 各栏计算口径、来源及与纸历的差异见 [主题说明](docs/traditional-theme.md)。底栏以岁时摘要呈现节气、节日、神诞或物候。
 
-支持 **Android 12 及以上**。
+支持 **Android 4.0（API 14）及以上**。`compat` 分支使用系统 View 与 Canvas 重写界面，不再依赖 Jetpack Compose。
 
 ## 十一种风格，每天都能换一种心情
 
@@ -107,7 +107,7 @@ CalendarMods 会随设备日期与时区更新。前台全屏跨过午夜时，�
 
 前往 [安装包下载页面](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml)，选择一次成功的构建，在 **Artifacts** 中下载 `CalendarMods-debug-运行序号`，解压后安装 `CalendarMods-debug.apk`。
 
-目前提供开发预览版 APK，支持 Android 12 及以上设备。
+目前提供开发预览版 APK，支持 Android 4.0（API 14）及以上设备。
 
 ## 更多
 

@@ -1,6 +1,5 @@
 package com.calendarmods
 
-import java.time.LocalDate
 
 /** Original short daily writing, not attributed quotations. Epoch rotation also spans New Year. */
 internal object DailyWords {
@@ -399,7 +398,7 @@ internal object DailyWords {
         会心 舒心 舒畅 舒缓 舒怀 畅然 畅意 畅怀 抒怀 开怀 开阔 开朗 开悟 开新
     """.trimIndent().split(Regex("\\s+")).filter { it.length == 2 }
 
-    private fun index(date: LocalDate, count: Int) = Math.floorMod(date.toEpochDay(), count.toLong()).toInt()
-    fun motto(date: LocalDate) = mottos[index(date, mottos.size)]
-    fun heartWord(date: LocalDate) = heartWords[index(date, heartWords.size)]
+    private fun index(date: PlainDate, count: Int) = Math.floorMod(date.toEpochDay(), count.toLong()).toInt()
+    fun motto(date: PlainDate) = mottos[index(date, mottos.size)]
+    fun heartWord(date: PlainDate) = heartWords[index(date, heartWords.size)]
 }

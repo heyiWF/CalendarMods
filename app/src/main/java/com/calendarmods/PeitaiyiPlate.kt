@@ -22,7 +22,7 @@ private fun TongShengPlate.webHero(bottom: Float) {
     repeat(38) { i -> c.drawRect(30f + i * 30f, 16f, 42f + i * 30f, 142f, p) }
     p.color = if (android.graphics.Color.red(paper) < 100) android.graphics.Color.rgb(58, 49, 32)
         else android.graphics.Color.rgb(221, 190, 112)
-    c.drawRoundRect(174f, 36f, 1026f, 122f, 20f, 20f, p)
+    c.drawRoundRect(android.graphics.RectF(174f, 36f, 1026f, 122f), 20f, 20f, p)
     listOf(78f, 1122f).forEach { c.drawCircle(it, 77f, 15f, p) }
     text(if (feature == null) "顺 时 安 康" else "岁 时 呈 祥", 190f, 45f, 820f, 65f, 52f)
     line(30f, 157f, 1170f, 157f, 4f)

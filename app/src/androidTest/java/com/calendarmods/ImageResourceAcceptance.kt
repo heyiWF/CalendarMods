@@ -6,18 +6,15 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.os.Build
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.runBlocking
 import java.io.File
 
-internal fun Instrumentation.verifyImageResources(checks: MutableList<String>) = runBlocking {
+internal fun Instrumentation.verifyImageResources(checks: MutableList<String>) {
     val resources = targetContext.resources
     val root = File(targetContext.cacheDir, "image-resource-acceptance").apply { mkdirs() }
     ThemeImages.clear()
     try {
         val builtin = ThemeImageSource(resource = R.drawable.winter_bear)
-        val requests = List(8) { async { ThemeImages.load(resources, listOf(builtin), 512) } }.awaitAll()
+        val requests = List(8) { ThemeImages.load(resources, listOf(builtin), 512) }
         val first = checkNotNull(requests.first())
         check(requests.all { it === first } && maxOf(first.width, first.height) == 512)
         check(ThemeImages.targetEdge(1080, 2400) == ThemeImages.targetEdge(2400, 1080))

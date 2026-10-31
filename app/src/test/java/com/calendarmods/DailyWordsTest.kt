@@ -1,6 +1,5 @@
 package com.calendarmods
 
-import java.time.LocalDate
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -16,7 +15,7 @@ class DailyWordsTest {
 
     @Test fun everyRollingYearIsUniqueIncludingLeapDayAndNewYear() {
         listOf("2026-10-12", "2027-12-31", "2028-02-28", "1969-12-31").forEach { start ->
-            val days = List(366) { LocalDate.parse(start).plusDays(it.toLong()) }
+            val days = List(366) { PlainDate.parse(start).plusDays(it.toLong()) }
             assertEquals(366, days.map(DailyWords::motto).toSet().size)
             assertEquals(366, days.map(DailyWords::heartWord).toSet().size)
             assertEquals(DailyWords.motto(days.first()), DailyWords.motto(days.first().plusDays(366)))
