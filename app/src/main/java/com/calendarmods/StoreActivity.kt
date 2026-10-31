@@ -167,7 +167,6 @@ class StoreActivity : Activity() {
         preview.addView(image, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT))
         val ratio = resources.displayMetrics.widthPixels.toFloat() / resources.displayMetrics.heightPixels
-        preview.addView(View(this), FrameLayout.LayoutParams(1, 1))
         column.addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             (widthGuess() / 3f / ratio).toInt()))
         loadPreview(theme, image)

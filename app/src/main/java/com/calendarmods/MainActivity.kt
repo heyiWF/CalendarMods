@@ -163,7 +163,10 @@ class MainActivity : Activity() {
                 refreshChooser()
                 if (immersive) {
                     val theme = currentTheme() ?: return@post
-                    paper.setPage(theme, calendar, currentStyle(theme), environment, inventory, event.animate)
+                    // Browsing another date stays put; only the live page follows midnight.
+                    if (browsedDate == null) {
+                        paper.setPage(theme, calendar, currentStyle(theme), environment, inventory, event.animate)
+                    }
                     updateTodayButton(calendar.today)
                 }
             }
