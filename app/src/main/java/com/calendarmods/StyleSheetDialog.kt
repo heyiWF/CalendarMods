@@ -12,12 +12,14 @@ import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.ScrollView
 import android.widget.TextView
 import java.util.Locale
+import kotlin.math.min
 
 /** Framework replacement for the Material bottom sheet: same options, same persistence. */
 internal class StyleSheetDialog(
@@ -52,28 +54,43 @@ internal class StyleSheetDialog(
         val scroll = ScrollView(activity)
         scroll.addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT))
-        setContentView(scroll, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        // The content view receives margin-aware layout params: the decor view measures its
+        // children with margins and casts, so a plain ViewGroup.LayoutParams crashes on resize.
+        setContentView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT))
         build()
-        val maxHeight = (activity.resources.displayMetrics.heightPixels * .82f).toInt()
-        content.post {
-            if (content.height > maxHeight) {
-                scroll.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, maxHeight)
-                scroll.requestLayout()
-            }
-        }
         window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
         window?.setDimAmount(.55f)
         window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         window?.setGravity(Gravity.BOTTOM)
         super.show()
+        fitToContent()
     }
 
     fun update(style: ThemeStyle, environment: AlmanacEnvironment, inventory: ThemeInventory) {
         this.style = style
         this.environment = environment
         this.inventory = inventory
-        if (isShowing) { content.removeAllViews(); build() }
+        if (isShowing) {
+            content.removeAllViews()
+            build()
+            fitToContent()
+        }
+    }
+
+    /**
+     * Keeps the sheet to 82% of the screen. The height goes on the window, not on the content
+     * view's layout params: swapping those for a plain ViewGroup.LayoutParams makes the decor
+     * view fail its MarginLayoutParams cast on the next measure pass.
+     */
+    private fun fitToContent() {
+        val maxHeight = (activity.resources.displayMetrics.heightPixels * .82f).toInt()
+        content.post {
+            if (!isShowing) return@post
+            val measured = content.height
+            if (measured <= 0) return@post
+            window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, min(measured, maxHeight))
+        }
     }
 
     private fun apply(updated: ThemeStyle) {
