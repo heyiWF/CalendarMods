@@ -163,21 +163,27 @@ internal class ChooserView(context: Context) : View(context) {
         canvas.drawText(label, styleButton.centerX() - paint.measureText(label) / 2f,
             styleButton.centerY() - (paint.descent() + paint.ascent()) / 2f, paint)
 
-        // Page dots around the current page.
+        // One dot per theme, so the row always shows how many themes exist and the marker moves
+        // on every page. The gap tightens if a future theme set would not fit.
         val total = themes.size
-        val start = (index - 4).coerceIn(0, (total - 9).coerceAtLeast(0))
         val dotY = footerTop + dp(72f)
-        val count = (min(start + 9, total) - start)
-        val dotWidths = FloatArray(count) { if (start + it == index) dp(16f) else dp(4f) }
-        val gap = dp(6f)
-        val totalWidth = dotWidths.sum() + gap * (count - 1)
-        var x = (width - totalWidth) / 2f
+        val activeWidth = dp(16f)
+        val idleWidth = dp(4f)
+        val maxWidth = width - dp(48f)
+        var gap = dp(6f)
+        var natural = activeWidth + idleWidth * (total - 1) + gap * (total - 1)
+        if (total > 1 && natural > maxWidth) {
+            gap = ((maxWidth - activeWidth - idleWidth * (total - 1)) / (total - 1)).coerceAtLeast(dp(2f))
+            natural = activeWidth + idleWidth * (total - 1) + gap * (total - 1)
+        }
+        var x = (width - natural) / 2f
         paint.color = foreground
-        for (n in 0 until count) {
-            val active = start + n == index
+        for (n in 0 until total) {
+            val active = n == index
+            val dotWidth = if (active) activeWidth else idleWidth
             paint.alpha = ((if (active) .85f else .25f) * 255).toInt()
-            canvas.drawRoundRect(RectF(x, dotY, x + dotWidths[n], dotY + dp(4f)), dp(2f), dp(2f), paint)
-            x += dotWidths[n] + gap
+            canvas.drawRoundRect(RectF(x, dotY, x + dotWidth, dotY + dp(4f)), dp(2f), dp(2f), paint)
+            x += dotWidth + gap
         }
         paint.alpha = 255
 
