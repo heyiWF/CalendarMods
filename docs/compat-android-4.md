@@ -10,7 +10,7 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 
 | 原实现 | 兼容实现 |
 | --- | --- |
-| Compose 布局 + Material3 组件 | `ChooserView`、`PaperView`、`StoreActivity`、`StyleSheetDialog` 系统控件 |
+| Compose 布局 + Material3 组件 | `ChooserView`、`PaperView`、`StyleSheetDialog` 系统控件 |
 | Compose `Canvas` 主题绘制 | `Plate` + `PageArtwork`，沿用同一套 360×600 / 640×360 设计坐标 |
 | `androidx.compose.ui.text` | `Paint` 度量与手工换行 |
 | Compose Pager / 动画 | `Scroller` 分页、`Camera` 翻页 |
