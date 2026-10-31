@@ -398,7 +398,7 @@ internal object DailyWords {
         会心 舒心 舒畅 舒缓 舒怀 畅然 畅意 畅怀 抒怀 开怀 开阔 开朗 开悟 开新
     """.trimIndent().split(Regex("\\s+")).filter { it.length == 2 }
 
-    private fun index(date: PlainDate, count: Int) = Math.floorMod(date.toEpochDay(), count.toLong()).toInt()
+    private fun index(date: PlainDate, count: Int) = CompatMath.floorMod(date.toEpochDay(), count.toLong()).toInt()
     fun motto(date: PlainDate) = mottos[index(date, mottos.size)]
     fun heartWord(date: PlainDate) = heartWords[index(date, heartWords.size)]
 }

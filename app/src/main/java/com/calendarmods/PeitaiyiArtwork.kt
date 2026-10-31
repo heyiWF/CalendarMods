@@ -37,7 +37,7 @@ internal object PeitaiyiArt {
 /** Source PNG masks / WebP prints, decoded once into a bounded process-wide cache. */
 internal class PeitaiyiArtwork(private val context: Context) {
     companion object {
-        private val cache = object : LruCache<String, Bitmap>(20 * 1024 * 1024) {
+        private val cache = object : LruCache<String, Bitmap>(minOf(20 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 8).toInt()) {
             override fun sizeOf(key: String, value: Bitmap) = ThemeImages.bitmapBytes(value)
         }
     }

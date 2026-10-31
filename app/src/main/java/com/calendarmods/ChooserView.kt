@@ -200,7 +200,7 @@ internal class ChooserView(context: Context) : View(context) {
         val style = styles[theme.id] ?: theme.defaultStyle()
         val w = rect.width().toInt()
         val h = rect.height().toInt()
-        val scale = min(1f, PREVIEW_EDGE / rect.width())
+        val scale = min(1f, PREVIEW_EDGE / maxOf(rect.width(), rect.height()))
         val bw = (w * scale).toInt().coerceAtLeast(1)
         val bh = (h * scale).toInt().coerceAtLeast(1)
         val key = PreviewCache.key(theme, data, style, environment, bw, bh)
@@ -217,11 +217,13 @@ internal class ChooserView(context: Context) : View(context) {
     private fun requestPreview(key: String, theme: CalendarTheme, data: CalendarData, style: ThemeStyle,
         w: Int, h: Int) {
         if (!pending.add(key)) return
+        val requestedEnvironment = environment
+        val requestedInventory = inventory
         Ui.io {
-            PreviewCache.render(context, key, theme, data, style, environment, w, h, inventory)
-            Ui.post {
-                pending.remove(key)
-                invalidate()
+            try {
+                PreviewCache.render(context.applicationContext, key, theme, data, style, requestedEnvironment, w, h, requestedInventory)
+            } finally {
+                Ui.post { pending.remove(key); invalidate() }
             }
         }
     }
@@ -284,7 +286,7 @@ internal class ChooserView(context: Context) : View(context) {
                         onPageChanged?.invoke(themes.getOrNull(target))
                         invalidate()
                     }
-                    else -> handleTap(event.x, event.y)
+                    else -> if (event.actionMasked == MotionEvent.ACTION_UP) handleTap(event.x, event.y)
                 }
                 vc.recycle(); velocity = null
             }

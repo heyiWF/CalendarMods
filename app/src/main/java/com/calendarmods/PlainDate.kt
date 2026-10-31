@@ -31,8 +31,8 @@ data class PlainDate(val year: Int, val monthValue: Int, val dayOfMonth: Int) : 
     /** Keeps the preferred day across short months, e.g. Jan 31 -> Feb 28/29 -> Mar 31. */
     fun plusMonths(months: Long): PlainDate {
         val total = year.toLong() * 12 + (monthValue - 1) + months
-        val targetYear = Math.floorDiv(total, 12L).toInt()
-        val targetMonth = Math.floorMod(total, 12L).toInt() + 1
+        val targetYear = CompatMath.floorDiv(total, 12L).toInt()
+        val targetMonth = CompatMath.floorMod(total, 12L).toInt() + 1
         return PlainDate(targetYear.coerceIn(1, 9999), targetMonth,
             dayOfMonth.coerceAtMost(daysInMonth(targetYear, targetMonth)))
     }
@@ -80,7 +80,7 @@ data class PlainDate(val year: Int, val monthValue: Int, val dayOfMonth: Int) : 
         fun ofEpochDay(epochDay: Long): PlainDate {
             // Howard Hinnant's civil_from_days, shifted to the Unix epoch.
             var z = epochDay + 719_468
-            val era = Math.floorDiv(z, 146_097L)
+            val era = CompatMath.floorDiv(z, 146_097L)
             val dayOfEra = z - era * 146_097
             val yearOfEra = (dayOfEra - dayOfEra / 1460 + dayOfEra / 36_524 - dayOfEra / 146_096) / 365
             val year = yearOfEra + era * 400
@@ -93,7 +93,7 @@ data class PlainDate(val year: Int, val monthValue: Int, val dayOfMonth: Int) : 
 
         private fun daysFromCivil(year: Int, month: Int, day: Int): Long {
             val y = (if (month <= 2) year - 1 else year).toLong()
-            val era = Math.floorDiv(y, 400L)
+            val era = CompatMath.floorDiv(y, 400L)
             val yearOfEra = y - era * 400
             val monthPrime = if (month > 2) month - 3 else month + 9
             val dayOfYear = (153 * monthPrime + 2) / 5 + day - 1

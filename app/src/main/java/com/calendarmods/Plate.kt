@@ -167,21 +167,35 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
         paint.reset(); paint.isAntiAlias = true
         paint.color = color
         paint.typeface = typeface ?: bold
-        paint.textSize = 1000f
-        val outline = Path()
-        val bounds = RectF()
-        paint.getTextPath(day, 0, day.length, 0f, 0f, outline)
-        outline.computeBounds(bounds, true)
+        // Keep glyph extraction at a normal size even on old vendor font rasterizers.
+        paint.textSize = 100f
+        val key = NumeralKey(day, paint.typeface)
+        val glyph = synchronized(numerals) {
+            numerals[key] ?: run {
+                val path = Path()
+                val box = RectF()
+                paint.getTextPath(day, 0, day.length, 0f, 0f, path)
+                path.computeBounds(box, true)
+                if (box.width() < .01f || box.height() < .01f) {
+                    paint.typeface = Typeface.DEFAULT_BOLD
+                    path.reset()
+                    paint.getTextPath(day, 0, day.length, 0f, 0f, path)
+                    path.computeBounds(box, true)
+                }
+                Numeral(path, box).also { numerals.put(key, it) }
+            }
+        }
+        val outline = Path(glyph.path)
+        val bounds = glyph.bounds
         if (bounds.width() < .01f || bounds.height() < .01f) {
-            // The requested family produced no outline; the default bold face always will.
-            paint.typeface = bold
-            paint.getTextPath(day, 0, day.length, 0f, 0f, outline)
-            outline.computeBounds(bounds, true)
-            if (bounds.width() < .01f || bounds.height() < .01f) return
+            // A malformed vendor face must not leave the date blank.
+            text(day, x, y, w, h, min(w * .72f, h * .9f), color,
+                typeface = Typeface.DEFAULT_BOLD, maxLines = 1)
+            return
         }
         // Same size rule as the Compose original: the text is min(0.72 w, 0.9 h) tall, so 1 and
         // 28 print at one size; only shrink further when the outline would leave the box.
-        var fit = min(w * .72f, h * .9f) / 1000f
+        var fit = min(w * .72f, h * .9f) / 100f
         if (bounds.width() * fit > w || bounds.height() * fit > h) {
             fit = min(w * scale / bounds.width(), h * scale / bounds.height())
         }
@@ -303,6 +317,9 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
     }
 
     companion object {
+        private data class NumeralKey(val text: String, val font: Typeface?)
+        private data class Numeral(val path: Path, val bounds: RectF)
+        private val numerals = android.util.LruCache<NumeralKey, Numeral>(128)
         fun withAlpha(color: Int, alpha: Float): Int =
             (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)
     }

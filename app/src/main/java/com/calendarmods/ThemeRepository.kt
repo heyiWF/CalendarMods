@@ -7,8 +7,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
-import java.util.concurrent.CopyOnWriteArrayList
 
 internal data class InstalledTheme(val theme: CalendarTheme, val imageFile: String? = null,
     val fontFiles: Map<String, String> = emptyMap(),
@@ -23,111 +21,16 @@ internal data class ThemeInventory(
     val themes: List<CalendarTheme> = library.order.mapNotNull(byId::get)
 }
 
-/** Single-process durable catalog. Future download/import clients call install after acquisition.
- * Publication changes the observable inventory only after the atomic index is committed.
- * Every mutator is synchronous: the compat host calls them from a worker thread.
- */
+/** Reads existing theme packages and their migration state. The compat UI has a fixed library:
+ * store mutation, favorite and reorder operations are deliberately absent. */
 internal class ThemeRepository private constructor(context: Context) {
     private val directory = File(context.filesDir, "themes-v1").apply { mkdirs() }
     private val index = File(directory, "index.json")
     private val styleStore = ThemeStyleStore(context.applicationContext)
-    private val listeners = CopyOnWriteArrayList<(ThemeInventory) -> Unit>()
 
-    @Volatile private var mutableInventory = readInventory()
+    private val mutableInventory = readInventory()
 
     val inventory: ThemeInventory get() = mutableInventory
-
-    fun addListener(listener: (ThemeInventory) -> Unit) {
-        listeners += listener
-        listener(mutableInventory)
-    }
-
-    fun removeListener(listener: (ThemeInventory) -> Unit) {
-        listeners -= listener
-    }
-
-    fun imagePath(theme: CalendarTheme): String? = inventory.installed
-        .firstOrNull { it.theme.id == theme.id }?.imageFile?.let { File(directory, it).absolutePath }
-
-    @Synchronized
-    fun install(manifest: String, image: ByteArray? = null,
-        fonts: Map<String, ByteArray> = emptyMap()): CalendarTheme {
-        check(inventory.loadErrors.isEmpty()) { "Resolve theme index errors before modifying the library" }
-        val theme = ThemeManifest.decode(manifest)
-        val previous = inventory.installed
-        ThemeCatalog.validateInstall(theme, previous.map { it.theme })
-        require(theme.hasImageAsset == (image != null)) { "Image asset does not match manifest" }
-        require(previous.any { it.theme.id == theme.id } || previous.size < 200) { "Theme limit reached" }
-        require(fonts.keys == theme.fonts.map { it.id }.toSet()) { "Font assets do not match manifest" }
-        require(fonts.values.all { it.size in 1..ThemeFonts.MAX_FILE_BYTES } &&
-            fonts.values.sumOf { it.size.toLong() } <= ThemeFonts.MAX_PACKAGE_BYTES) { "Font assets are too large" }
-        val imageFile = image?.let { importAsset(it) }
-        val fontFiles = mutableMapOf<String, String>()
-        try {
-            val families = fonts.mapValues { (id, bytes) ->
-                val file = File(directory, "${UUID.randomUUID()}.font")
-                fontFiles[id] = file.name
-                file.writeBytes(bytes)
-                ThemeFonts.load(file)
-            }
-            val entry = InstalledTheme(theme, imageFile, fontFiles.toMap(), families)
-            val updated = if (previous.any { it.theme.id == theme.id }) {
-                previous.map { if (it.theme.id == theme.id) entry else it }
-            } else previous + entry
-            val library = inventory.library.add(theme.id, System.currentTimeMillis())
-            publish(inventory.copy(installed = updated, library = library))
-        } catch (failure: Exception) {
-            imageFile?.let { File(directory, it).delete() }
-            fontFiles.values.forEach { File(directory, it).delete() }
-            throw failure
-        }
-        // Old immutable assets may still be rendered during an update. Prune on next startup.
-        return theme
-    }
-
-    @Synchronized
-    fun add(id: String) = modify { current ->
-        require(current.catalog.any { it.id == id }) { "主题不存在" }
-        current.copy(library = current.library.add(id, System.currentTimeMillis()))
-    }
-
-    @Synchronized
-    fun uninstall(id: String) = modify { current ->
-        current.copy(library = current.library.remove(id))
-    }
-
-    @Synchronized
-    fun toggleFavorite(id: String) = modify { current ->
-        require(current.catalog.any { it.id == id })
-        current.copy(library = current.library.favorite(id))
-    }
-
-    @Synchronized
-    fun setFavorites(values: Map<String, Boolean>) = modify { current ->
-        require(values.keys.all { id -> current.catalog.any { it.id == id } }) { "主题不存在" }
-        current.copy(library = current.library.setFavorites(values))
-    }
-
-    @Synchronized
-    fun reorder(ids: List<String>) = modify { current ->
-        current.copy(library = current.library.reorder(ids))
-    }
-
-    private fun modify(update: (ThemeInventory) -> ThemeInventory) {
-        check(inventory.loadErrors.isEmpty()) { "主题记录无法读取，暂时不能修改" }
-        val next = update(inventory)
-        if (next != inventory) {
-            publish(next)
-            // Tombstones survive a crash between the atomic membership write and preference cleanup.
-            resetRemovedStyles(next)
-        }
-    }
-
-    private fun publish(state: ThemeInventory) {
-        persist(state)
-        mutableInventory = state
-        listeners.forEach { it(state) }
-    }
 
     private fun resetRemovedStyles(state: ThemeInventory) {
         val styles = styleStore
@@ -136,18 +39,6 @@ internal class ThemeRepository private constructor(context: Context) {
             styles.reset(theme)
             styles.discard(old.imagePath)
         }
-    }
-
-    private fun importAsset(bytes: ByteArray): String {
-        require(bytes.size in 1..8 * 1024 * 1024) { "Image must be at most 8 MiB" }
-        val bitmap = ThemeImages.decodeBytes(bytes, 2048) ?: error("Image could not be decoded")
-        val file = File(directory, "${UUID.randomUUID()}.png")
-        try {
-            FileOutputStream(file).use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-            return file.name
-        } catch (failure: Exception) {
-            file.delete(); throw failure
-        } finally { bitmap.recycle() }
     }
 
     private fun persist(state: ThemeInventory) {

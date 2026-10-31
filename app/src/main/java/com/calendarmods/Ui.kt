@@ -19,7 +19,7 @@ internal object Ui {
         pool.execute {
             try {
                 block()
-            } catch (failure: Throwable) {
+            } catch (failure: Exception) {
                 Log.w(TAG, "background task failed", failure)
             }
         }
@@ -56,7 +56,7 @@ internal object Ui {
 
 /** Bitmap cache for chooser previews and store cards; a full page redraw is too slow per frame. */
 internal object PreviewCache {
-    private const val MAX_BYTES = 24 * 1024 * 1024
+    private val MAX_BYTES = minOf(24 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 8).toInt()
     private val cache = object : LruCache<String, Bitmap>(MAX_BYTES) {
         override fun sizeOf(key: String, value: Bitmap) = ThemeImages.bitmapBytes(value)
     }

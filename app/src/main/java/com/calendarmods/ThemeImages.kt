@@ -17,7 +17,7 @@ private data class ThemeImageKey(val source: ThemeImageSource, val edge: Int)
 
 /** Shared by preview, fullscreen and style sheet. Only immutable private paths enter the cache. */
 internal object ThemeImages {
-    const val MAX_BYTES = 32 * 1024 * 1024
+    val MAX_BYTES = minOf(32 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 8).toInt()
     private val cache = object : LruCache<ThemeImageKey, Bitmap>(MAX_BYTES) {
         override fun sizeOf(key: ThemeImageKey, value: Bitmap) = bitmapBytes(value)
     }
@@ -61,16 +61,26 @@ internal object ThemeImages {
         return applyExifRotation(file.absolutePath, bitmap)
     }
 
-    fun decodeUri(context: Context, uri: Uri, edge: Int): Bitmap? {        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, edge)
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        }
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-            ?: return null
-        return scaleToEdge(bitmap, edge)
+    fun decodeUri(context: Context, uri: Uri, edge: Int): Bitmap? {
+        // Framework EXIF on API 14 accepts a path, not a content URI. Stage one bounded copy
+        // so orientation works with document providers and non-seekable streams too.
+        val staged = File.createTempFile("calendar-import-", ".image", context.cacheDir)
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                staged.outputStream().use { output ->
+                    val buffer = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= 64L * 1024 * 1024) { "Image file is too large" }
+                        output.write(buffer, 0, count)
+                    }
+                }
+            } ?: return null
+            return decodeFile(staged, edge)
+        } finally { staged.delete() }
     }
 
     fun decodeBytes(bytes: ByteArray, edge: Int): Bitmap? {
@@ -111,7 +121,7 @@ internal object ThemeImages {
 
     private fun sampleSize(width: Int, height: Int, edge: Int): Int {
         var sample = 1
-        while (width / (sample * 2) >= edge && height / (sample * 2) >= edge) sample *= 2
+        while (max(width, height) / (sample * 2) >= edge) sample *= 2
         return sample
     }
 

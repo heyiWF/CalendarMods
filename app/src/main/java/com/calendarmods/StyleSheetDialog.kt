@@ -38,6 +38,11 @@ internal class StyleSheetDialog(
     }
 
     private val content = LinearLayout(activity)
+    private val bindings = mutableListOf<() -> Unit>()
+    private var binding = false
+    private var preview: ImageView? = null
+    private var previewGeneration = 0
+    private var built = false
     private val dp = { value: Float -> value * activity.resources.displayMetrics.density }
 
     init {
@@ -45,6 +50,8 @@ internal class StyleSheetDialog(
     }
 
     override fun show() {
+        if (built) { super.show(); return }
+        built = true
         content.orientation = LinearLayout.VERTICAL
         val background = android.graphics.drawable.GradientDrawable()
         background.setColor(0xFFFBFAF6.toInt())
@@ -59,23 +66,39 @@ internal class StyleSheetDialog(
         setContentView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT))
         build()
+        refreshBindings()
         window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
         window?.setDimAmount(.55f)
         window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         window?.setGravity(Gravity.BOTTOM)
         super.show()
         fitToContent()
+        if (MotionSettings.enabled(activity)) {
+            scroll.startAnimation(android.view.animation.TranslateAnimation(
+                android.view.animation.Animation.RELATIVE_TO_SELF, 0f,
+                android.view.animation.Animation.RELATIVE_TO_SELF, 0f,
+                android.view.animation.Animation.RELATIVE_TO_SELF, 1f,
+                android.view.animation.Animation.RELATIVE_TO_SELF, 0f).apply {
+                duration = 220
+                interpolator = android.view.animation.DecelerateInterpolator()
+            })
+        }
     }
 
     fun update(style: ThemeStyle, environment: AlmanacEnvironment, inventory: ThemeInventory) {
+        val imageChanged = this.style.imagePath != style.imagePath || this.inventory != inventory
         this.style = style
         this.environment = environment
         this.inventory = inventory
         if (isShowing) {
-            content.removeAllViews()
-            build()
-            fitToContent()
+            refreshBindings()
+            if (imageChanged) preview?.let(::loadPreview)
         }
+    }
+
+    private fun refreshBindings() {
+        binding = true
+        try { bindings.forEach { it() } } finally { binding = false }
     }
 
     /**
@@ -94,7 +117,6 @@ internal class StyleSheetDialog(
     }
 
     private fun apply(updated: ThemeStyle) {
-        style = updated
         listener.onChanged(updated)
     }
 
@@ -103,12 +125,12 @@ internal class StyleSheetDialog(
         content.setPadding(dp(24f).toInt(), dp(20f).toInt(), dp(24f).toInt(), dp(16f).toInt())
         heading(theme.title.substringBefore(" · ") + "样式", 22f)
 
-        toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", style.pageAnimation) {
+        toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", { style.pageAnimation }) {
             apply(style.copy(pageAnimation = it))
         }
         toggle("交互式日历",
             if (theme.renderer.pagesByMonth) "全屏时左右滑动切换月份，点击“回到今天”恢复。"
-            else "全屏时左右滑动切换日期，点击“回到今天”恢复。", style.interactive) {
+            else "全屏时左右滑动切换日期，点击“回到今天”恢复。", { style.interactive }) {
             apply(style.copy(interactive = it))
         }
         divider()
@@ -143,7 +165,7 @@ internal class StyleSheetDialog(
             }
             val button = RadioButton(activity).apply {
                 text = ink.title
-                isChecked = style.ink == ink
+                bindings += { isChecked = style.ink == ink }
                 setTextColor(PAPER_INK)
                 setOnClickListener { apply(style.copy(ink = ink)) }
             }
@@ -155,24 +177,27 @@ internal class StyleSheetDialog(
         val festiveCopy = if (theme.renderer == ThemeRenderer.PEITAIYI)
             "节日换成花边与题签，并展示节日和节气插画。"
         else "节日换成花边与题签。"
-        toggle("节日特别版式", festiveCopy, style.festive) {
+        toggle("节日特别版式", festiveCopy, { style.festive }) {
             apply(style.copy(festive = it))
         }
         divider()
         heading("夜间显示", 16f)
-        toggle("深色模式", "手动保持暗色纸面、浅色文字。关闭后按下面的自动设置切换。", style.dark) {
+        toggle("深色模式", "手动保持暗色纸面、浅色文字。关闭后按下面的自动设置切换。", { style.dark }) {
             apply(style.copy(dark = it))
         }
-        toggle("定时深色模式", "按设备当前时间切换，浏览其他日期不影响定时。", style.scheduledDark) {
+        toggle("定时深色模式", "按设备当前时间切换，浏览其他日期不影响定时。", { style.scheduledDark }) {
             apply(style.copy(scheduledDark = it))
         }
         val times = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(true, false).forEach { start ->
-            val minute = if (start) style.darkStart else style.darkEnd
             val button = Button(activity).apply {
-                text = (if (start) "开始 " else "结束 ") + String.format(Locale.ROOT, "%02d:%02d", minute / 60, minute % 60)
+                bindings += {
+                    val minute = if (start) style.darkStart else style.darkEnd
+                    text = (if (start) "开始 " else "结束 ") + String.format(Locale.ROOT, "%02d:%02d", minute / 60, minute % 60)
                 isEnabled = style.scheduledDark
+                }
                 setOnClickListener {
+                    val minute = if (start) style.darkStart else style.darkEnd
                     TimePickerDialog(activity, { _, hour, minutes ->
                         apply(if (start) style.copy(darkStart = hour * 60 + minutes)
                         else style.copy(darkEnd = hour * 60 + minutes))
@@ -182,13 +207,13 @@ internal class StyleSheetDialog(
             times.addView(button, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
         content.addView(times)
-        if (style.scheduledDark && style.darkStart == style.darkEnd) {
-            note("开始与结束相同，定时暂不生效。")
-        }
+        val warning = label("开始与结束相同，定时暂不生效。", 12f, PAPER_INK)
+        content.addView(warning)
+        bindings += { warning.visibility = if (style.scheduledDark && style.darkStart == style.darkEnd) View.VISIBLE else View.GONE }
         toggle("环境光自适应",
             if (environment.lightAvailable) "持续暗 30 秒后开启；恢复明亮 10 秒后关闭。与定时同时开启时，满足任一条件即使用深色。"
             else "此设备没有可用的光线传感器，仍可使用手动或定时模式。",
-            style.ambientDark, enabled = environment.lightAvailable) {
+            { style.ambientDark }, enabled = environment.lightAvailable) {
             apply(style.copy(ambientDark = it))
         }
         if (style.ambientDark) environment.lux?.let { note("当前环境光：${it.toInt()} lx") }
@@ -204,7 +229,7 @@ internal class StyleSheetDialog(
         choices.forEach { (id, title) ->
             val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val radio = RadioButton(activity).apply {
-                isChecked = style.fontId == id
+                bindings += { isChecked = style.fontId == id }
                 setOnClickListener { apply(style.copy(fontId = id)) }
             }
             row.addView(radio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -218,6 +243,7 @@ internal class StyleSheetDialog(
             }
             column.addView(sample)
             row.addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            row.setOnClickListener { radio.performClick() }
             content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60f).toInt()))
         }
     }
@@ -226,7 +252,7 @@ internal class StyleSheetDialog(
         if (theme.renderer.image == null) return
         divider()
         heading("日历图片", 16f)
-        val preview = ImageView(activity)
+        val preview = ImageView(activity).also { this.preview = it }
         preview.scaleType = ImageView.ScaleType.CENTER_CROP
         preview.setBackgroundColor(0xFFE7E5DC.toInt())
         content.addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(128f).toInt()))
@@ -243,7 +269,7 @@ internal class StyleSheetDialog(
             .forEach { fill ->
                 val button = RadioButton(activity).apply {
                     text = "${fill.title} · ${fill.description}"
-                    isChecked = style.fill == fill
+                    bindings += { isChecked = style.fill == fill }
                     setTextColor(PAPER_INK)
                     setOnClickListener { apply(style.copy(fill = fill)) }
                 }
@@ -259,10 +285,12 @@ internal class StyleSheetDialog(
     }
 
     private fun loadPreview(view: ImageView) {
-        val target = dp(128f).toInt()
+        val generation = ++previewGeneration
+        val requestedStyle = style
+        val requestedInventory = inventory
         Ui.io {
-            val bitmap: Bitmap? = Ui.themeImage(activity, theme, style, inventory, 512)
-            Ui.post { if (isShowing) { view.setImageBitmap(bitmap); view.scaleType = ImageView.ScaleType.CENTER_CROP } }
+            val bitmap: Bitmap? = Ui.themeImage(activity.applicationContext, theme, requestedStyle, requestedInventory, 512)
+            Ui.post { if (isShowing && generation == previewGeneration) { view.setImageBitmap(bitmap); view.scaleType = ImageView.ScaleType.CENTER_CROP } }
         }
     }
 
@@ -283,7 +311,7 @@ internal class StyleSheetDialog(
         setTextColor(color)
     }
 
-    private fun toggle(title: String, description: String, checked: Boolean, enabled: Boolean = true,
+    private fun toggle(title: String, description: String, checked: () -> Boolean, enabled: Boolean = true,
         onChange: (Boolean) -> Unit) {
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -291,13 +319,19 @@ internal class StyleSheetDialog(
         column.addView(label(description, 13f, 0xFF6B6F66.toInt()))
         row.addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val box = CheckBox(activity).apply {
-            isChecked = checked
+            isChecked = checked()
             isEnabled = enabled
-            setOnCheckedChangeListener { _, value -> onChange(value) }
+            setOnCheckedChangeListener { _, value -> if (!binding) onChange(value) }
         }
+        bindings += { box.isChecked = checked() }
+        row.isEnabled = enabled
+        row.alpha = if (enabled) 1f else .5f
+        row.setOnClickListener { if (enabled) box.performClick() }
+        row.minimumHeight = dp(72f).toInt()
+        row.setPadding(0, dp(8f).toInt(), 0, dp(8f).toInt())
         row.addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT))
-        content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64f).toInt()))
+        content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
 
     private fun divider() {

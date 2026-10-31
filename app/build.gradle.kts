@@ -13,6 +13,7 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "com.calendarmods.CompatAcceptance"
         // Android 4.0 has no vector drawable support: rasterise the bundled icons at build time.
         vectorDrawables.generatedDensities("mdpi", "hdpi", "xhdpi")
     }

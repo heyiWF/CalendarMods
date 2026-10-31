@@ -73,7 +73,7 @@ internal class ThemeStyleStore(private val context: Context) {
 
     fun resetImage(theme: CalendarTheme) {
         preferences.edit().remove("${theme.id}.image").remove("${theme.id}.fill")
-            .putBoolean("${theme.id}.migrated", true).commit()
+            .putBoolean("${theme.id}.migrated", true).apply()
     }
 
     fun reset(theme: CalendarTheme) {

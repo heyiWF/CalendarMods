@@ -1,0 +1,24 @@
+# Framework compatibility maintenance
+
+The compat branch retains the eleven built-in calendars, existing installed theme data,
+per-theme fonts/images/fill, page motion, interactive day/month paging and almanac appearance.
+It has no theme store, favorites editor or free ordering UI. Unreachable repository mutation
+operations were removed; existing package/index migration remains supported.
+
+Changes include stable bound settings controls with full-row click targets, an animated sheet
+entrance, fullscreen scale/fade transitions, normal-size cached numeral outlines with a default
+font fallback, bounded image decoding and heap-relative caches, EXIF-aware imports, stale
+request guards, lifecycle cleanup and month paging that preserves the preferred day.
+
+Validation on 2026-11-01:
+
+- `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` passed.
+- Framework instrumentation on Android 15 passed 124 date/font raster checks, eleven themes in
+  both orientations, and label/checkbox parity with retained control identity for every theme.
+- A separate application ID was used so the existing app's data was not replaced.
+- The minimum SDK remains 14. No Android 4.0 device is connected; actual API 14 and vendor font
+  driver acceptance remain additional device checks, rather than inferred from the build.
+
+Run `adb shell am instrument -w <applicationId>.test/com.calendarmods.CompatAcceptance` with
+the matching app and androidTest APKs. The runner exports a theme gallery to the test app's
+external `files/acceptance` directory.

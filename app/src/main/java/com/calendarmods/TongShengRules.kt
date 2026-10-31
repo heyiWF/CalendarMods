@@ -41,7 +41,7 @@ internal object TongShengRules {
     fun luckyNumbers(date: PlainDate, element: String): List<String> {
         val endings = when (element) { "水" -> setOf(1, 6); "火" -> setOf(2, 7); "木" -> setOf(3, 8); "金" -> setOf(4, 9); else -> setOf(0, 5) }
         val values = (1..49).filter { it % 10 in endings }
-        val start = Math.floorMod(date.toEpochDay(), values.size.toLong()).toInt()
+        val start = CompatMath.floorMod(date.toEpochDay(), values.size.toLong()).toInt()
         return List(6) { values[(start + it) % values.size] }.sorted().map { it.toString().padStart(2, '0') }
     }
 }
@@ -71,7 +71,7 @@ internal object TongShengEditorial : AlmanacEditorialProvider {
         val lunar = solar.lunarDay
         val branch = lunar.sixtyCycle.earthBranch
         val element = lunar.sixtyCycle.heavenStem.element.name
-        fun index(size: Int) = Math.floorMod(date.toEpochDay(), size.toLong()).toInt()
+        fun index(size: Int) = CompatMath.floorMod(date.toEpochDay(), size.toLong()).toInt()
         val observances = DeityCalendar.on(kotlin.math.abs(lunar.month), lunar.day, lunar.lunarMonth.isLeap)
         val birthYear = (lunar.year - 59 - (lunar.day - 1) % 12).coerceAtLeast(1)
         val monthBranch = lunar.lunarMonth.sixtyCycle.earthBranch

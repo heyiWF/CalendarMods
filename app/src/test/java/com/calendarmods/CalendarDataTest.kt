@@ -61,14 +61,14 @@ class CalendarDataTest {
         assertEquals(data.festivals, data.cells.single { it.date == date }.festivals)
     }
 
-    @Test fun seasonalStartDatesMatchClockModsRules() {
+    @Test fun seasonalStartDatesMatchCalendarModsRules() {
         val first = CalendarData.create(PlainDate.of(2024, 12, 21))
         assertTrue(first.festivals.containsAll(listOf("冬至", "一九")))
         assertFalse(CalendarData.create(PlainDate.of(2024, 12, 22)).festivals.contains("一九"))
     }
 
     @Test fun actualAlmanacReplacesDecorativeSuitabilityText() {
-        // Recorded from the same tyme4j 1.5.1 entry points used by ClockMods LunarAlmanac.
+        // Recorded from the same tyme4j 1.5.1 entry points used by CalendarMods LunarAlmanac.
         val data = CalendarData.create(PlainDate.of(2026, 10, 10))
         assertEquals(listOf("嫁娶", "求嗣", "纳采", "进人口", "纳财", "结网"), data.recommends.take(6))
         assertEquals(listOf("上梁", "作灶", "伐木", "出行"), data.avoids.take(4))

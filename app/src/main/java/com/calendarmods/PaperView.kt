@@ -33,7 +33,8 @@ internal class PaperView(context: Context) : View(context) {
     var onTap: (() -> Unit)? = null
 
     private var image: Bitmap? = null
-    private var imagePending = false
+    private var imageGeneration = 0
+    private var imageRequestKey: String? = null
     private var font: Typeface? = null
     private var outgoing: Bitmap? = null
     private var animating = false
@@ -73,7 +74,7 @@ internal class PaperView(context: Context) : View(context) {
         val previousData = this.data
         val previousTheme = this.theme
         val changed = previousData != null && previousData.today != data.today
-        if (animate && changed && previousTheme?.id == theme.id && width > 0 && height > 0) {
+        if (animate && MotionSettings.enabled(context) && changed && previousTheme?.id == theme.id && width > 0 && height > 0) {
             snapshotCurrent()
         } else {
             recycleOutgoing()
@@ -85,7 +86,6 @@ internal class PaperView(context: Context) : View(context) {
         this.inventory = inventory
         animDuration = theme.renderer.dayMotion.millis
         if (theme.renderer.pagesAlmanacLines) startTicker() else stopTicker()
-        image = null
         font = Ui.themeFont(theme, style, inventory)
         requestImage()
         invalidate()
@@ -103,7 +103,7 @@ internal class PaperView(context: Context) : View(context) {
         recycleOutgoing()
         outgoing = snapshot
         animating = true
-        animStarted = System.currentTimeMillis()
+        animStarted = SystemClock.uptimeMillis()
         scheduleFrame()
     }
 
@@ -115,22 +115,28 @@ internal class PaperView(context: Context) : View(context) {
 
     private fun requestImage() {
         val theme = theme ?: return
-        if (theme.renderer.image == null) return
         val edge = ThemeImages.targetEdge(width, height)
         val sources = imageSources(theme)
-        ThemeImages.peek(sources, edge)?.let { image = it; return }
-        if (imagePending) return
-        imagePending = true
+        val key = "$sources|$edge"
+        if (key == imageRequestKey) return
+        imageRequestKey = key
+        val generation = ++imageGeneration
+        image = ThemeImages.peek(sources, edge)
+        if (image != null || sources.isEmpty()) return
         Ui.io {
-            val bitmap = ThemeImages.load(context.resources, sources, edge) ?: return@io
+            val bitmap = ThemeImages.load(context.resources, sources, edge)
             Ui.post {
-                imagePending = false
-                if (this@PaperView.theme?.id == theme.id) {
+                if (generation == imageGeneration) {
                     image = bitmap
                     invalidate()
                 }
             }
         }
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        requestImage()
     }
 
     private fun imageSources(theme: CalendarTheme): List<ThemeImageSource> {
@@ -161,14 +167,13 @@ internal class PaperView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val theme = theme ?: return
         val data = data ?: return
-        if (image == null && theme.renderer.image != null) requestImage()
         drawPage(canvas, theme, data)
         if (animating && outgoing != null) drawOutgoing(canvas)
     }
 
     private fun drawOutgoing(canvas: Canvas) {
         val snapshot = outgoing ?: return
-        val elapsed = (System.currentTimeMillis() - animStarted).toFloat() / animDuration
+        val elapsed = (SystemClock.uptimeMillis() - animStarted).toFloat() / animDuration
         val p = DecelerateInterpolator(1.6f).getInterpolation(elapsed.coerceIn(0f, 1f))
         val shade = Math.sin(p * Math.PI).toFloat().coerceAtLeast(0f)
         matrix.reset()
@@ -231,8 +236,13 @@ internal class PaperView(context: Context) : View(context) {
         super.onDetachedFromWindow()
     }
 
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE && theme?.renderer?.pagesAlmanacLines == true) startTicker() else stopTicker()
+    }
+
     private fun startTicker() {
-        if (ticking) return
+        if (ticking || !attached || windowVisibility != VISIBLE) return
         scheduleTick()
     }
 
