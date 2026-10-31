@@ -81,7 +81,7 @@ internal class TongShengPlate(
         cap: Float) {
         val free = (bandRight - bandLeft - 2 * 56f).coerceAtLeast(40f)
         val maxWidth = min(cap, free)
-        p.typeface = bold; p.textSize = daySize(day, maxWidth, height); p.color = ink
+        p.typeface = bold; p.textSize = daySize(day, maxWidth, height.coerceAtLeast(120f)); p.color = ink
         val bounds = Rect(); p.getTextBounds(day, 0, day.length, bounds)
         val centerX = (bandLeft + bandRight) / 2f
         c.drawText(day, centerX - bounds.exactCenterX(), top + (height - bounds.height()) / 2 - bounds.top, p)
@@ -181,7 +181,8 @@ internal class TongShengPlate(
         val malay = listOf("Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu", "Ahad")[data.today.dayOfWeek - 1]
         text("$malay\n${a.hijriDay}hb", 958f, 121f, 210f, 87f, 34f, true)
         val heroHeight = bottom - 218f - if (festival == null) 0f else 105f
-        dayNumber(data.today.dayOfMonth.toString(), 150f, 988f, 225f, heroHeight - 28f, 760f)
+        dayNumber(data.today.dayOfMonth.toString(), 150f, 988f, 225f,
+            (heroHeight - 28f).coerceAtLeast(200f), 760f)
         text("风\n水", 37f, 230f, 75f, 98f, 42f, true)
         vertical(a.editorial.fengShui, 36f, 340f, 100f, (bottom - 420).coerceAtLeast(200f), 27f)
         vertical(a.editorial.observances, 146f, (bottom - 235).coerceAtLeast(350f), 100f, 205f, 27f)
