@@ -7,6 +7,10 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 class CalendarDataTest {
+    @Test fun printedDayNeverAddsALeadingZero() {
+        for (day in 1..31) assertEquals(day.toString(), CalendarData.create(LocalDate.of(2026, 1, day)).day)
+    }
+
     @Test fun resumeReusesDataAndMidnightReusesOnlyTheMonthGrid() {
         val date = LocalDate.of(2028, 2, 28)
         val first = CalendarData.create(date)
@@ -102,7 +106,7 @@ class CalendarDataTest {
     @Test fun isoWeekAndRealMonthAreNotDerivedFromReferenceArtwork() {
         val data = CalendarData.create(LocalDate.of(2021, 1, 1))
         assertEquals(53, data.week)
-        assertEquals("01", data.day)
+        assertEquals("1", data.day)
         assertEquals("January", data.month)
         assertEquals("星期五", data.weekdayChinese)
         assertEquals(31, data.cells.count { it.inMonth })
