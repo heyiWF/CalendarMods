@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:name="calendar" android:pivotX="54" android:pivotY="54">
+        <path android:fillColor="#182938" android:strokeColor="#526A7C" android:strokeWidth="1"
+            android:pathData="M25,39 L83,39 L83,73 Q83,84 72,84 L36,84 Q25,84 25,73 Z" />
+        <group android:name="header">
+            <path android:fillColor="#FF684D" android:strokeColor="#FF9A84" android:strokeWidth="0.7"
+                android:pathData="M25,38 L25,31 Q25,22 34,22 L74,22 Q83,22 83,31 L83,38 Z" />
+            <path android:fillColor="#718B9E" android:strokeColor="#BDD0DB" android:strokeWidth="0.8"
+                android:pathData="M37,18 Q34,18 34,22 L34,28 Q34,32 37,32 Q40,32 40,28 L40,22 Q40,18 37,18 M71,18 Q68,18 68,22 L68,28 Q68,32 71,32 Q74,32 74,28 L74,22 Q74,18 71,18" />
+        </group>
+        <path android:fillColor="#435D70" android:strokeColor="#718B9E" android:strokeWidth="0.6"
+            android:pathData="M33,45 L41,45 Q44,45 44,48 L44,56 Q44,59 41,59 L33,59 Q30,59 30,56 L30,48 Q30,45 33,45 M67,45 L75,45 Q78,45 78,48 L78,56 Q78,59 75,59 L67,59 Q64,59 64,56 L64,48 Q64,45 67,45 M33,63 L41,63 Q44,63 44,66 L44,74 Q44,77 41,77 L33,77 Q30,77 30,74 L30,66 Q30,63 33,63 M50,63 L58,63 Q61,63 61,66 L61,74 Q61,77 58,77 L50,77 Q47,77 47,74 L47,66 Q47,63 50,63 M67,63 L75,63 Q78,63 78,66 L78,74 Q78,77 75,77 L67,77 Q64,77 64,74 L64,66 Q64,63 67,63" />
+        <group android:name="date" android:pivotX="54" android:pivotY="52">
+            <path android:fillColor="#FF684D" android:strokeColor="#FFAE96" android:strokeWidth="0.8"
+                android:pathData="M50,45 L58,45 Q61,45 61,48 L61,56 Q61,59 58,59 L50,59 Q47,59 47,56 L47,48 Q47,45 50,45" />
+        </group>
+    </group>
+</vector>

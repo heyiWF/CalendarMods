@@ -1,6 +1,5 @@
 package com.calendarmods
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -125,7 +124,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
         if (commit && draft != inventory.library.order) latestReorder(draft)
         else if (!commit) draft = inventory.library.order
     }
-    BackHandler { if (editing) { finishDrag(false); editing = false } else leavePage(onBack) }
+    val backMotion = predictiveBackModifier { if (editing) { finishDrag(false); editing = false } else leavePage(onBack) }
     val window = LocalWindowInfo.current.containerSize
     LaunchedEffect(window) { finishDrag(false) }
     LaunchedEffect(busy, inventory.library.order) {
@@ -163,7 +162,7 @@ internal fun ThemeStore(inventory: ThemeInventory, data: CalendarData?, busy: Bo
             .collect { (alpha, displayed, target) -> motionObserver(alpha, displayed, target) }
     }
     val stillCycle = remember { AlmanacCycle() }
-    Surface(modifier.fillMaxSize().testTag("theme-store").semantics { testTagsAsResourceId = true },
+    Surface(modifier.then(backMotion).fillMaxSize().testTag("theme-store").semantics { testTagsAsResourceId = true },
         color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             TopAppBar(title = { Text("主题商店") }, navigationIcon = {

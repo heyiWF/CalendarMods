@@ -1,5 +1,9 @@
 <resources>
     <style name="Theme.CalendarMods" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenBackground">#0D1724</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/launch_calendar_animated</item>
+        <item name="android:windowSplashScreenAnimationDuration">600</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>

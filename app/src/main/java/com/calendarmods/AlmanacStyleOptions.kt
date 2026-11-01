@@ -1,11 +1,11 @@
 package com.calendarmods
 
-import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -14,9 +14,27 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun AlmanacStyleOptions(style: ThemeStyle, enabled: Boolean, onChange: (ThemeStyle) -> Unit) {
     val context = LocalContext.current
     val environment = LocalAlmanacEnvironment.current
+    var editingStart by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    editingStart?.let { start ->
+        val minute = if (start) style.darkStart else style.darkEnd
+        val time = rememberTimePickerState(minute / 60, minute % 60, is24Hour = true)
+        PredictiveDialog(onDismiss = { editingStart = null }) {
+            Text(if (start) "开始时间" else "结束时间", style = MaterialTheme.typography.headlineSmall)
+            TimeInput(time)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { editingStart = null }) { Text("取消") }
+                TextButton(onClick = {
+                    val value = time.hour * 60 + time.minute
+                    onChange(if (start) style.copy(darkStart = value) else style.copy(darkEnd = value))
+                    editingStart = null
+                }) { Text("确定") }
+            }
+        }
+    }
     Text("字体颜色", style = MaterialTheme.typography.titleMedium)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         AlmanacInk.entries.forEach { ink ->
@@ -40,9 +58,7 @@ internal fun AlmanacStyleOptions(style: ThemeStyle, enabled: Boolean, onChange: 
             val minute = if (start) style.darkStart else style.darkEnd
             OutlinedButton(enabled = enabled && style.scheduledDark, modifier = Modifier.weight(1f)
                 .testTag(if (start) "almanac-night-start" else "almanac-night-end"), onClick = {
-                    TimePickerDialog(context, { _, hour, minutes ->
-                        onChange(if (start) style.copy(darkStart = hour * 60 + minutes) else style.copy(darkEnd = hour * 60 + minutes))
-                    }, minute / 60, minute % 60, true).show()
+                    editingStart = start
                 }) { Text((if (start) "开始 " else "结束 ") + String.format(Locale.ROOT, "%02d:%02d", minute / 60, minute % 60)) }
         }
     }

@@ -1,5 +1,6 @@
 package com.calendarmods
 
+import androidx.activity.findViewTreeOnBackPressedDispatcherOwner
 import android.app.Activity
 import android.app.Instrumentation
 import android.app.UiAutomation
@@ -31,6 +32,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private lateinit var activities: ActivityMonitor
     private var chooserNavigationVisible = true
     private var lastBars = "not measured"
+    private var navigationOnly = false
+    private var parityOnly = false
     private var refinementsOnly = false
     private var contractOnly = false
     private var fontsOnly = false
@@ -51,6 +54,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var centeredRotation: Int? = null
     private var anchoredRotation: Int? = null
     override fun onCreate(arguments: Bundle?) {
+        navigationOnly = arguments?.getString("navigation") == "true"
+        parityOnly = arguments?.getString("parity") == "true"
         refinementsOnly = arguments?.getString("refinements") == "true"
         performanceOnly = arguments?.getString("performance") == "true"
         corePerformanceOnly = arguments?.getString("corePerformance") == "true"
@@ -90,7 +95,11 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (overlayOnly) {
+            if (parityOnly) {
+                verifyParityGallery(activities.lastActivity as MainActivity, checks)
+            } else if (navigationOnly) {
+                verifyPredictiveNavigation(checks)
+            } else if (overlayOnly) {
                 verifyCalendarOverlay(checks)
             } else if (traditionalOnly || showcaseOnly) {
                 verifyTraditional(checks)
@@ -178,6 +187,106 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             runCatching { uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE) }
             finish(result, report)
         }
+    }
+
+
+    private fun verifyPredictiveNavigation(checks: MutableList<String>) {
+        fun dispatcher(): androidx.activity.OnBackPressedDispatcher {
+            var result: androidx.activity.OnBackPressedDispatcher? = null
+            runOnMainSync {
+                val root = android.view.inspector.WindowInspector.getGlobalWindowViews().lastOrNull { it.hasWindowFocus() }
+                result = root?.findViewTreeOnBackPressedDispatcherOwner()?.onBackPressedDispatcher
+                    ?: (activities.lastActivity as MainActivity).onBackPressedDispatcher
+            }
+            return checkNotNull(result)
+        }
+        fun gesture(name: String, cancel: Boolean, assertStillHere: () -> Boolean) {
+            SystemClock.sleep(350)
+            val back = dispatcher()
+            val before = checkNotNull(uiAutomation.takeScreenshot())
+            runOnMainSync { back.dispatchOnBackStarted(androidx.activity.BackEventCompat(0f, 500f, 0f, 0)) }
+            SystemClock.sleep(80)
+            for (step in 1..6) {
+                runOnMainSync { back.dispatchOnBackProgressed(androidx.activity.BackEventCompat(step * 30f, 500f, step / 8f, 0)) }
+                SystemClock.sleep(35)
+            }
+            SystemClock.sleep(200)
+            check(assertStillHere()) { "$name navigated before gesture commit" }
+            val during = checkNotNull(uiAutomation.takeScreenshot())
+            var changed = 0
+            for (y in before.height / 8 until before.height * 7 / 8 step 12)
+                for (x in before.width / 8 until before.width * 7 / 8 step 12)
+                    if (before.getPixel(x, y) != during.getPixel(x, y)) changed++
+            check(changed > 40) { "$name has no visible progress ($changed pixels)" }
+            before.recycle(); during.recycle()
+            capture("predictive-$name-${if (cancel) "cancel" else "commit"}-progress")
+            runOnMainSync { if (cancel) back.dispatchOnBackCancelled() else back.onBackPressed() }
+            SystemClock.sleep(500)
+            if (cancel) check(assertStillHere()) { "$name cancellation lost navigation state" }
+            checks += "$name: visible dispatcher progress and ${if (cancel) "cancel" else "commit"} PASS (not a system edge gesture)"
+        }
+        press("art-GOLDEN"); awaitImmersive(CalendarTheme.GOLDEN)
+        gesture("fullscreen", true) { nodes().any { it.viewIdResourceName == "immersive-GOLDEN" } }
+        gesture("fullscreen", false) { nodes().any { it.viewIdResourceName == "immersive-GOLDEN" } }
+        awaitTheme(CalendarTheme.GOLDEN)
+        repeat(ThemeRepository.get(targetContext).inventory.value.themes.size) { swipe(left = true) }
+        press("store-entry")
+        await("store opened") { nodes().any { it.viewIdResourceName == "store-tab-0" } }
+        SystemClock.sleep(700)
+        gesture("store", true) { nodes().any { it.viewIdResourceName == "store-tab-0" } }
+        press("store-tab-2"); SystemClock.sleep(500)
+        press("store-edit"); SystemClock.sleep(300)
+        gesture("store-edit", true) { nodes().any { it.text?.toString() == "完成" } }
+        gesture("store-edit", false) { nodes().any { it.text?.toString() == "完成" } }
+        check(nodes().any { it.text?.toString() == "编辑" })
+        press("store-edit"); SystemClock.sleep(300)
+        press("delete-GOLDEN")
+        await("delete opened") { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+        gesture("delete-dialog", true) { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+        gesture("delete-dialog", false) { nodes().any { it.viewIdResourceName == "confirm-delete" } }
+        check(nodes().none { it.viewIdResourceName == "confirm-delete" })
+        press("store-back"); SystemClock.sleep(250)
+        gesture("store", false) { nodes().any { it.viewIdResourceName == "store-tab-0" } }
+        await("store closed") { nodes().none { it.viewIdResourceName == "store-tab-0" } }
+        // Material's sheet owns its platform animation callback; test its back routing separately.
+        repeat(ThemeRepository.get(targetContext).inventory.value.themes.size) { swipe(left = false) }
+        awaitTheme(CalendarTheme.GOLDEN)
+        press("style-GOLDEN")
+        await("style opened") { nodes().any { it.viewIdResourceName == "style-done" } }
+        uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        await("style back") { nodes().none { it.viewIdResourceName == "style-done" } }
+        checks += "Material style sheet back routing PASS; platform progress requires gesture navigation"
+        awaitTheme(CalendarTheme.GOLDEN)
+        SystemClock.sleep(400)
+        val almanac = CalendarTheme.TRADITIONAL
+        repeat(CalendarTheme.entries.indexOf(almanac)) { swipe(left = true) }
+        awaitTheme(almanac)
+        val styles = ThemeStyleStore(targetContext)
+        val oldStyle = styles.read(almanac)
+        press("style-TRADITIONAL")
+        await("almanac style opened") { nodes().any { it.viewIdResourceName == "style-scroll" } }
+        fun reveal(tag: String) {
+            repeat(8) {
+                val viewport = Rect().also { b -> nodes().first { it.viewIdResourceName == "style-scroll" }.getBoundsInScreen(b) }
+                val area = nodes().firstOrNull { it.viewIdResourceName == tag }?.let { Rect().also(it::getBoundsInScreen) }
+                if (area != null && area.height() > 0 && area.centerY() in viewport.top + 15..viewport.bottom - 15) return
+                dragPoints(viewport.exactCenterX(), viewport.bottom - 50f, viewport.exactCenterX(), viewport.top + 100f)
+                SystemClock.sleep(200)
+            }
+            error("Setting not reachable: $tag")
+        }
+        try {
+            reveal("almanac-schedule")
+            if (!styles.read(almanac).scheduledDark) press("almanac-schedule")
+            for ((tag, title) in listOf("almanac-night-start" to "开始时间", "almanac-night-end" to "结束时间")) {
+                reveal(tag); press(tag)
+                await(title) { nodes().any { it.text?.toString() == title } }
+                gesture(tag, true) { nodes().any { it.text?.toString() == title } }
+                gesture(tag, false) { nodes().any { it.text?.toString() == title } }
+                check(nodes().any { it.viewIdResourceName == "style-done" }) { "Nested back closed the style sheet" }
+            }
+            press("style-done")
+        } finally { styles.save(almanac, oldStyle) }
     }
 
     private fun verifyCalendarOverlay(checks: MutableList<String>) {

@@ -1,0 +1,5 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/launch_calendar">
+    <target android:name="header" android:animation="@animator/launch_header" />
+    <target android:name="date" android:animation="@animator/launch_date" />
+    <target android:name="calendar" android:animation="@animator/launch_calendar" />
+</animated-vector>
