@@ -39,7 +39,7 @@ class CompatAcceptance : Instrumentation() {
                     for (day in 1..31) {
                         val bitmap = Bitmap.createBitmap(360, 400, Bitmap.Config.ARGB_8888)
                         bitmap.eraseColor(Color.WHITE)
-                        Plate(Canvas(bitmap), Color.BLACK, Color.WHITE).bigDay(day.toString(), 0f, 0f, 360f, 400f, typeface = font)
+                        Plate(Canvas(bitmap), Color.BLACK, Color.WHITE).bigDay(day.toString().padStart(2, '0'), 0f, 0f, 360f, 400f, typeface = font)
                         var ink = 0
                         for (y in 0 until 400 step 2) for (x in 0 until 360 step 2) {
                             if (bitmap.getPixel(x, y) != Color.WHITE) ink++
