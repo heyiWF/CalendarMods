@@ -17,7 +17,7 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 | `java.time` | `PlainDate`（无时区日期值类型），时区只出现在 `CalendarClock` |
 | `ImageDecoder` | `BitmapFactory` + `ExifInterface` 旋转校正 |
 | `AtomicFile` | 临时文件 + `fsync` + 重命名 |
-| Kotlin 协程 + Flow | 同步仓库 + 监听器 + `Handler` |
+| Kotlin 协程 + Flow | 后台加载 + 缓存 + `Handler` |
 | Material 波浪进度 | 省略进度指示，直接切换状态 |
 
 ## 行为保持
@@ -31,7 +31,6 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 
 - 跨日动画统一为一次向前翻页，不再按主题区分旋转、升降或揭页的缓动曲线。
 - 商店、应用主题进度、删除回弹与共享元素过渡已省略。
-- 收藏页取消收藏立即生效，不再保留“离开前可撤销”的会话式缓冲。
 - 字体只使用系统可解析的 TTF/OTF；API 14 没有可变字重，`Light`/`ExtraLight` 退化为常规字重。
 - 启动图标在 API 26 以下使用位图，26 以上仍走自适应图标。
 

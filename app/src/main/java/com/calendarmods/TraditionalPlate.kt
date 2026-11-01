@@ -62,29 +62,32 @@ internal class TongShengPlate(
      * same size. The size follows the free band the caller measured on the current page, not a
      * fixed design width, so a wide or tall screen cannot push the digits into the side columns.
      */
-    internal fun daySize(day: String, maxWidth: Float, maxHeight: Float): Float {
-        p.typeface = bold; p.textSize = 1000f
-        val reference = Rect(); p.getTextBounds("28", 0, 2, reference)
-        var size = 1000f * min(maxWidth / reference.width().coerceAtLeast(1),
-            maxHeight / reference.height().coerceAtLeast(1)) * .98f
-        // A pair wider than the reference must still clear the band rather than spill into it.
-        val actual = Rect(); p.getTextBounds(day, 0, day.length, actual)
-        val drawn = actual.width() * size / 1000f
-        if (drawn > maxWidth) size *= maxWidth / drawn
-        return size
-    }
-    /**
-     * Prints the day centred inside the free band between the side columns. [cap] is the widest
-     * the plate ever printed it; a wider screen may only narrow the gap, never widen the digits.
-     */
     internal fun dayNumber(day: String, bandLeft: Float, bandRight: Float, top: Float, height: Float,
         cap: Float) {
-        val free = (bandRight - bandLeft - 2 * 56f).coerceAtLeast(40f)
-        val maxWidth = min(cap, free)
-        p.typeface = bold; p.textSize = daySize(day, maxWidth, height.coerceAtLeast(120f)); p.color = ink
-        val bounds = Rect(); p.getTextBounds(day, 0, day.length, bounds)
-        val centerX = (bandLeft + bandRight) / 2f
-        c.drawText(day, centerX - bounds.exactCenterX(), top + (height - bounds.height()) / 2 - bounds.top, p)
+        val maxWidth = min(cap, (bandRight - bandLeft - 112f).coerceAtLeast(40f))
+        p.typeface = bold; p.textSize = 100f; p.color = ink; p.style = Paint.Style.FILL
+        val outline = Path()
+        val bounds = RectF()
+        p.getTextPath(day, 0, day.length, 0f, 0f, outline)
+        outline.computeBounds(bounds, true)
+        if (bounds.width() < .01f || bounds.height() < .01f) {
+            p.typeface = Typeface.DEFAULT_BOLD
+            outline.reset()
+            p.getTextPath(day, 0, day.length, 0f, 0f, outline)
+            outline.computeBounds(bounds, true)
+        }
+        val reference = Path(); val referenceBounds = RectF()
+        p.getTextPath("28", 0, 2, 0f, 0f, reference)
+        reference.computeBounds(referenceBounds, true)
+        if (bounds.isEmpty || referenceBounds.isEmpty) return
+        val fit = min(min(maxWidth / referenceBounds.width(), height / referenceBounds.height()) * .98f,
+            min(maxWidth / bounds.width(), height / bounds.height()))
+        val checkpoint = c.save()
+        c.translate((bandLeft + bandRight) / 2f - bounds.centerX() * fit,
+            top + height / 2f - bounds.centerY() * fit)
+        c.scale(fit, fit)
+        c.drawPath(outline, p)
+        c.restoreToCount(checkpoint)
     }
     internal fun words(items: List<String>, x: Float, y: Float, w: Float, h: Float, size: Float = 32f, top: Boolean = false) {
         val values = items.ifEmpty { listOf("无") }

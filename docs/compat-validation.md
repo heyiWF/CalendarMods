@@ -13,8 +13,12 @@ request guards, lifecycle cleanup and month paging that preserves the preferred 
 Validation on 2026-11-01:
 
 - `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` passed.
-- Framework instrumentation on Android 15 passed 124 date/font raster checks, eleven themes in
+- Framework instrumentation on Android 15 passed 248 ordinary/traditional date/font raster checks, eleven themes in
   both orientations, and label/checkbox parity with retained control identity for every theme.
+  Follow-up checks cover interrupted fullscreen entry, cancelled/displaced gestures, midnight
+  browsing preservation and return-to-today paging. Pro/compat galleries use the same date and
+  360×640 / 640×360 pixel sizes; intentional ink and legacy-font differences are documented in
+  `compat-history-review.md`.
 - A separate application ID was used so the existing app's data was not replaced.
 - The minimum SDK remains 14. No Android 4.0 device is connected; actual API 14 and vendor font
   driver acceptance remain additional device checks, rather than inferred from the build.

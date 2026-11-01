@@ -19,7 +19,7 @@ internal const val ALIGN_RIGHT = 2
  * Design-space printing plate. All coordinates are the same units the Compose version used
  * (360x600 portrait, 640x360 landscape), so the layouts translate one to one.
  */
-internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
+internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private val installedFont: Typeface? = null) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     // Compose's Print defaulted to sans-serif; themes that asked for serif pass it explicitly.
     val sans: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
@@ -27,6 +27,9 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
     val serifBold: Typeface = Typeface.create("serif", Typeface.BOLD)
     val bold: Typeface = Typeface.create("sans-serif", Typeface.BOLD)
     val light: Typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+    val extraLight: Typeface = weightedFont(light, 200)
+    val medium: Typeface = weightedFont(sans, 500)
+    val extraBold: Typeface = weightedFont(bold, 800)
     val condensed: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
 
     fun color(value: Long): Int = value.toInt()
@@ -72,7 +75,8 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
         spacing: Float = 0f, maxLines: Int = Int.MAX_VALUE, typeface: Typeface? = null) {
         if (value.isEmpty() || w <= 0f || h <= 0f) return
         paint.reset(); paint.isAntiAlias = true
-        paint.typeface = typeface ?: if (bold) this.bold else sans
+        paint.typeface = installedFont?.let { Typeface.create(it, if (bold || typeface?.isBold == true) Typeface.BOLD else Typeface.NORMAL) }
+            ?: typeface ?: if (bold) this.bold else sans
         paint.color = color
         var actual = size
         var lines: List<String>
@@ -117,6 +121,12 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
             canvas.drawText(ch.toString(), cursor, baseline, paint)
             cursor += widths[index] + spacing
         }
+    }
+
+    fun textHeight(value: String, width: Float, size: Float, typeface: Typeface = sans, maxLines: Int = Int.MAX_VALUE): Float {
+        paint.reset(); paint.isAntiAlias = true
+        paint.typeface = installedFont ?: typeface; paint.textSize = size
+        return wrap(value, width, maxLines).size * size * 1.17f
     }
 
     private fun wrap(value: String, width: Float, maxLines: Int): List<String> {
@@ -166,7 +176,7 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
         if (w <= 1f || h <= 1f || day.isEmpty()) return
         paint.reset(); paint.isAntiAlias = true
         paint.color = color
-        paint.typeface = typeface ?: bold
+        paint.typeface = installedFont?.let { Typeface.create(it, if (typeface?.isBold == true) Typeface.BOLD else Typeface.NORMAL) } ?: typeface ?: bold
         // Keep glyph extraction at a normal size even on old vendor font rasterizers.
         paint.textSize = 100f
         val key = NumeralKey(day, paint.typeface)
@@ -230,9 +240,11 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
                 val fit = min(1f, min(cellWidth / diameter, rowHeight / (diameter + if (lunar) 9f else 0f)))
                 val size = diameter * fit
                 val centerX = cx + cellWidth / 2f
+                val labelHeight = if (lunar) (7f * fit).toInt().coerceAtLeast(1) * 1.17f else 0f
+                val numberTop = cy + (rowHeight - size - labelHeight) / 2f
                 if (today) {
                     paint.reset(); paint.isAntiAlias = true; paint.color = 0xFFAD4B42.toInt()
-                    canvas.drawCircle(centerX, cy + size / 2f + 1f, size / 2f, paint)
+                    canvas.drawCircle(centerX, numberTop + size / 2f, size / 2f, paint)
                 }
                 val numberColor = when {
                     today -> 0xFFFFFFFF.toInt()
@@ -240,8 +252,8 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
                     weekend -> 0xFFAD4B42.toInt()
                     else -> color
                 }
-                text(cell.date.dayOfMonth.toString(), centerX - size / 2f, cy, size, size,
-                    ((if (small) 9f else 14f) * fit).coerceAtLeast(1f), color = numberColor, bold = today)
+                text(cell.date.dayOfMonth.toString(), centerX - size / 2f, numberTop, size, size,
+                    ((if (small) 9f else 14f) * fit).coerceAtLeast(1f), color = numberColor, bold = today, typeface = if (today) bold else medium)
                 if (lunar) {
                     val label = cell.festivals.firstOrNull() ?: cell.lunar
                     val labelColor = when {
@@ -249,7 +261,7 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
                         cell.festivals.isNotEmpty() -> 0xFFAD4B42.toInt()
                         else -> withAlpha(color, .6f)
                     }
-                    text(label, cx, cy + size + 1f, cellWidth, rowHeight - size - 1f,
+                    text(label, cx, numberTop + size, cellWidth, labelHeight,
                         (7f * fit).coerceAtLeast(1f), color = labelColor, maxLines = 1)
                 }
             }
@@ -324,3 +336,8 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int) {
             (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)
     }
 }
+
+/** Weighted faces exist only on modern systems; legacy devices retain their platform fallback. */
+internal fun weightedFont(base: Typeface, weight: Int): Typeface =
+    if (android.os.Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight, false)
+    else Typeface.create(base, if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)

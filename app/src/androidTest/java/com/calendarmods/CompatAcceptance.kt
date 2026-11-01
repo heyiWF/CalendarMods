@@ -33,7 +33,7 @@ class CompatAcceptance : Instrumentation() {
                 Ui.themeImage(targetContext, theme, theme.defaultStyle(), inventory, 512)
                 Ui.themeImage(targetContext, theme, theme.defaultStyle(), inventory, 768)
             }
-            runOnMainSync {
+            checkedMain {
                 for (font in listOf(Typeface.DEFAULT_BOLD, Typeface.SERIF, Typeface.SANS_SERIF,
                     Typeface.create("sans-serif-condensed", Typeface.BOLD))) {
                     for (day in 1..31) {
@@ -45,10 +45,20 @@ class CompatAcceptance : Instrumentation() {
                             if (bitmap.getPixel(x, y) != Color.WHITE) ink++
                         }
                         check(ink > 200) { "Missing numeral $day / $font" }
+                        bitmap.eraseColor(Color.WHITE)
+                        val traditional = TongShengPlate(data, Almanacs.shared.day(data.today), Color.BLACK, Color.WHITE,
+                            font, font, ThemeRenderer.TRADITIONAL, AlmanacIcons(host), null, null, true)
+                        traditional.c = Canvas(bitmap)
+                        traditional.dayNumber(day.toString(), 0f, 360f, 0f, 400f, 300f)
+                        ink = 0
+                        for (y in 0 until 400 step 2) for (x in 0 until 360 step 2) {
+                            if (bitmap.getPixel(x, y) != Color.WHITE) ink++
+                        }
+                        check(ink > 200) { "Missing traditional numeral $day / $font" }
                         bitmap.recycle()
                     }
                 }
-                checks += "124 date/font raster checks"
+                checks += "248 ordinary/traditional date/font raster checks"
                 for (theme in inventory.themes) {
                     for ((w, h) in listOf(360 to 640, 640 to 360)) {
                         val page = PaperView(host)
@@ -86,11 +96,31 @@ class CompatAcceptance : Instrumentation() {
                 }
                 checks += "every theme: label/checkbox parity, bound state and stable controls"
             }
+            val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive", CalendarTheme::class.java).apply { isAccessible = true }
+            val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
+            val paperField = MainActivity::class.java.getDeclaredField("paper").apply { isAccessible = true }
+            val page = paperField.get(host) as PaperView
+            checkedMain { enter.invoke(host, inventory.themes.first()) }
+            Thread.sleep(100)
+            checkedMain {
+                if (MotionSettings.enabled(host)) check(page.alpha > 0f && page.alpha < 1f)
+                exit.invoke(host)
+                check(page.parent != null) { "Interrupted entry removed page before exit animation" }
+            }
+            Thread.sleep(400)
+            checkedMain { check(page.parent == null) }
+            checks += "fullscreen entry/exit animate and interrupted entry retains the outgoing page"
+            verifyHistoryRegressions(host, checks)
             val result = Bundle().apply { putString("stream", "PASS: ${checks.joinToString("; ")}\n") }
             finish(android.app.Activity.RESULT_OK, result)
         } catch (failure: Throwable) {
             finish(android.app.Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "FAIL: ${android.util.Log.getStackTraceString(failure)}") })
-        } finally { activity?.let { runOnMainSync { it.finish() } } }
+        } finally { activity?.let { checkedMain { it.finish() } } }
+    }
+    private fun checkedMain(block: () -> Unit) {
+        var failure: Throwable? = null
+        runOnMainSync { try { block() } catch (error: Throwable) { failure = error } }
+        failure?.let { throw it }
     }
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()

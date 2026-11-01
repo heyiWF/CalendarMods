@@ -286,7 +286,8 @@ internal class ChooserView(context: Context) : View(context) {
                         onPageChanged?.invoke(themes.getOrNull(target))
                         invalidate()
                     }
-                    else -> if (event.actionMasked == MotionEvent.ACTION_UP) handleTap(event.x, event.y)
+                    else -> if (event.actionMasked == MotionEvent.ACTION_UP &&
+                        abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop) handleTap(event.x, event.y)
                 }
                 vc.recycle(); velocity = null
             }

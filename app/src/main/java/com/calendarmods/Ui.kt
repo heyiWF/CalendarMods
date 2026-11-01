@@ -54,7 +54,7 @@ internal object Ui {
     }
 }
 
-/** Bitmap cache for chooser previews and store cards; a full page redraw is too slow per frame. */
+/** Bitmap cache for chooser previews; a full page redraw is too slow per frame. */
 internal object PreviewCache {
     private val MAX_BYTES = minOf(24 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 8).toInt()
     private val cache = object : LruCache<String, Bitmap>(MAX_BYTES) {
@@ -63,7 +63,7 @@ internal object PreviewCache {
 
     fun key(theme: CalendarTheme, data: CalendarData, style: ThemeStyle,
         environment: AlmanacEnvironment, width: Int, height: Int): String =
-        "${theme.id}|${data.today}|${style.hashCode()}|${environment.minute / 5}|" +
+        "${theme.id}|${data.today}|${style.hashCode()}|${environment.minute}|" +
             "${environment.ambientDark}|$width|$height"
 
     fun get(key: String): Bitmap? = cache.get(key)

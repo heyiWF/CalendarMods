@@ -113,8 +113,9 @@ class MainActivity : Activity() {
         dayMonitor = CalendarDayMonitor(this) { event -> onNewDate(event) }.also { it.start() }
         ambientMonitor = AlmanacEnvironmentMonitor(this, theme?.renderer?.isTongSheng == true &&
             currentStyle(theme).ambientDark) { updated ->
+            val changed = environment.minute != updated.minute || environment.ambientDark != updated.ambientDark
             environment = updated
-            if (immersive) refreshPage(animate = false) else refreshChooser()
+            if (changed) { if (immersive) refreshPage(animate = false) else refreshChooser() }
         }.also { it.start() }
     }
 
@@ -142,11 +143,14 @@ class MainActivity : Activity() {
         chooser.setContent(inventory.themes, data, styleValues, environment, inventory, selectedId)
     }
 
+    private var dateRequest = 0
+
     private fun onNewDate(event: CalendarDateEvent) {
+        val request = ++dateRequest
         Ui.io {
             val calendar = CalendarData.create(event.date)
             Ui.post {
-                if (destroyed) return@post
+                if (destroyed || request != dateRequest) return@post
                 val previousToday = data?.today
                 data = calendar
                 if (browsedDate == null || browsedDate == previousToday) browsedDate = null
@@ -155,6 +159,9 @@ class MainActivity : Activity() {
                     val theme = currentTheme() ?: return@post
                     // Browsing another date stays put; only the live page follows midnight.
                     if (browsedDate == null) {
+                        pageRequest++
+                        pageOffset = 0
+                        paging = CalendarPaging(calendar.today, theme.renderer.pagesByMonth)
                         paper.setPage(theme, calendar, currentStyle(theme), environment, inventory, event.animate)
                     }
                     updateTodayButton(calendar.today)
@@ -208,8 +215,9 @@ class MainActivity : Activity() {
         val theme = currentTheme()
         ambientMonitor = AlmanacEnvironmentMonitor(this, theme?.renderer?.isTongSheng == true &&
             currentStyle(theme).ambientDark) { updated ->
+            val changed = environment.minute != updated.minute || environment.ambientDark != updated.ambientDark
             environment = updated
-            if (immersive) refreshPage(animate = false) else refreshChooser()
+            if (changed) { if (immersive) refreshPage(animate = false) else refreshChooser() }
         }.also { it.start() }
     }
 
@@ -262,11 +270,12 @@ class MainActivity : Activity() {
                 pageRequest++
                 data?.let { calendar ->
                     currentTheme()?.let { theme ->
+                        paging = CalendarPaging(calendar.today, theme.renderer.pagesByMonth)
                         paper.setPage(theme, calendar, currentStyle(theme), environment, inventory,
                             currentStyle(theme).pageAnimation)
                     }
                 }
-                updateTodayButton(today)
+                updateTodayButton(data?.today)
             }
             val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
@@ -365,10 +374,14 @@ class MainActivity : Activity() {
 
     /** Transform the retained page layer; never render a full calendar bitmap per frame. */
     private fun animateFullscreen(entering: Boolean) {
+        val reversing = screenAnimation?.isRunning == true
+        val previousScale = paper.scaleX
+        val previousAlpha = paper.alpha
         screenAnimation?.cancel()
         paper.pivotX = root.width / 2f
         paper.pivotY = root.height / 2f
-        val start = if (entering) .86f else paper.scaleX
+        val start = if (reversing) previousScale else if (entering) .86f else 1f
+        val startAlpha = if (reversing) previousAlpha else if (entering) 0f else 1f
         val end = if (entering) 1f else .86f
         if (!MotionSettings.enabled(this)) {
             paper.scaleX = 1f; paper.scaleY = 1f; paper.alpha = 1f
@@ -382,10 +395,13 @@ class MainActivity : Activity() {
                 val progress = it.animatedValue as Float
                 val scale = start + (end - start) * progress
                 paper.scaleX = scale; paper.scaleY = scale
-                paper.alpha = if (entering) progress else 1f - progress
+                paper.alpha = startAlpha + ((if (entering) 1f else 0f) - startAlpha) * progress
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
                     if (!immersive) root.removeView(paper)
                     paper.scaleX = 1f; paper.scaleY = 1f; paper.alpha = 1f
                 }

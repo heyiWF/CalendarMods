@@ -76,7 +76,7 @@ internal class PaperView(context: Context) : View(context) {
         val changed = previousData != null && previousData.today != data.today
         if (animate && MotionSettings.enabled(context) && changed && previousTheme?.id == theme.id && width > 0 && height > 0) {
             snapshotCurrent()
-        } else {
+        } else if (changed || previousTheme?.id != theme.id || this.style != style) {
             recycleOutgoing()
         }
         this.theme = theme
@@ -203,25 +203,36 @@ internal class PaperView(context: Context) : View(context) {
         if (android.os.Build.VERSION.SDK_INT >= 16) postInvalidateOnAnimation() else postInvalidateDelayed(16)
     }
 
+    private var touchActive = false
+    private var touchMoved = false
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x; downY = event.y; downAt = SystemClock.uptimeMillis()
+                touchActive = true; touchMoved = false
             }
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_MOVE -> if (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop) {
+                touchMoved = true
+            }
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL -> touchActive = false
+            MotionEvent.ACTION_UP -> if (touchActive) {
+                touchActive = false
                 val dx = event.x - downX
                 val dy = event.y - downY
-                val elapsed = SystemClock.uptimeMillis() - downAt
+                val moved = touchMoved || abs(dx) > touchSlop || abs(dy) > touchSlop
                 when {
                     abs(dx) > touchSlop * 2 && abs(dx) > abs(dy) * 1.4f ->
                         onSwipe?.invoke(if (dx < 0) 1 else -1)
-                    elapsed >= longPressMillis -> onLongPress?.invoke()
-                    else -> onTap?.invoke()
+                    !moved && SystemClock.uptimeMillis() - downAt >= longPressMillis -> onLongPress?.invoke()
+                    !moved -> { performClick(); onTap?.invoke() }
                 }
             }
         }
         return true
     }
+
+    override fun performClick(): Boolean { super.performClick(); return true }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
