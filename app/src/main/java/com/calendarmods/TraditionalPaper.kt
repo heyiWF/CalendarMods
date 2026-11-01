@@ -32,10 +32,8 @@ internal fun TraditionalPaper(theme: CalendarTheme, data: CalendarData, wide: Bo
     val almanac = remember(data.today, repository) { repository.day(data.today) }
     val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
     val environment = LocalAlmanacEnvironment.current
-    val resolvedPalette = almanacPalette(theme, style, environment.minute, environment.ambientDark)
-    val webRed = theme.renderer == ThemeRenderer.PEITAIYI && style.ink == AlmanacInk.DEFAULT &&
-        (data.today.dayOfWeek.value >= 6 || (style.festive && PeitaiyiArt.feature(data, almanac)?.second?.startsWith("festivals_") == true))
-    val palette = if (webRed) resolvedPalette.copy(ink = if (resolvedPalette.dark) AlmanacInk.RED.night else 0xFFB5372A) else resolvedPalette
+    val palette = almanacPalette(theme, style, environment.minute, environment.ambientDark,
+        almanacDefaultIsRed(data, style, almanac.festivalEdition != null))
     val festival = if (style.festive) almanac.festivalEdition else null
     val context = LocalContext.current
     val icons = remember(context) { AlmanacIcons(context) }

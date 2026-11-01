@@ -40,10 +40,16 @@ internal class AmbientDarkGate {
     }
 }
 
-internal fun almanacPalette(theme: CalendarTheme, style: ThemeStyle, minute: Int, ambient: Boolean): AlmanacPalette {
+/** Shared default for all four traditional themes, including browsed dates and previews. */
+internal fun almanacDefaultIsRed(data: CalendarData, style: ThemeStyle,
+    specialEdition: Boolean? = null): Boolean =
+    data.today.dayOfWeek.value >= 6 || data.festivals.isNotEmpty() || (style.festive && (specialEdition ?: (festiveDay(data.today) != null)))
+
+internal fun almanacPalette(theme: CalendarTheme, style: ThemeStyle, minute: Int, ambient: Boolean,
+    festiveDay: Boolean = false): AlmanacPalette {
     val dark = AlmanacNightPolicy.dark(style, minute, ambient)
     val ink = style.ink.takeUnless { it == AlmanacInk.DEFAULT }
-        ?: if (theme.renderer in listOf(ThemeRenderer.TRADITIONAL, ThemeRenderer.PEITAIYI)) AlmanacInk.GREEN else AlmanacInk.RED
-    return AlmanacPalette(if (dark) ink.night else if (style.ink == AlmanacInk.DEFAULT) theme.surfaces.chrome else ink.light,
+        ?: if (festiveDay) AlmanacInk.RED else AlmanacInk.GREEN
+    return AlmanacPalette(if (dark) ink.night else ink.light,
         if (dark) 0xFF161B19 else theme.surfaces.paper, if (dark) 0xFF101512 else theme.surfaces.backdrop, dark)
 }

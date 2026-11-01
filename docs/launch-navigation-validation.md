@@ -16,3 +16,8 @@ Custom surfaces share progress, cancellation and commit handling. Only commit ch
 The available MuMu system does not attach an EdgeBackGestureHandler, even with its navigation overlay enabled. Its original navigation setting was restored. A gesture-enabled physical device or standard emulator is still required for end-to-end system predictive-back acceptance, especially Material's sheet animation. Do not report dispatcher tests as that acceptance.
 
 Run the existing instrumentation with `-e navigation true` using matching isolated application IDs. Pro additionally supports `-e parity true` to export all eleven themes at equal pixel dimensions and dates for comparison with the framework branch.
+
+All four traditional themes now share the compat default palette: red on weekends, calendar
+festivals and enabled special editions; green otherwise. Explicit ink choices override the
+default in both day and night modes. `-e palette true` checks weekday/weekend/festival and manual
+override colours on real rendered pages.

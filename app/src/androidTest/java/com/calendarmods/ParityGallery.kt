@@ -21,10 +21,18 @@ import java.io.File
 import java.time.LocalDate
 
 /** Equal pixel size/date/font scale, suitable for side-by-side comparison with framework plates. */
-internal fun Instrumentation.verifyParityGallery(activity: MainActivity, checks: MutableList<String>) {
-    val output = File(targetContext.getExternalFilesDir(null), "parity").apply { mkdirs() }
-    val data = CalendarData.create(LocalDate.of(2026, 11, 28))
-    for (theme in CalendarTheme.entries) for ((w, h) in listOf(360 to 640, 640 to 360)) {
+internal fun Instrumentation.verifyParityGallery(activity: MainActivity, checks: MutableList<String>, paletteOnly: Boolean = false) {
+    val output = File(targetContext.getExternalFilesDir(null), if (paletteOnly) "palette" else "parity").apply { mkdirs() }
+    data class Sample(val theme: CalendarTheme, val date: LocalDate, val style: ThemeStyle, val w: Int, val h: Int)
+    val samples = if (paletteOnly) CalendarTheme.entries.filter { it.renderer.isTongSheng }.flatMap { theme ->
+        listOf(LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 28), LocalDate.of(2026, 10, 1)).flatMap { date ->
+            listOf(false, true).map { dark -> Sample(theme, date, theme.defaultStyle().copy(dark = dark), 360, 640) }
+        } + Sample(theme, LocalDate.of(2026, 11, 28), theme.defaultStyle().copy(ink = AlmanacInk.BLUE), 360, 640)
+    } else CalendarTheme.entries.flatMap { theme -> listOf(360 to 640, 640 to 360).map { (w, h) ->
+        Sample(theme, LocalDate.of(2026, 11, 28), theme.defaultStyle(), w, h)
+    } }
+    for ((theme, date, style, w, h) in samples) {
+        val data = CalendarData.create(date)
         val captured = java.util.concurrent.atomic.AtomicReference<Rect>()
         runOnMainSync {
             activity.window.insetsController?.hide(android.view.WindowInsets.Type.systemBars())
@@ -33,7 +41,7 @@ internal fun Instrumentation.verifyParityGallery(activity: MainActivity, checks:
             surface.setContent {
                 MaterialTheme {
                     CompositionLocalProvider(LocalDensity provides Density(1f, 1f),
-                        LocalThemeStyles provides mapOf(theme.id to theme.defaultStyle()),
+                        LocalThemeStyles provides mapOf(theme.id to style),
                         LocalAlmanacEnvironment provides AlmanacEnvironment(minute = 720)) {
                         Box(Modifier.fillMaxSize()) {
                             Box(Modifier.requiredSize(w.dp, h.dp).onGloballyPositioned { coordinates ->
@@ -53,8 +61,17 @@ internal fun Instrumentation.verifyParityGallery(activity: MainActivity, checks:
         val area = checkNotNull(captured.get())
         val screen = checkNotNull(uiAutomation.takeScreenshot())
         val image = Bitmap.createBitmap(screen, area.left, area.top, area.width(), area.height())
-        File(output, "${theme.id}-$w.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        if (paletteOnly) {
+            val expected = almanacPalette(theme, style, 720, false, almanacDefaultIsRed(data, style)).ink.toInt()
+            var inkPixels = 0
+            for (y in 0 until image.height step 2) for (x in 0 until image.width step 2) {
+                if (image.getPixel(x, y) == expected) inkPixels++
+            }
+            check(inkPixels > 100) { "${theme.name} $date dark=${style.dark} ink=${style.ink}: expected ink missing ($inkPixels)" }
+        }
+        val suffix = if (paletteOnly) "-$date-${style.dark}-${style.ink}" else ""
+        File(output, "${theme.id}-$w$suffix.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
         image.recycle(); screen.recycle()
-        checks += "${theme.id} ${w}x$h parity reference"
+        checks += "${theme.id} ${w}x$h $date dark=${style.dark} ink=${style.ink} reference"
     }
 }

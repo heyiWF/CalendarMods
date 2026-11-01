@@ -143,7 +143,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     val selectedStyle = styles[theme.id] ?: theme.defaultStyle()
     val almanacEnvironment = rememberAlmanacEnvironment(theme.renderer.isTongSheng && selectedStyle.ambientDark)
     val almanacColors = if (theme.renderer.isTongSheng) almanacPalette(theme, selectedStyle,
-        almanacEnvironment.minute, almanacEnvironment.ambientDark) else null
+        almanacEnvironment.minute, almanacEnvironment.ambientDark, data?.let { almanacDefaultIsRed(it, selectedStyle) } == true) else null
     val displayTransition = updateTransition(if (storeOpen) 2 else if (immersive) 1 else 0, label = "calendar screen")
     val fullScreenWindow = immersive || displayTransition.currentState == 1
     CalendarWindow(fullScreenWindow)

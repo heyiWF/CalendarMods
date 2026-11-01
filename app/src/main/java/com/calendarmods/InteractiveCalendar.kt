@@ -59,7 +59,7 @@ internal fun InteractiveCalendar(theme: CalendarTheme, today: CalendarData, anim
     }
     val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
     val environment = LocalAlmanacEnvironment.current
-    val palette = if (theme.renderer.isTongSheng) almanacPalette(theme, style, environment.minute, environment.ambientDark) else null
+    val palette = if (theme.renderer.isTongSheng) almanacPalette(theme, style, environment.minute, environment.ambientDark, almanacDefaultIsRed(today, style)) else null
     Box(Modifier.fillMaxSize().background(Color(palette?.paper ?: theme.surfaces.paper))) {
         HorizontalPager(pager, userScrollEnabled = animation, beyondViewportPageCount = 1,
             modifier = Modifier.fillMaxSize().testTag("calendar-date-pager").semantics {

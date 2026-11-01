@@ -34,6 +34,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var lastBars = "not measured"
     private var navigationOnly = false
     private var parityOnly = false
+    private var paletteOnly = false
     private var refinementsOnly = false
     private var contractOnly = false
     private var fontsOnly = false
@@ -56,6 +57,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     override fun onCreate(arguments: Bundle?) {
         navigationOnly = arguments?.getString("navigation") == "true"
         parityOnly = arguments?.getString("parity") == "true"
+        paletteOnly = arguments?.getString("palette") == "true"
         refinementsOnly = arguments?.getString("refinements") == "true"
         performanceOnly = arguments?.getString("performance") == "true"
         corePerformanceOnly = arguments?.getString("corePerformance") == "true"
@@ -95,8 +97,8 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (parityOnly) {
-                verifyParityGallery(activities.lastActivity as MainActivity, checks)
+            if (parityOnly || paletteOnly) {
+                verifyParityGallery(activities.lastActivity as MainActivity, checks, paletteOnly)
             } else if (navigationOnly) {
                 verifyPredictiveNavigation(checks)
             } else if (overlayOnly) {

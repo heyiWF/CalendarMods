@@ -65,7 +65,7 @@ fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Un
 internal fun CalendarPaper(theme: CalendarTheme, data: CalendarData, modifier: Modifier = Modifier) {
     val style = LocalThemeStyles.current[theme.id] ?: theme.defaultStyle()
     val environment = LocalAlmanacEnvironment.current
-    val paper = Color(if (theme.renderer.isTongSheng) almanacPalette(theme, style, environment.minute, environment.ambientDark).paper else theme.surfaces.paper)
+    val paper = Color(if (theme.renderer.isTongSheng) almanacPalette(theme, style, environment.minute, environment.ambientDark, almanacDefaultIsRed(data, style)).paper else theme.surfaces.paper)
     val fontId = theme.resolveFont(style.fontId)
     CompositionLocalProvider(LocalCalendarFont provides LocalThemeFonts.current[theme.id]?.get(fontId)) {
         Box(modifier.fillMaxSize().background(paper)) {

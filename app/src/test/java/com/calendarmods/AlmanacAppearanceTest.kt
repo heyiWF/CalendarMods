@@ -47,6 +47,26 @@ class AlmanacAppearanceTest {
             assertNotEquals(palette.ink, palette.paper)
         }
     }
+    @Test fun allTraditionalThemesShareDateDrivenDefaultsAndHonorOverrides() {
+        val weekday = CalendarData.create(LocalDate.of(2026, 11, 2)).copy(festivals = emptyList())
+        val weekend = CalendarData.create(LocalDate.of(2026, 11, 28))
+        val holiday = CalendarData.create(LocalDate.of(2026, 10, 1))
+        assertFalse(almanacDefaultIsRed(weekday, ThemeStyle()))
+        assertTrue(almanacDefaultIsRed(weekend, ThemeStyle()))
+        assertTrue(almanacDefaultIsRed(holiday, ThemeStyle()))
+        assertTrue(almanacDefaultIsRed(weekday, ThemeStyle(), specialEdition = true))
+        assertFalse(almanacDefaultIsRed(weekday, ThemeStyle(festive = false), specialEdition = true))
+        for (theme in CalendarTheme.entries.filter { it.renderer.isTongSheng }) {
+            for (dark in listOf(false, true)) for (red in listOf(false, true)) {
+                val expected = if (red) AlmanacInk.RED else AlmanacInk.GREEN
+                val style = ThemeStyle(dark = dark)
+                assertEquals(if (dark) expected.night else expected.light,
+                    almanacPalette(theme, style, 720, false, red).ink)
+                assertEquals(if (dark) AlmanacInk.BLUE.night else AlmanacInk.BLUE.light,
+                    almanacPalette(theme, style.copy(ink = AlmanacInk.BLUE), 720, false, red).ink)
+            }
+        }
+    }
     @Test fun festivalsUseLunarDatesIncludingThreeDistinctSpringDays() {
         val spring = LocalDate.of(2026, 2, 17)
         val titles = (0..2).map { festiveDay(spring.plusDays(it.toLong()))!!.title }
