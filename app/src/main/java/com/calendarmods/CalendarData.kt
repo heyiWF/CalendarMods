@@ -37,7 +37,7 @@ data class CalendarData(
         private val days = LinkedHashMap<LocalDate, CalendarData>(4, .75f, true)
         private val months = LinkedHashMap<YearMonth, List<CalendarCell>>(2, .75f, true)
 
-        // Same rules/order as ClockMods LunarAlmanac.festivals(). A term labels only
+        // Same rules/order as CalendarMods LunarAlmanac.festivals(). A term labels only
         // its actual starting date, never every day in that two-week period.
         private fun festivals(solar: SolarDay): List<String> = buildSet {
             solar.termDay?.takeIf { it.dayIndex == 0 }?.let { add(it.solarTerm.name) }

@@ -8,7 +8,7 @@ android {
     namespace = "com.calendarmods"
     compileSdk = 37
     defaultConfig {
-        applicationId = "com.calendarmods"
+        applicationId = providers.gradleProperty("calendarmods.applicationId").getOrElse("com.calendarmods")
         minSdk = 31
         targetSdk = 37
         versionCode = 1

@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Bundle
 import android.view.WindowInsetsController
 import android.view.WindowManager
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -45,17 +44,18 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val onReady = LaunchSplash.install(this)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
-        setContent { MaterialTheme(colorScheme = lightColorScheme()) { CalendarApp() } }
+        setContent { MaterialTheme(colorScheme = lightColorScheme()) { CalendarApp(onReady = onReady) } }
     }
 }
 
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
-fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
+fun CalendarApp(clock: CalendarClock = SystemCalendarClock, onReady: () -> Unit = {}) {
     val context = LocalContext.current.applicationContext
     // Index migration and packaged font validation can touch many files on a cold launch.
     val repository by produceState<ThemeRepository?>(null, context) {
@@ -68,13 +68,13 @@ fun CalendarApp(clock: CalendarClock = SystemCalendarClock) {
         }
     } else {
         val inventory by ready.inventory.collectAsState()
-        CalendarContent(clock, inventory, ready)
+        CalendarContent(clock, inventory, ready, onReady)
     }
 }
 
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
-private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, repository: ThemeRepository) {
+private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, repository: ThemeRepository, onReady: () -> Unit) {
     val themes = inventory.themes
     val context = LocalContext.current
     val window = LocalActivity.current?.window
@@ -119,6 +119,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
         }
     }
     val data = day?.data
+    if (data != null) SideEffect(onReady)
     var previousOrder by remember { mutableStateOf(themes.map { it.id }) }
     LaunchedEffect(themes.map { it.id }) {
         val ids = themes.map { it.id }
@@ -142,7 +143,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
     val displayTransition = updateTransition(if (storeOpen) 2 else if (immersive) 1 else 0, label = "calendar screen")
     val fullScreenWindow = immersive || displayTransition.currentState == 1
     CalendarWindow(fullScreenWindow)
-    BackHandler(enabled = fullScreenWindow) { immersive = false }
+    val fullscreenBack = predictiveBackModifier(enabled = immersive && !storeOpen && editingThemeId == null && deletingId == null) { immersive = false }
     val background by animateColorAsState(if (storeOpen || atStoreEntry) MaterialTheme.colorScheme.surface else theme.background,
         label = "theme background")
     val foreground = if (atStoreEntry) MaterialTheme.colorScheme.onSurface else Color(theme.surfaces.chrome)
@@ -172,7 +173,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
         }
         deletingId?.let { id ->
             val name = inventory.catalog.find { it.id == id }?.title.orEmpty()
-            AlertDialog(modifier = Modifier.semantics { testTagsAsResourceId = true }, onDismissRequest = { if (!busy) deletingId = null },
+            CalendarAlertDialog(modifier = Modifier.semantics { testTagsAsResourceId = true }, onDismissRequest = { if (!busy) deletingId = null },
                 title = { Text("删除主题？") },
                 text = { Text("将从已安装主题中移除“$name”") },
                 confirmButton = { TextButton(enabled = !busy, onClick = {
@@ -200,7 +201,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
                 when (screen) {
                     1 -> day?.let { current ->
                         ImmersiveCalendar(theme, current.data, onExit = { immersive = false },
-                            modifier = Modifier.shared("calendar-${theme.id}"), animateDay = current.animate && immersive)
+                            modifier = Modifier.shared("calendar-${theme.id}").then(fullscreenBack), animateDay = current.animate && immersive)
                     }
                     2 -> savedScreens.SaveableStateProvider("store") {
                         ThemeStore(inventory, data, busy,
