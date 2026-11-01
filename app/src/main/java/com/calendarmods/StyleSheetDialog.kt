@@ -128,6 +128,13 @@ internal class StyleSheetDialog(
         toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", { style.pageAnimation }) {
             apply(style.copy(pageAnimation = it))
         }
+        val cameraAvailable = FaceBrightnessController.hasCamera()
+        toggle("人脸感应亮屏",
+            if (cameraAvailable) "仅全屏时使用摄像头本机检测。有人脸时提亮，连续 8 秒无人脸时降低亮度，日历仍可见。画面不保存、不上传。"
+            else "此设备没有可用摄像头。",
+            { style.faceBrightness }, enabled = cameraAvailable) {
+            apply(style.copy(faceBrightness = it))
+        }
         toggle("交互式日历",
             if (theme.renderer.pagesByMonth) "全屏时左右滑动切换月份，点击“回到今天”恢复。"
             else "全屏时左右滑动切换日期，点击“回到今天”恢复。", { style.interactive }) {

@@ -15,7 +15,11 @@ import java.io.File
 
 /** Runs against framework widgets and real font/resource implementations, including API 14. */
 class CompatAcceptance : Instrumentation() {
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); start() }
+    private var faceOnly = false
+    override fun onCreate(arguments: Bundle?) {
+        faceOnly = arguments?.getString("face") == "true"
+        super.onCreate(arguments); start()
+    }
     override fun onStart() {
         val checks = mutableListOf<String>()
         var activity: MainActivity? = null
@@ -25,6 +29,11 @@ class CompatAcceptance : Instrumentation() {
             val loaded = MainActivity::class.java.getDeclaredField("loaded").apply { isAccessible = true }
             repeat(100) { if (!loaded.getBoolean(host)) Thread.sleep(100) }
             check(loaded.getBoolean(host)) { "Calendar did not load" }
+            if (faceOnly) {
+                verifyFaceBrightness(host, checks)
+                finish(android.app.Activity.RESULT_OK, Bundle().apply { putString("stream", "PASS: " + checks.joinToString("; ")) })
+                return
+            }
             val inventory = ThemeRepository.get(targetContext).inventory
             val output = File(targetContext.getExternalFilesDir(null), "acceptance").apply { mkdirs() }
             val data = CalendarData.create(PlainDate.of(2026, 11, 28))

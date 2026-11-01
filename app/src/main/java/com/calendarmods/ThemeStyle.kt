@@ -19,7 +19,8 @@ internal data class ThemeStyle(val imagePath: String? = null, val fill: ImageFil
     val fontId: String? = null, val pageAnimation: Boolean = true, val interactive: Boolean = false,
     val ink: AlmanacInk = AlmanacInk.DEFAULT, val dark: Boolean = false,
     val scheduledDark: Boolean = false, val darkStart: Int = 22 * 60, val darkEnd: Int = 7 * 60,
-    val ambientDark: Boolean = false, val festive: Boolean = true)
+    val ambientDark: Boolean = false, val festive: Boolean = true,
+    val faceBrightness: Boolean = false)
 
 internal fun CalendarTheme.defaultStyle() = ThemeStyle(fill = ImageFill.entries.single { it.name.lowercase() == defaultFill })
 
@@ -46,7 +47,8 @@ internal class ThemeStyleStore(private val context: Context) {
             preferences.getBoolean("$key.dark", false), preferences.getBoolean("$key.dark_schedule", false),
             preferences.getInt("$key.dark_start", 1320).coerceIn(0, 1439),
             preferences.getInt("$key.dark_end", 420).coerceIn(0, 1439),
-            preferences.getBoolean("$key.dark_ambient", false), preferences.getBoolean("$key.festive", true))
+            preferences.getBoolean("$key.dark_ambient", false), preferences.getBoolean("$key.festive", true),
+            preferences.getBoolean("$key.face_brightness", false))
     }
 
     fun save(theme: CalendarTheme, style: ThemeStyle) {
@@ -68,6 +70,7 @@ internal class ThemeStyleStore(private val context: Context) {
         editor.putInt("${theme.id}.dark_end", style.darkEnd.coerceIn(0, 1439))
         editor.putBoolean("${theme.id}.dark_ambient", style.ambientDark)
         editor.putBoolean("${theme.id}.festive", style.festive)
+        editor.putBoolean("${theme.id}.face_brightness", style.faceBrightness)
         editor.apply()
     }
 
@@ -81,7 +84,7 @@ internal class ThemeStyleStore(private val context: Context) {
         editor.remove("${theme.id}.image"); editor.remove("${theme.id}.fill")
         editor.remove("${theme.id}.font")
         editor.remove("${theme.id}.page_animation"); editor.remove("${theme.id}.interactive")
-        listOf("ink", "dark", "dark_schedule", "dark_start", "dark_end", "dark_ambient", "festive")
+        listOf("ink", "dark", "dark_schedule", "dark_start", "dark_end", "dark_ambient", "festive", "face_brightness")
             .forEach { editor.remove("${theme.id}.$it") }
         editor.putBoolean("${theme.id}.migrated", true)
         editor.commit()

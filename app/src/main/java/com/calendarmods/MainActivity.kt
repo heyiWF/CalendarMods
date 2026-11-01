@@ -17,6 +17,8 @@ class MainActivity : Activity() {
     private lateinit var chooser: ChooserView
     private lateinit var paper: PaperView
     private lateinit var preferences: SharedPreferences
+    private lateinit var faceBrightness: FaceBrightnessController
+    private var pendingFaceTheme: String? = null
     private lateinit var styles: ThemeStyleStore
 
     private var inventory = ThemeInventory()
@@ -56,6 +58,8 @@ class MainActivity : Activity() {
         root.addView(chooser, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
+        faceBrightness = FaceBrightnessController(this, root, ::toast)
+        pendingFaceTheme = savedInstanceState?.getString("pending_face_theme")
 
         chooser.onSelect = { theme -> enterImmersive(theme) }
         chooser.onStyle = { theme -> openStyleSheet(theme) }
@@ -75,7 +79,7 @@ class MainActivity : Activity() {
             Ui.post {
                 if (destroyed) return@post
                 inventory = loadedInventory
-                styleValues = values
+                styleValues = values + styleValues
                 data = calendar
                 loaded = true
                 refreshChooser()
@@ -103,12 +107,14 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         resumed = false
+        faceBrightness.stop()
         stopMonitors()
         super.onPause()
     }
 
     private fun startMonitors() {
         stopMonitors()
+        syncFaceBrightness()
         val theme = currentTheme()
         dayMonitor = CalendarDayMonitor(this) { event -> onNewDate(event) }.also { it.start() }
         ambientMonitor = AlmanacEnvironmentMonitor(this, theme?.renderer?.isTongSheng == true &&
@@ -125,6 +131,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        faceBrightness.stop()
         destroyed = true
         pageRequest++
         screenAnimation?.cancel()
@@ -191,6 +198,7 @@ class MainActivity : Activity() {
         setSystemBars(immersive = true)
         updateTodayButton(data.today)
         chooseAmbient()
+        syncFaceBrightness()
     }
 
     private fun exitImmersive() {
@@ -207,6 +215,7 @@ class MainActivity : Activity() {
         setSystemBars(immersive = false)
         chooseAmbient()
         refreshChooser()
+        syncFaceBrightness()
     }
 
     private fun chooseAmbient() {
@@ -312,6 +321,12 @@ class MainActivity : Activity() {
     }
 
     private fun applyStyle(theme: CalendarTheme, updated: ThemeStyle) {
+        if (updated.faceBrightness && !hasCameraPermission()) {
+            pendingFaceTheme = theme.id
+            styleSheet?.update(currentStyle(theme), environment, inventory)
+            if (Build.VERSION.SDK_INT >= 23) requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQUEST_CAMERA)
+            return
+        }
         val previous = currentStyle(theme)
         if (previous == updated) return
         styles.save(theme, updated)
@@ -320,6 +335,7 @@ class MainActivity : Activity() {
         refreshChooser()
         if (immersive) refreshPage(animate = false)
         if (previous.ambientDark != updated.ambientDark) chooseAmbient()
+        syncFaceBrightness()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -338,6 +354,32 @@ class MainActivity : Activity() {
                 Ui.post { toast("无法读取这张图片，请选择其他图片。") }
             }
         }
+    }
+
+    private fun hasCameraPermission() = Build.VERSION.SDK_INT < 23 ||
+        checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    private fun syncFaceBrightness() {
+        if (resumed && immersive && currentStyle(currentTheme()).faceBrightness && hasCameraPermission())
+            faceBrightness.start()
+        else faceBrightness.stop()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("pending_face_theme", pendingFaceTheme)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_CAMERA) return
+        val id = pendingFaceTheme
+        pendingFaceTheme = null
+        if (hasCameraPermission()) {
+            // Permission dialogs can outlive recreation and the asynchronous catalog load.
+            val theme = inventory.themes.firstOrNull { it.id == id } ?: CalendarTheme.entries.firstOrNull { it.id == id }
+            theme?.let { applyStyle(it, styles.read(it).copy(faceBrightness = true)) }
+        } else toast("未授予摄像头权限，人脸感应亮屏保持关闭。可再次开启以授权。")
     }
 
     private fun toast(message: String) {
@@ -414,5 +456,6 @@ class MainActivity : Activity() {
 
     private companion object {
         const val REQUEST_IMAGE = 41
+        const val REQUEST_CAMERA = 42
     }
 }
