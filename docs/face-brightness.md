@@ -2,7 +2,10 @@
 
 Each theme has an independent, default-off setting. It requires an available camera and the
 CAMERA runtime permission on Android 6+. Capture runs only while the opted-in theme is fullscreen
-and the activity is resumed. The front camera is preferred; a rear-only device uses its camera.
+and the activity is resumed. All cameras exposed by the API are enumerated, ordered by front-facing metadata and then ID.
+A failed camera/configuration falls back to the remaining candidates, with retries at a bounded frequency.
+Front-facing metadata normally identifies the screen-side camera; incorrect OEM metadata,
+external displays and physical lenses not exposed by the legacy API cannot be inferred reliably.
 
 The detector is Android's open-source `android.media.FaceDetector` (AOSP, available since API 1):
 
@@ -18,7 +21,7 @@ One worker samples NV21 luminance at two frames per second into a reused, orient
 RGB_565 bitmap with maximum edge 320 pixels. A detected face raises this window to 85% brightness.
 After eight seconds without a face it fades to 2%, keeping the calendar displayed. Startup uses
 the same eight-second grace. Camera errors or a stalled feed restore the original window
-brightness; leaving fullscreen, pausing or destroying the activity releases capture. Global
+brightness while automatically reconnecting; leaving fullscreen, pausing or destroying the activity releases capture. Global
 brightness settings are never changed. Front-facing, well-lit faces work best; this legacy
 detector is not a security or liveness check, and darkness/occlusion can cause misses.
 
@@ -29,8 +32,31 @@ https://github.com/scikit-image/scikit-image/blob/v0.24.0/skimage/data/astronaut
 It is excluded from the application APK and is used solely to test positive/negative frames and
 all camera rotations. No endorsement is implied.
 
-Validation: 56 unit tests and lint/build passed. Android 15 instrumentation checks all four
+Validation: 61 unit tests and lint/build passed. Android 15 instrumentation checks all four
 rotations against known-face and blank frames, all eleven per-theme settings, actual camera
 frame delivery, pause/resume capture lifecycle, and fullscreen-exit brightness restoration.
 The shared 248 numeral checks and framework history regressions also pass on mycompat.
 Actual API 14 hardware and physical face/lighting variations still require device acceptance.
+
+Camera operations share one process-level worker across Activity recreation, so rotation cannot
+open a new camera before the old one has released it. Texture destruction defers release until
+the producer stops. Display rotation also updates raw-frame orientation without requiring a
+preview restart when Android keeps the Activity alive. Negotiated preview dimensions/format
+are read back from the driver; unsupported advertised size combinations fall back to defaults.
+Diagnostic `FaceBrightness` logs contain camera IDs, orientation and exception information,
+never frames or face data. Tests include non-square frames and real display rotations.
+
+Unattended recovery has no retry-count cutoff. A twelve-second frame watchdog reopens stalled
+capture; failed reconnects back off from 350 ms to at most 30 seconds, resetting after thirty
+seconds of stable analysed frames. Pending retries stop when leaving fullscreen or pausing.
+Fullscreen retains FLAG_KEEP_SCREEN_ON independently of face presence and brightness, so a
+missing face dims the calendar without letting the display sleep. A physically failed or
+blocked camera driver cannot be guaranteed to recover; diagnostics remain available in logcat.
+
+Follow-up device validation on Android 15: non-square known-face/blank frames pass at all four
+orientations; seven actual display rotations retain analysed frames. During a 75-second run
+with a 15-second screen timeout and plugged-in wake overrides disabled, three deliberately
+stopped camera streams recovered automatically, preferring the previously working front
+camera. The window remained awake throughout and the original power settings were restored.
+This is fault-recovery coverage, not a long-duration certification of the reported YOGA Tablet
+2-1050F / Android 5.0.1 hardware; that device is not connected to this environment.

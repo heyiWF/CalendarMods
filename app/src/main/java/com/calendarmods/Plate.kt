@@ -2,7 +2,6 @@ package com.calendarmods
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
@@ -179,23 +178,7 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
         paint.typeface = installedFont?.let { Typeface.create(it, if (typeface?.isBold == true) Typeface.BOLD else Typeface.NORMAL) } ?: typeface ?: bold
         // Keep glyph extraction at a normal size even on old vendor font rasterizers.
         paint.textSize = 100f
-        val key = NumeralKey(day, paint.typeface)
-        val glyph = synchronized(numerals) {
-            numerals[key] ?: run {
-                val path = Path()
-                val box = RectF()
-                paint.getTextPath(day, 0, day.length, 0f, 0f, path)
-                path.computeBounds(box, true)
-                if (box.width() < .01f || box.height() < .01f) {
-                    paint.typeface = Typeface.DEFAULT_BOLD
-                    path.reset()
-                    paint.getTextPath(day, 0, day.length, 0f, 0f, path)
-                    path.computeBounds(box, true)
-                }
-                Numeral(path, box).also { numerals.put(key, it) }
-            }
-        }
-        val outline = Path(glyph.path)
+        val glyph = DateNumerals.glyph(day, paint.typeface)
         val bounds = glyph.bounds
         if (bounds.width() < .01f || bounds.height() < .01f) {
             // A malformed vendor face must not leave the date blank.
@@ -210,12 +193,9 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
             fit = min(w * scale / bounds.width(), h * scale / bounds.height())
         }
         if (!fit.isFinite() || fit <= 0f) return
-        val place = Matrix()
-        place.postScale(fit, fit)
-        place.postTranslate(x + (w - bounds.width() * fit) / 2f - bounds.left * fit,
-            y + (h - bounds.height() * fit) / 2f - bounds.top * fit)
-        outline.transform(place)
-        canvas.drawPath(outline, paint)
+        DateNumerals.draw(canvas, glyph,
+            x + (w - bounds.width() * fit) / 2f, y + (h - bounds.height() * fit) / 2f,
+            bounds.width() * fit, bounds.height() * fit, color)
     }
 
     /** Sunday-first month grid copied from the Compose layout, including the lunar row. */
@@ -329,9 +309,6 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
     }
 
     companion object {
-        private data class NumeralKey(val text: String, val font: Typeface?)
-        private data class Numeral(val path: Path, val bounds: RectF)
-        private val numerals = android.util.LruCache<NumeralKey, Numeral>(128)
         fun withAlpha(color: Int, alpha: Float): Int =
             (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)
     }

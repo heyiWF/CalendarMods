@@ -14,7 +14,9 @@ internal fun Instrumentation.verifyFaceBrightness(activity: MainActivity, checks
         failure?.let { throw it }
     }
     val source = context.assets.open("face-fixture.png").use { checkNotNull(BitmapFactory.decodeStream(it)) }
-    val image = Bitmap.createScaledBitmap(source, 320, 320, true)
+    val square = Bitmap.createScaledBitmap(source, 320, 320, true)
+    val image = Bitmap.createBitmap(square, 0, 0, 320, 240)
+    square.recycle()
     source.recycle()
     try {
         for (rotation in listOf(0, 90, 180, 270)) {
@@ -80,6 +82,7 @@ internal fun Instrumentation.verifyFaceBrightness(activity: MainActivity, checks
         Thread.sleep(1200)
         main { check(activeField.getBoolean(controller)) { "Capture did not resume in opted-in fullscreen" } }
         checks += "pause restores brightness/releases capture; resume restarts only opted-in fullscreen"
+        verifyFaceContinuity(activity, checks)
 
         main {
             exit.invoke(activity)
@@ -87,6 +90,7 @@ internal fun Instrumentation.verifyFaceBrightness(activity: MainActivity, checks
         Thread.sleep(400)
         main {
             check(!activeField.getBoolean(controller))
+            check(activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON == 0)
             check(activity.window.attributes.screenBrightness == original) { "Window brightness not restored" }
         }
         checks += "fullscreen exit releases capture and restores the original brightness override"

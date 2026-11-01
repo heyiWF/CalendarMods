@@ -31,6 +31,7 @@ class CompatAcceptance : Instrumentation() {
             check(loaded.getBoolean(host)) { "Calendar did not load" }
             if (faceOnly) {
                 verifyFaceBrightness(host, checks)
+                verifyFaceRotation(host, checks)
                 finish(android.app.Activity.RESULT_OK, Bundle().apply { putString("stream", "PASS: " + checks.joinToString("; ")) })
                 return
             }
@@ -48,7 +49,7 @@ class CompatAcceptance : Instrumentation() {
                     for (day in 1..31) {
                         val bitmap = Bitmap.createBitmap(360, 400, Bitmap.Config.ARGB_8888)
                         bitmap.eraseColor(Color.WHITE)
-                        Plate(Canvas(bitmap), Color.BLACK, Color.WHITE).bigDay(day.toString().padStart(2, '0'), 0f, 0f, 360f, 400f, typeface = font)
+                        Plate(Canvas(bitmap), Color.BLACK, Color.WHITE).bigDay(day.toString(), 0f, 0f, 360f, 400f, typeface = font)
                         var ink = 0
                         for (y in 0 until 400 step 2) for (x in 0 until 360 step 2) {
                             if (bitmap.getPixel(x, y) != Color.WHITE) ink++
@@ -120,6 +121,7 @@ class CompatAcceptance : Instrumentation() {
             checkedMain { check(page.parent == null) }
             checks += "fullscreen entry/exit animate and interrupted entry retains the outgoing page"
             verifyHistoryRegressions(host, checks)
+            verifyHardwareNumerals(host, checks)
             val result = Bundle().apply { putString("stream", "PASS: ${checks.joinToString("; ")}\n") }
             finish(android.app.Activity.RESULT_OK, result)
         } catch (failure: Throwable) {

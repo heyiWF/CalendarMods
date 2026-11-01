@@ -65,30 +65,17 @@ internal class TongShengPlate(
     internal fun dayNumber(day: String, bandLeft: Float, bandRight: Float, top: Float, height: Float,
         cap: Float) {
         val maxWidth = min(cap, (bandRight - bandLeft - 112f).coerceAtLeast(40f))
-        p.typeface = bold; p.textSize = 100f; p.color = ink; p.style = Paint.Style.FILL
-        val outline = Path()
-        val bounds = RectF()
-        p.getTextPath(day, 0, day.length, 0f, 0f, outline)
-        outline.computeBounds(bounds, true)
-        if (bounds.width() < .01f || bounds.height() < .01f) {
-            p.typeface = Typeface.DEFAULT_BOLD
-            outline.reset()
-            p.getTextPath(day, 0, day.length, 0f, 0f, outline)
-            outline.computeBounds(bounds, true)
-        }
-        val reference = Path(); val referenceBounds = RectF()
-        p.getTextPath("28", 0, 2, 0f, 0f, reference)
-        reference.computeBounds(referenceBounds, true)
+        val glyph = DateNumerals.glyph(day, bold)
+        val bounds = glyph.bounds
+        val referenceBounds = DateNumerals.glyph("28", bold).bounds
         if (bounds.isEmpty || referenceBounds.isEmpty) return
         val fit = min(min(maxWidth / referenceBounds.width(), height / referenceBounds.height()) * .98f,
             min(maxWidth / bounds.width(), height / bounds.height()))
-        val checkpoint = c.save()
-        c.translate((bandLeft + bandRight) / 2f - bounds.centerX() * fit,
-            top + height / 2f - bounds.centerY() * fit)
-        c.scale(fit, fit)
-        c.drawPath(outline, p)
-        c.restoreToCount(checkpoint)
+        DateNumerals.draw(c, glyph, (bandLeft + bandRight - bounds.width() * fit) / 2f,
+            top + (height - bounds.height() * fit) / 2f,
+            bounds.width() * fit, bounds.height() * fit, ink)
     }
+
     internal fun words(items: List<String>, x: Float, y: Float, w: Float, h: Float, size: Float = 32f, top: Boolean = false) {
         val values = items.ifEmpty { listOf("无") }
         p.typeface = regular
