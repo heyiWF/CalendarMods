@@ -18,7 +18,7 @@ data class CalendarData(
     fun avoidText(limit: Int) = avoids.take(limit).joinToString(" · ").ifBlank { "暂无" }
     val motto get() = DailyWords.motto(today)
     val heartWord get() = DailyWords.heartWord(today)
-    val day get() = today.dayOfMonth.toString().padStart(2, '0')
+    val day get() = today.dayOfMonth.toString()
     val month get() = today.monthName
     val monthShort get() = today.monthShort
     val weekday get() = today.weekdayName

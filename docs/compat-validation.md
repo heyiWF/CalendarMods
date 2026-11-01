@@ -26,3 +26,14 @@ Validation on 2026-11-01:
 Run `adb shell am instrument -w <applicationId>.test/com.calendarmods.CompatAcceptance` with
 the matching app and androidTest APKs. The runner exports a theme gallery to the test app's
 external `files/acceptance` directory.
+
+Follow-up for older hardware: large numerals now use bounded, cached software rasters before
+hardware composition. Only numeral glyphs are rasterized; the page and animations remain
+accelerated. This addresses the software-preview/hardware-fullscreen rendering split reported
+on a YOGA Tablet 2-1050F running Android 5.0.1. The window instrumentation now verifies actual
+hardware Canvas output as well as offscreen rendering. Physical validation on that device is
+still required; the connected device is a different Android version/GPU. Days 1–9 are unpadded.
+
+Follow-up validation: 56 shared unit tests, lint/build, 248 software numeral cases and 16
+hardware-window cases pass. Hardware screenshots of day 1 in the four traditional themes and
+the golden theme were inspected on the connected Android 15 device; all date numerals appear.
