@@ -65,6 +65,13 @@ class CompatAcceptance : Instrumentation() {
                             check(bitmap.getPixel(0, 0) == paper) {
                                 "Page did not fill its top-left corner at $w x $h, dark $dark"
                             }
+                            // The date line ends inside the page edge instead of running past it.
+                            for (y in 2 until 34) for (x in w - 8 until w) {
+                                check(bitmap.getPixel(x, y) == paper) {
+                                    "The date line ran past its right margin at $w x $h," +
+                                        " scale $scale, dark $dark (column $x)"
+                                }
+                            }
                             File(output, "daily-$w-${(scale * 100).toInt()}-${if (dark) "dark" else "light"}.png")
                                 .outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
                             bitmap.recycle()
@@ -73,6 +80,26 @@ class CompatAcceptance : Instrumentation() {
                 }
                 checks += "portrait and landscape pages print date, clock, 宜忌 and the month grid" +
                     " at 85%, 100% and 140% on both sheets without clipping the page edge"
+
+                // The 12-hour reading is wider than 24-hour: it must still fit the same column.
+                for (hour24 in listOf(true, false)) {
+                    val page = PaperView(host)
+                    page.setPage(CalendarTheme.DAILY, data, ThemeStyle(hour24 = hour24), false, false)
+                    page.layout(0, 0, 360, 640)
+                    val bitmap = Bitmap.createBitmap(360, 640, Bitmap.Config.ARGB_8888)
+                    page.draw(Canvas(bitmap))
+                    val paper = CalendarTheme.DAILY.scheme(false).paper.toInt()
+                    for (y in 637 until 640) for (x in 0 until 360) {
+                        check(bitmap.getPixel(x, y) == paper) {
+                            "The ${if (hour24) "24" else "12"}-hour page was clipped at the bottom (row $y)"
+                        }
+                    }
+                    File(output, "daily-360-${if (hour24) "24h" else "12h"}.png").outputStream().use {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                    bitmap.recycle()
+                }
+                checks += "both clock readings print inside the page"
 
                 var value = ThemeStyle()
                 lateinit var dialog: StyleSheetDialog
@@ -103,6 +130,17 @@ class CompatAcceptance : Instrumentation() {
                 check(slider.progress == 0) { "Font slider did not reach its minimum" }
                 check(descendants(decor).any { it === label }) { "Font slider rebuilt its controls" }
 
+                // 24-hour switch: on by default, bound both ways and persisted through the style.
+                val hourLabel = labels.first { it.text.toString() == "24小时制" }
+                val hourRow = hourLabel.parent.parent as ViewGroup
+                val hourBox = descendants(hourRow).filterIsInstance<CheckBox>().single()
+                check(hourBox.isChecked && value.hour24)
+                hourRow.performClick()
+                check(!value.hour24 && !hourBox.isChecked) { "The 24-hour switch did not reach the style" }
+                hourRow.performClick()
+                check(value.hour24 && hourBox.isChecked) { "The 24-hour switch did not come back" }
+                check(descendants(decor).any { it === hourLabel }) { "The 24-hour switch rebuilt its row" }
+
                 // Dark mode: four exclusive choices, exactly one selected, bound two ways.
                 val darkLabel = labels.first { it.text.toString() == "始终深色" }
                 val darkRow = darkLabel.parent.parent as ViewGroup
@@ -129,8 +167,8 @@ class CompatAcceptance : Instrumentation() {
                 }
                 dialog.update(value.copy(darkMode = DarkMode.OFF))
                 dialog.dismiss()
-                checks += "style sheet: label/checkbox parity, font slider binding, exclusive dark" +
-                    " mode choices and the night-window rows"
+                checks += "style sheet: label/checkbox parity, font slider binding, the 24-hour switch," +
+                    " exclusive dark mode choices and the night-window rows"
             }
             // A forced dark style must reach the window, the chooser and the retained page.
             val applyStyle = MainActivity::class.java

@@ -24,6 +24,8 @@ internal data class ThemeStyle(
     val pageAnimation: Boolean = true,
     val interactive: Boolean = false,
     val faceBrightness: Boolean = false,
+    /** Print the clock as 24-hour time; when false it reads 上午9:05 / 下午12:30. */
+    val hour24: Boolean = true,
     val darkMode: DarkMode = DarkMode.OFF,
     /** Local hour the night window opens, 0–23. */
     val darkFrom: Int = DEFAULT_DARK_FROM,
@@ -63,6 +65,7 @@ internal class ThemeStyleStore(private val context: Context) {
         pageAnimation = preferences.getBoolean("page_animation", true),
         interactive = preferences.getBoolean("interactive", false),
         faceBrightness = preferences.getBoolean("face_brightness", false),
+        hour24 = preferences.getBoolean("hour24", true),
         darkMode = DarkMode.fromKey(preferences.getString("dark_mode", null)),
         darkFrom = ThemeStyle.clampHour(preferences.getInt("dark_from", ThemeStyle.DEFAULT_DARK_FROM)),
         darkTo = ThemeStyle.clampHour(preferences.getInt("dark_to", ThemeStyle.DEFAULT_DARK_TO)),
@@ -74,6 +77,7 @@ internal class ThemeStyleStore(private val context: Context) {
             .putBoolean("page_animation", style.pageAnimation)
             .putBoolean("interactive", style.interactive)
             .putBoolean("face_brightness", style.faceBrightness)
+            .putBoolean("hour24", style.hour24)
             .putString("dark_mode", style.darkMode.name)
             .putInt("dark_from", ThemeStyle.clampHour(style.darkFrom))
             .putInt("dark_to", ThemeStyle.clampHour(style.darkTo))

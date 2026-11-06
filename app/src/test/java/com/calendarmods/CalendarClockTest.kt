@@ -37,4 +37,19 @@ class CalendarClockTest {
         assertEquals(false, naturalDateBoundary(before, at(2027, 1, 1, 0, 0, 3, 0, "Asia/Tokyo")))
         assertEquals(false, naturalDateBoundary(at(2026, 12, 30, 23, 59, 40, 0, "Asia/Shanghai"), after))
     }
+
+    @Test fun twentyFourHourReadingAlwaysKeepsTwoDigits() {
+        assertEquals("00:05", formatClock(true, 0, 5).text)
+        assertEquals("09:05", formatClock(true, 9, 5).text)
+        assertEquals("23:59", formatClock(true, 23, 59).text)
+    }
+
+    @Test fun twelveHourReadingPrintsTheMarkAndDropsTheLeadingZero() {
+        assertEquals("上午9:05", formatClock(false, 9, 5).text)
+        assertEquals("上午12:05", formatClock(false, 0, 5).text)
+        assertEquals("上午11:59", formatClock(false, 11, 59).text)
+        assertEquals("下午12:30", formatClock(false, 12, 30).text)
+        assertEquals("下午11:59", formatClock(false, 23, 59).text)
+        assertEquals("", formatClock(true, 9, 5).period)
+    }
 }

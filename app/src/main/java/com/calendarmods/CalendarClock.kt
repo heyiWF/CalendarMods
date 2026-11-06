@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import java.util.Calendar
+import java.util.Locale
 import java.util.TimeZone
 
 /** A wall-clock reading captured with the zone that produced it. */
@@ -27,10 +28,33 @@ internal fun ClockSnapshot.localDate(): PlainDate {
         calendar.get(Calendar.DAY_OF_MONTH))
 }
 
-/** The wall clock the page prints, 24-hour and always two digits. */
-internal fun clockText(): String {
+/**
+ * One clock reading split into the runs the page prints: an optional 上午 / 下午 mark, the hour and
+ * the minute. Splitting it lets each run keep its own baseline, which the colon needs.
+ */
+internal data class ClockFace(val period: String, val hour: String, val minute: String) {
+    /** The whole reading on one line, for the plain-text places (preview header, cache key). */
+    val text: String get() = "$period$hour:$minute"
+}
+
+/**
+ * The wall clock. [hour24] prints two digits and no mark; otherwise the reading is 12-hour with
+ * 上午 / 下午 in front and no leading zero on the hour (上午9:05, 下午12:30).
+ */
+internal fun formatClock(hour24: Boolean, hourOfDay: Int, minute: Int): ClockFace {
+    val minutes = String.format(Locale.US, "%02d", minute.coerceIn(0, 59))
+    if (hour24) {
+        return ClockFace("", String.format(Locale.US, "%02d", hourOfDay.coerceIn(0, 23)), minutes)
+    }
+    val hour = hourOfDay.coerceIn(0, 23)
+    val period = if (hour < 12) "上午" else "下午"
+    val twelve = (hour % 12).let { if (it == 0) 12 else it }
+    return ClockFace(period, twelve.toString(), minutes)
+}
+
+internal fun clockFace(hour24: Boolean): ClockFace {
     val calendar = Calendar.getInstance()
-    return String.format("%02d:%02d", calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
+    return formatClock(hour24, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
 }
 
 /** DST-aware: the next local midnight is not always 24 hours away. */

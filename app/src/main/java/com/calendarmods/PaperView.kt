@@ -33,7 +33,7 @@ internal class PaperView(context: Context) : View(context) {
     var onSwipe: ((Int) -> Unit)? = null
     var onTap: (() -> Unit)? = null
 
-    private var time = clockText()
+    private var face: ClockFace = clockFace(true)
     private var outgoing: Bitmap? = null
     private var animating = false
     private var animStarted = 0L
@@ -57,7 +57,7 @@ internal class PaperView(context: Context) : View(context) {
     private val tick = object : Runnable {
         override fun run() {
             if (!attached) return
-            time = clockText()
+            face = clockFace(style.hour24)
             invalidate()
             scheduleTick()
         }
@@ -76,7 +76,7 @@ internal class PaperView(context: Context) : View(context) {
         this.data = data
         this.style = style
         this.dark = dark
-        time = clockText()
+        face = clockFace(style.hour24)
         invalidate()
     }
 
@@ -108,7 +108,7 @@ internal class PaperView(context: Context) : View(context) {
         val wide = w > h
         // The page is laid out in design units; the canvas supplies the pixel scale.
         val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
-        val page = DailyPage(theme.scheme(dark), data, time, wide, w / unit, h / unit,
+        val page = DailyPage(theme.scheme(dark), data, face, wide, w / unit, h / unit,
             MotionSettings.enabled(context), SystemClock.uptimeMillis(), style.fontScale)
         canvas.save()
         canvas.scale(unit, unit)

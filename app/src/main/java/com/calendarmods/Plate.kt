@@ -2,6 +2,7 @@ package com.calendarmods
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
 import kotlin.math.max
 
@@ -88,6 +89,24 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
         var total = spacing * (value.length - 1)
         value.forEach { total += paint.measureText(it.toString()) }
         return total
+    }
+
+    /**
+     * Baseline shift that lifts a mark such as “:” to the optical centre of the digits it sits
+     * between. Measured from the ink boxes, so it holds for any font the system resolves.
+     */
+    fun centerShift(reference: String, mark: String, size: Float, typeface: Typeface? = null): Float {
+        if (reference.isEmpty() || mark.isEmpty()) return 0f
+        paint.reset(); paint.isAntiAlias = true
+        paint.typeface = typeface ?: sans
+        paint.textSize = size
+        val digits = Rect()
+        paint.getTextBounds(reference, 0, reference.length, digits)
+        val symbol = Rect()
+        paint.getTextBounds(mark, 0, mark.length, symbol)
+        val digitCenter = (digits.top.toFloat() + digits.bottom) / 2f
+        val markCenter = (symbol.top.toFloat() + symbol.bottom) / 2f
+        return digitCenter - markCenter
     }
 
     private fun drawLine(line: String, x: Float, w: Float, baseline: Float, align: Int, spacing: Float) {

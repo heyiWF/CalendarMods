@@ -38,7 +38,7 @@ internal object PreviewCache {
 
     fun key(theme: CalendarTheme, data: CalendarData, style: ThemeStyle, dark: Boolean,
         width: Int, height: Int): String =
-        "${theme.id}|${data.today}|${style.hashCode()}|$dark|${clockText()}|$width|$height"
+        "${theme.id}|${data.today}|${style.hashCode()}|$dark|${clockFace(style.hour24).text}|$width|$height"
 
     fun get(key: String): Bitmap? = cache.get(key)
 
@@ -55,7 +55,8 @@ internal object PreviewCache {
         val wide = width > height
         val unit = if (wide) minOf(width / 640f, height / 360f) else minOf(width / 360f, height / 600f)
         // Previews print one settled frame: no rotation and no midnight animation.
-        val page = DailyPage(theme.scheme(dark), data, clockText(), wide, width / unit, height / unit,
+        val page = DailyPage(theme.scheme(dark), data, clockFace(style.hour24), wide, width / unit,
+            height / unit,
             motion = false, now = 0L, userScale = style.fontScale)
         canvas.save()
         canvas.scale(unit, unit)

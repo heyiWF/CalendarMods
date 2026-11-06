@@ -116,6 +116,10 @@ internal class StyleSheetDialog(
         slider("字号", "整页按比例放大或缩小；空间不足时自动回收，不会重叠或超出屏幕。") {
             apply(style.copy(fontScale = it))
         }
+        toggle("24小时制", "关闭后按 12 小时制显示时间，例如“上午9:05”；上午/下午与数字同号。",
+            { style.hour24 }) {
+            apply(style.copy(hour24 = it))
+        }
         darkSection()
         divider()
         toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", { style.pageAnimation }) {

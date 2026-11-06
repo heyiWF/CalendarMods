@@ -103,7 +103,7 @@ internal class ChooserView(context: Context) : View(context) {
         paint.textSize = dp(10f)
         paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         canvas.drawText("CALENDARMODS", dp(24f), insetTop + dp(28f), paint)
-        val stamp = clockText()
+        val stamp = clockFace(style.hour24).text
         canvas.drawText(stamp, width - dp(24f) - paint.measureText(stamp), insetTop + dp(28f), paint)
 
         val footerTop = height - insetBottom - footerHeight

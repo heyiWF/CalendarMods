@@ -19,6 +19,7 @@ class ThemeStyleTest {
         assertEquals(true, ThemeStyle().pageAnimation)
         assertEquals(false, ThemeStyle().interactive)
         assertEquals(false, ThemeStyle().faceBrightness)
+        assertEquals(true, ThemeStyle().hour24)
         assertEquals(DarkMode.OFF, ThemeStyle().darkMode)
         assertEquals(ThemeStyle.DEFAULT_DARK_FROM, ThemeStyle().darkFrom)
         assertEquals(ThemeStyle.DEFAULT_DARK_TO, ThemeStyle().darkTo)
