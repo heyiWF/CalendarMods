@@ -27,6 +27,12 @@ internal fun ClockSnapshot.localDate(): PlainDate {
         calendar.get(Calendar.DAY_OF_MONTH))
 }
 
+/** The wall clock the page prints, 24-hour and always two digits. */
+internal fun clockText(): String {
+    val calendar = Calendar.getInstance()
+    return String.format("%02d:%02d", calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
+}
+
 /** DST-aware: the next local midnight is not always 24 hours away. */
 internal fun millisUntilNextDate(now: ClockSnapshot): Long {
     val next = Calendar.getInstance(now.zone).apply { timeInMillis = now.millis }

@@ -1,9 +1,0 @@
-Source artwork: https://www.peitaiyi.com/chinese-almanac/
-
-The 12 zodiac masks, 24 solar-term prints and 25 festival prints were downloaded
-from the public source website at the user's explicit request. Original artwork
-rights remain with their respective owners; no open-source license is asserted.
-Exact resource URLs and SHA-256 checksums are in peitaiyi/sources.json.
-The app renders the artwork with its selected ink/paper palette. No website
-scripts, analytics, network requests or calendar calculation code are embedded.
-The adaptive native layouts and shared calendar engine are CalendarMods code.

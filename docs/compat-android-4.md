@@ -1,7 +1,7 @@
 # Android 4.0 兼容分支
 
 `compat` 分支从 `pro` 派生，把最低系统要求从 Android 12 / API 31 降到 Android 4.0 / API 14。
-界面层由 Jetpack Compose 改为系统 View 与 Canvas，历法、主题契约、存储与文案保持不变。
+界面层由 Jetpack Compose 改为系统 View 与 Canvas，历法计算与存储保持不变。
 
 ## 为什么不是只改一行 minSdk
 
@@ -11,7 +11,7 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 | 原实现 | 兼容实现 |
 | --- | --- |
 | Compose 布局 + Material3 组件 | `ChooserView`、`PaperView`、`StyleSheetDialog` 系统控件 |
-| Compose `Canvas` 主题绘制 | `Plate` + `PageArtwork`，沿用同一套 360×600 / 640×360 设计坐标 |
+| Compose `Canvas` 主题绘制 | `Plate` + `DailyPage`，沿用同一套 360×600 / 640×360 设计坐标 |
 | `androidx.compose.ui.text` | `Paint` 度量与手工换行 |
 | Compose Pager / 动画 | `Scroller` 分页、`Camera` 翻页 |
 | `java.time` | `PlainDate`（无时区日期值类型），时区只出现在 `CalendarClock` |
@@ -22,16 +22,14 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 
 ## 行为保持
 
-- 11 款主题的版式、配色、字体层级、月历网格、传统黄历分栏全部保留，四款传统主题仍复用原有绘制代码。
-- 主题选择、全屏长按退出、跨日翻页、定时深色、光线自适应、图片替换与填充方式、随包字体均可用。
-- 内置主题固定安装、不可删除或排序；`compat` 分支移除了主题商店。
-- 本分支新增可选的摄像头权限，用于每主题独立开启的全屏人脸感应亮屏；不联网、不保存图像。详见 `face-brightness.md`。
+- 日期行、时钟、宜忌与六行七列月历的版式与配色全部由 `DailyPage` 绘制，见 `daily-page.md`。
+- 全屏长按退出、跨日翻页、交互式翻页与“回到今天”均可用。
+- 本分支新增可选的摄像头权限，用于全屏人脸感应亮屏；不联网、不保存图像。详见 `face-brightness.md`。
 
 ## 已知差异
 
-- 跨日动画统一为一次向前翻页，不再按主题区分旋转、升降或揭页的缓动曲线。
-- 商店、应用主题进度、删除回弹与共享元素过渡已省略。
-- 字体只使用系统可解析的 TTF/OTF；API 14 没有可变字重，`Light`/`ExtraLight` 退化为常规字重。
+- 跨日动画统一为一次向前翻页，没有旋转、升降或揭页等多种缓动曲线。
+- 只使用系统字体；API 14 没有可变字重，`Light` 退化为常规字重。
 - 启动图标在 API 26 以下使用位图，26 以上仍走自适应图标。
 
 ## 构建

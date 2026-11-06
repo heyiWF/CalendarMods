@@ -49,30 +49,25 @@ class CalendarDataTest {
     }
 
     @Test fun solarTermsOnlyLabelTheActualTermDate() {
-        val qingming = CalendarData.create(PlainDate.of(2024, 4, 4))
-        val followingDay = CalendarData.create(PlainDate.of(2024, 4, 5))
-        assertEquals("清明", qingming.solarTerm)
+        val qingming = cellOf(PlainDate.of(2024, 4, 4))
+        val followingDay = cellOf(PlainDate.of(2024, 4, 5))
         assertTrue(qingming.festivals.contains("清明"))
-        assertNull(followingDay.solarTerm)
-        assertFalse(followingDay.festivals.any { it.contains("清明") })
-        assertNull(CalendarData.create(PlainDate.of(2026, 10, 10)).solarTerm)
+        assertFalse(followingDay.festivals.contains("清明"))
     }
 
     @Test fun lunarAndSolarFestivalsOnTheSameDayAreBothRetainedInTheMonthGrid() {
         val date = PlainDate.of(2020, 10, 1)
-        val data = CalendarData.create(date)
-        assertEquals(listOf("中秋节", "国庆节"), data.festivals)
-        assertEquals(data.festivals, data.cells.single { it.date == date }.festivals)
+        val cell = cellOf(date)
+        assertEquals(listOf("中秋节", "国庆节"), cell.festivals)
     }
 
     @Test fun seasonalStartDatesMatchCalendarModsRules() {
-        val first = CalendarData.create(PlainDate.of(2024, 12, 21))
-        assertTrue(first.festivals.containsAll(listOf("冬至", "一九")))
-        assertFalse(CalendarData.create(PlainDate.of(2024, 12, 22)).festivals.contains("一九"))
+        assertTrue(cellOf(PlainDate.of(2024, 12, 21)).festivals.containsAll(listOf("冬至", "一九")))
+        assertFalse(cellOf(PlainDate.of(2024, 12, 22)).festivals.contains("一九"))
     }
 
     @Test fun actualAlmanacReplacesDecorativeSuitabilityText() {
-        // Recorded from the same tyme4j 1.5.1 entry points used by CalendarMods LunarAlmanac.
+        // Recorded from the same tyme4j 1.5.1 entry points the page prints.
         val data = CalendarData.create(PlainDate.of(2026, 10, 10))
         assertEquals(listOf("嫁娶", "求嗣", "纳采", "进人口", "纳财", "结网"), data.recommends.take(6))
         assertEquals(listOf("上梁", "作灶", "伐木", "出行"), data.avoids.take(4))
@@ -83,16 +78,17 @@ class CalendarDataTest {
         assertEquals("暂无", missing.avoidText(4))
     }
 
-    @Test fun monthGridKeepsLeapDaysAndSundayAlignmentAcrossYearBoundaries() {
+    @Test fun monthGridStartsOnMondayAndKeepsLeapDaysAcrossYearBoundaries() {
         for (year in 2000..2100) for (month in 1..12) {
             val target = PlainMonth(year, month)
             val cells = CalendarData.monthDates(target)
             assertEquals(42, cells.size)
-            assertEquals(7, cells.first().dayOfWeek)
+            assertEquals(1, cells.first().dayOfWeek)
             assertEquals(PlainDate.daysInMonth(year, month), cells.count { PlainMonth.from(it) == target })
             cells.zipWithNext().forEach { (left, right) -> assertEquals(left.plusDays(1), right) }
         }
     }
+
     @Test fun lunarNewYearUsesTheActualLunarDate() {
         for (date in listOf(PlainDate.of(2024, 2, 10), PlainDate.of(2025, 1, 29), PlainDate.of(2026, 2, 17))) {
             val data = CalendarData.create(date)
@@ -100,12 +96,22 @@ class CalendarDataTest {
             assertEquals(1, data.cells.count { it.date == date })
         }
     }
-    @Test fun isoWeekAndRealMonthAreNotDerivedFromReferenceArtwork() {
+
+    @Test fun headerRunsAreDerivedFromTheDate() {
         val data = CalendarData.create(PlainDate.of(2021, 1, 1))
-        assertEquals(53, data.week)
         assertEquals("1", data.day)
-        assertEquals("January", data.month)
+        assertEquals("1月", data.monthLabel)
         assertEquals("星期五", data.weekdayChinese)
         assertEquals(31, data.cells.count { it.inMonth })
     }
+
+    @Test fun firstLunarDayOfAMonthPrintsTheMonthName() {
+        val newYear = PlainDate.of(2026, 2, 17)
+        assertEquals("正月初一", CalendarData.create(newYear).lunar)
+        assertEquals("正月", cellOf(newYear).lunar)
+        assertEquals("初二", cellOf(newYear.plusDays(1)).lunar)
+    }
+
+    private fun cellOf(date: PlainDate): CalendarCell =
+        CalendarData.create(date).cells.single { it.date == date }
 }

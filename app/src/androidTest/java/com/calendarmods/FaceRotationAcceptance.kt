@@ -9,18 +9,16 @@ import android.os.SystemClock
 internal fun Instrumentation.verifyFaceRotation(initial: MainActivity, checks: MutableList<String>) {
     if (Build.VERSION.SDK_INT < 18) return
     val monitor = addMonitor(MainActivity::class.java.name, null, false)
-    val theme = CalendarTheme.GOLDEN
-    val store = ThemeStyleStore(targetContext)
-    val before = store.read(theme)
+    val before = ThemeStyleStore(targetContext).read()
     fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
-    val apply = MainActivity::class.java.getDeclaredMethod("applyStyle", CalendarTheme::class.java, ThemeStyle::class.java).apply { isAccessible = true }
-    val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive", CalendarTheme::class.java).apply { isAccessible = true }
+    val apply = MainActivity::class.java.getDeclaredMethod("applyStyle", ThemeStyle::class.java).apply { isAccessible = true }
+    val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive").apply { isAccessible = true }
     val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
     val active = FaceBrightnessController::class.java.getDeclaredField("active").apply { isAccessible = true }
     val frame = FaceBrightnessController::class.java.getDeclaredField("lastFrame").apply { isAccessible = true }
     var current = initial
     try {
-        runOnMainSync { apply.invoke(current, theme, before.copy(faceBrightness = true)); enter.invoke(current, theme) }
+        runOnMainSync { apply.invoke(current, before.copy(faceBrightness = true)); enter.invoke(current) }
         for (rotation in listOf(0, 1, 2, 3, 0, 1, 0)) {
             val started = SystemClock.elapsedRealtime()
             uiAutomation.setRotation(rotation)
@@ -48,7 +46,7 @@ internal fun Instrumentation.verifyFaceRotation(initial: MainActivity, checks: M
             checks += "real display rotation $rotation: resumed fullscreen camera supplies analysed frames"
         }
     } finally {
-        runOnMainSync { exit.invoke(current); apply.invoke(current, theme, before); current.finish() }
+        runOnMainSync { exit.invoke(current); apply.invoke(current, before); current.finish() }
         targetContext.getSharedPreferences("theme_styles", 0).edit().commit()
         uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE)
         removeMonitor(monitor)

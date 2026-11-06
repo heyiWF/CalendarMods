@@ -6,7 +6,8 @@ import android.graphics.Camera
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -25,24 +26,16 @@ internal class PaperView(context: Context) : View(context) {
         private set
     var style: ThemeStyle = ThemeStyle()
         private set
-    var environment: AlmanacEnvironment = AlmanacEnvironment()
-    var inventory: ThemeInventory = ThemeInventory()
 
     var onLongPress: (() -> Unit)? = null
     var onSwipe: ((Int) -> Unit)? = null
     var onTap: (() -> Unit)? = null
 
-    private var image: Bitmap? = null
-    private var imageGeneration = 0
-    private var imageRequestKey: String? = null
-    private var font: Typeface? = null
+    private var time = clockText()
     private var outgoing: Bitmap? = null
     private var animating = false
     private var animStarted = 0L
-    private var animDuration = 760
 
-    private val icons by lazy { AlmanacIcons(context) }
-    private val artwork by lazy { PeitaiyiArtwork(context) }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val camera = Camera()
     private val matrix = Matrix()
@@ -55,39 +48,31 @@ internal class PaperView(context: Context) : View(context) {
     private var downY = 0f
     private var downAt = 0L
 
-    // The 宜 / 忌 lines page every two seconds while the page is on screen; without a redraw
-    // timer the canvas kept whatever was printed the first time.
-    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
-    private var ticking = false
+    // The clock ticks on the minute and the month grid slides every few seconds; both only need a
+    // redraw when the visible content can actually change.
+    private val ticker = Handler(Looper.getMainLooper())
     private var attached = false
     private val tick = object : Runnable {
         override fun run() {
-            ticking = false
             if (!attached) return
+            time = clockText()
             invalidate()
             scheduleTick()
         }
     }
 
-    fun setPage(theme: CalendarTheme, data: CalendarData, style: ThemeStyle,
-        environment: AlmanacEnvironment, inventory: ThemeInventory, animate: Boolean) {
+    fun setPage(theme: CalendarTheme, data: CalendarData, style: ThemeStyle, animate: Boolean) {
         val previousData = this.data
-        val previousTheme = this.theme
         val changed = previousData != null && previousData.today != data.today
-        if (animate && MotionSettings.enabled(context) && changed && previousTheme?.id == theme.id && width > 0 && height > 0) {
+        if (animate && MotionSettings.enabled(context) && changed && width > 0 && height > 0) {
             snapshotCurrent()
-        } else if (changed || previousTheme?.id != theme.id || this.style != style) {
+        } else if (changed || this.style != style) {
             recycleOutgoing()
         }
         this.theme = theme
         this.data = data
         this.style = style
-        this.environment = environment
-        this.inventory = inventory
-        animDuration = theme.renderer.dayMotion.millis
-        if (theme.renderer.pagesAlmanacLines) startTicker() else stopTicker()
-        font = Ui.themeFont(theme, style, inventory)
-        requestImage()
+        time = clockText()
         invalidate()
     }
 
@@ -113,54 +98,17 @@ internal class PaperView(context: Context) : View(context) {
         outgoing = null
     }
 
-    private fun requestImage() {
-        val theme = theme ?: return
-        val edge = ThemeImages.targetEdge(width, height)
-        val sources = imageSources(theme)
-        val key = "$sources|$edge"
-        if (key == imageRequestKey) return
-        imageRequestKey = key
-        val generation = ++imageGeneration
-        image = ThemeImages.peek(sources, edge)
-        if (image != null || sources.isEmpty()) return
-        Ui.io {
-            val bitmap = ThemeImages.load(context.resources, sources, edge)
-            Ui.post {
-                if (generation == imageGeneration) {
-                    image = bitmap
-                    invalidate()
-                }
-            }
-        }
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        requestImage()
-    }
-
-    private fun imageSources(theme: CalendarTheme): List<ThemeImageSource> {
-        val packaged = inventory.installed.firstOrNull { it.theme.id == theme.id }?.imageFile
-            ?.let { java.io.File(context.filesDir, "themes-v1/$it").absolutePath }
-        val builtIn = Ui.builtInImage(theme.renderer) ?: return emptyList()
-        return listOfNotNull(style.imagePath, packaged).map { ThemeImageSource(path = it) } +
-            ThemeImageSource(resource = builtIn)
-    }
-
     private fun drawPage(canvas: Canvas, theme: CalendarTheme, data: CalendarData) {
         val w = width.toFloat()
         val h = height.toFloat()
         val wide = w > h
         // The page is laid out in design units; the canvas supplies the pixel scale.
         val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
-        val artwork = PageArtwork(theme, data, style, environment, wide, w / unit, h / unit,
-            if (theme.renderer.image == null) null else image,
-            font, icons,
-            if (theme.renderer == ThemeRenderer.PEITAIYI) artwork else null)
-        canvas.drawColor(artwork.paperColor())
+        val page = DailyPage(theme, data, time, wide, w / unit, h / unit,
+            MotionSettings.enabled(context), SystemClock.uptimeMillis())
         canvas.save()
         canvas.scale(unit, unit)
-        artwork.draw(canvas)
+        page.draw(canvas)
         canvas.restore()
     }
 
@@ -173,7 +121,7 @@ internal class PaperView(context: Context) : View(context) {
 
     private fun drawOutgoing(canvas: Canvas) {
         val snapshot = outgoing ?: return
-        val elapsed = (SystemClock.uptimeMillis() - animStarted).toFloat() / animDuration
+        val elapsed = (SystemClock.uptimeMillis() - animStarted).toFloat() / ANIMATION_MS
         val p = DecelerateInterpolator(1.6f).getInterpolation(elapsed.coerceIn(0f, 1f))
         val shade = Math.sin(p * Math.PI).toFloat().coerceAtLeast(0f)
         matrix.reset()
@@ -237,7 +185,7 @@ internal class PaperView(context: Context) : View(context) {
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         attached = true
-        if (theme?.renderer?.pagesAlmanacLines == true) startTicker()
+        scheduleTick()
     }
 
     override fun onDetachedFromWindow() {
@@ -249,23 +197,24 @@ internal class PaperView(context: Context) : View(context) {
 
     override fun onWindowVisibilityChanged(visibility: Int) {
         super.onWindowVisibilityChanged(visibility)
-        if (visibility == VISIBLE && theme?.renderer?.pagesAlmanacLines == true) startTicker() else stopTicker()
-    }
-
-    private fun startTicker() {
-        if (ticking || !attached || windowVisibility != VISIBLE) return
-        scheduleTick()
+        if (visibility == VISIBLE) scheduleTick() else stopTicker()
     }
 
     private fun stopTicker() {
-        ticking = false
         ticker.removeCallbacks(tick)
     }
 
-    /** Land just after each two second boundary so a step is never skipped or shown twice. */
+    /** Wake on the next clock minute or on the next label transition, whichever comes first. */
     private fun scheduleTick() {
+        if (!attached || windowVisibility != VISIBLE) return
         ticker.removeCallbacks(tick)
-        ticker.postDelayed(tick, 2_000 - System.currentTimeMillis() % 2_000 + 24)
-        ticking = true
+        // The clock follows the wall clock, the label slide follows the monotonic timer.
+        val untilMinute = 60_000L - System.currentTimeMillis() % 60_000L
+        val frame = DailyPage.frameDelay(SystemClock.uptimeMillis())
+        ticker.postDelayed(tick, minOf(untilMinute, frame).coerceAtLeast(16L))
+    }
+
+    private companion object {
+        const val ANIMATION_MS = 760f
     }
 }

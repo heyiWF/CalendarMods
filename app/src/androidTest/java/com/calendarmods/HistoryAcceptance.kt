@@ -35,19 +35,19 @@ internal fun Instrumentation.verifyHistoryRegressions(host: MainActivity, checks
     checks += "moved/cancelled gestures never trigger a tap or fullscreen exit"
 
     fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
-    val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive", CalendarTheme::class.java).apply { isAccessible = true }
+    val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive").apply { isAccessible = true }
     val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
     val midnight = MainActivity::class.java.getDeclaredMethod("onNewDate", CalendarDateEvent::class.java).apply { isAccessible = true }
     val browse = MainActivity::class.java.getDeclaredMethod("browse", Int::class.javaPrimitiveType).apply { isAccessible = true }
-    val applyStyle = MainActivity::class.java.getDeclaredMethod("applyStyle", CalendarTheme::class.java, ThemeStyle::class.java).apply { isAccessible = true }
-    val previousStyle = ThemeStyleStore(targetContext).read(CalendarTheme.GOLDEN)
+    val applyStyle = MainActivity::class.java.getDeclaredMethod("applyStyle", ThemeStyle::class.java).apply { isAccessible = true }
+    val previousStyle = ThemeStyleStore(targetContext).read()
     val original = field("data").get(host) as CalendarData
     val start = PlainDate.of(2026, 1, 31)
     try {
         main {
             field("data").set(host, CalendarData.create(start))
-            applyStyle.invoke(host, CalendarTheme.GOLDEN, previousStyle.copy(interactive = true))
-            enter.invoke(host, CalendarTheme.GOLDEN)
+            applyStyle.invoke(host, previousStyle.copy(interactive = true))
+            enter.invoke(host)
             midnight.invoke(host, CalendarDateEvent(start.plusDays(1), false))
         }
         repeat(100) { if ((field("data").get(host) as CalendarData).today != start.plusDays(1)) Thread.sleep(50) }
@@ -64,5 +64,5 @@ internal fun Instrumentation.verifyHistoryRegressions(host: MainActivity, checks
             check(field("browsedDate").get(host) == start.plusDays(4))
         }
         checks += "midnight preserves browsed date and resets paging origin on live/return-to-today pages"
-    } finally { main { exit.invoke(host); field("data").set(host, original); applyStyle.invoke(host, CalendarTheme.GOLDEN, previousStyle) } }
+    } finally { main { exit.invoke(host); field("data").set(host, original); applyStyle.invoke(host, previousStyle) } }
 }

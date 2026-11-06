@@ -38,33 +38,29 @@ internal fun Instrumentation.verifyFaceBrightness(activity: MainActivity, checks
         checks += "AOSP detector: known face and blank NV21 frames at all four rotations"
     } finally { image.recycle() }
 
-    val theme = CalendarTheme.GOLDEN
     val store = ThemeStyleStore(targetContext)
-    for (item in CalendarTheme.entries) {
-        val before = store.read(item)
-        check(!before.faceBrightness)
-        store.save(item, before.copy(faceBrightness = true))
-        check(ThemeStyleStore(targetContext).read(item).faceBrightness)
-        store.save(item, before)
-    }
-    checks += "per-theme opt-in persistence and defaults for all themes"
+    val before = store.read()
+    check(!before.faceBrightness)
+    store.save(before.copy(faceBrightness = true))
+    check(ThemeStyleStore(targetContext).read().faceBrightness)
+    store.save(before)
+    checks += "face-presence opt-in persists and defaults to off"
 
-    val apply = MainActivity::class.java.getDeclaredMethod("applyStyle", CalendarTheme::class.java, ThemeStyle::class.java).apply { isAccessible = true }
-    val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive", CalendarTheme::class.java).apply { isAccessible = true }
+    val apply = MainActivity::class.java.getDeclaredMethod("applyStyle", ThemeStyle::class.java).apply { isAccessible = true }
+    val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive").apply { isAccessible = true }
     val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
     val controllerField = MainActivity::class.java.getDeclaredField("faceBrightness").apply { isAccessible = true }
     val controller = controllerField.get(activity)
     val activeField = FaceBrightnessController::class.java.getDeclaredField("active").apply { isAccessible = true }
     val frameField = FaceBrightnessController::class.java.getDeclaredField("lastFrame").apply { isAccessible = true }
-    val before = store.read(theme)
     var original = -1f
     val started = SystemClock.elapsedRealtime()
     try {
         main {
             original = activity.window.attributes.screenBrightness
-            apply.invoke(activity, theme, before.copy(faceBrightness = true))
+            apply.invoke(activity, before.copy(faceBrightness = true))
             check(!activeField.getBoolean(controller)) { "Camera active outside fullscreen" }
-            enter.invoke(activity, theme)
+            enter.invoke(activity)
         }
         Thread.sleep(4000)
         main {
@@ -95,7 +91,7 @@ internal fun Instrumentation.verifyFaceBrightness(activity: MainActivity, checks
         }
         checks += "fullscreen exit releases capture and restores the original brightness override"
     } finally {
-        main { exit.invoke(activity); apply.invoke(activity, theme, before) }
+        main { exit.invoke(activity); apply.invoke(activity, before) }
         // Instrumentation terminates the process immediately; flush the final asynchronous save.
         targetContext.getSharedPreferences("theme_styles", 0).edit().commit()
     }

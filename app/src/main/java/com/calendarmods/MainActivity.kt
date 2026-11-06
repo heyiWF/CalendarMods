@@ -1,7 +1,6 @@
 package com.calendarmods
 
 import android.app.Activity
-import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Build
@@ -18,22 +17,17 @@ class MainActivity : Activity() {
     private lateinit var paper: PaperView
     private lateinit var preferences: SharedPreferences
     private lateinit var faceBrightness: FaceBrightnessController
-    private var pendingFaceTheme: String? = null
+    private var pendingFaceBrightness = false
     private lateinit var styles: ThemeStyleStore
 
-    private var inventory = ThemeInventory()
-    private var styleValues: Map<String, ThemeStyle> = emptyMap()
+    private var style = ThemeStyle()
     private var data: CalendarData? = null
-    private var environment = AlmanacEnvironment()
-    private var selectedId: String? = null
     private var immersive = false
     private var browsedDate: PlainDate? = null
     private var todayButton: TextView? = null
     private var dayMonitor: CalendarDayMonitor? = null
-    private var ambientMonitor: AlmanacEnvironmentMonitor? = null
     private var loaded = false
     private var styleSheet: StyleSheetDialog? = null
-    private var styleTheme: CalendarTheme? = null
     private var resumed = false
     private var destroyed = false
     private var pageRequest = 0
@@ -41,11 +35,13 @@ class MainActivity : Activity() {
     private var pageOffset = 0
     private var screenAnimation: android.animation.ValueAnimator? = null
 
+    private val theme: CalendarTheme get() = CalendarTheme.DAILY
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferences = getSharedPreferences("calendar", MODE_PRIVATE)
         styles = ThemeStyleStore(this)
-        selectedId = preferences.getString("theme_id", null)
+        style = styles.read()
         root = FrameLayout(this)
         chooser = ChooserView(this)
         if (Build.VERSION.SDK_INT >= 20) {
@@ -59,34 +55,21 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
         faceBrightness = FaceBrightnessController(this, root, ::toast)
-        pendingFaceTheme = savedInstanceState?.getString("pending_face_theme")
+        pendingFaceBrightness = savedInstanceState?.getBoolean("pending_face_brightness") ?: false
 
-        chooser.onSelect = { theme -> enterImmersive(theme) }
-        chooser.onStyle = { theme -> openStyleSheet(theme) }
-        chooser.onPageChanged = { theme ->
-            if (theme != null) {
-                selectedId = theme.id
-                preferences.edit().putString("theme_id", theme.id).apply()
-            }
-        }
+        chooser.onSelect = { enterImmersive() }
+        chooser.onStyle = { openStyleSheet() }
 
         Ui.io {
-            val loadedRepository = ThemeRepository.get(this)
-            val loadedInventory = loadedRepository.inventory
-            val values = loadedInventory.themes.associate { it.id to styles.read(it) }
             val today = SystemCalendarClock.now().localDate()
             val calendar = CalendarData.create(today)
             Ui.post {
                 if (destroyed) return@post
-                inventory = loadedInventory
-                styleValues = values + styleValues
                 data = calendar
                 loaded = true
                 refreshChooser()
-                if (resumed) startMonitors()
-                if (preferences.getBoolean("immersive", false)) {
-                    inventory.themes.firstOrNull { it.id == selectedId }?.let { enterImmersive(it) }
-                }
+                if (resumed) startMonitor()
+                if (preferences.getBoolean("immersive", false)) enterImmersive()
             }
         }
     }
@@ -95,39 +78,24 @@ class MainActivity : Activity() {
         super.onResume()
         resumed = true
         if (!loaded) return
-        // The store writes the chosen theme to the same preference file.
-        val stored = preferences.getString("theme_id", null)
-        if (stored != null && stored != selectedId) {
-            selectedId = stored
-            refreshChooser()
-            if (immersive) currentTheme()?.let { enterImmersive(it) }
-        }
-        startMonitors()
+        startMonitor()
     }
 
     override fun onPause() {
         resumed = false
         faceBrightness.stop()
-        stopMonitors()
+        stopMonitor()
         super.onPause()
     }
 
-    private fun startMonitors() {
-        stopMonitors()
+    private fun startMonitor() {
+        stopMonitor()
         syncFaceBrightness()
-        val theme = currentTheme()
         dayMonitor = CalendarDayMonitor(this) { event -> onNewDate(event) }.also { it.start() }
-        ambientMonitor = AlmanacEnvironmentMonitor(this, theme?.renderer?.isTongSheng == true &&
-            currentStyle(theme).ambientDark) { updated ->
-            val changed = environment.minute != updated.minute || environment.ambientDark != updated.ambientDark
-            environment = updated
-            if (changed) { if (immersive) refreshPage(animate = false) else refreshChooser() }
-        }.also { it.start() }
     }
 
-    private fun stopMonitors() {
+    private fun stopMonitor() {
         dayMonitor?.stop(); dayMonitor = null
-        ambientMonitor?.stop(); ambientMonitor = null
     }
 
     override fun onDestroy() {
@@ -136,18 +104,12 @@ class MainActivity : Activity() {
         pageRequest++
         screenAnimation?.cancel()
         styleSheet?.dismiss()
-        stopMonitors()
+        stopMonitor()
         super.onDestroy()
     }
 
-    private fun currentTheme(): CalendarTheme? =
-        inventory.themes.firstOrNull { it.id == selectedId } ?: inventory.themes.firstOrNull()
-
-    private fun currentStyle(theme: CalendarTheme?): ThemeStyle =
-        theme?.let { styleValues[it.id] ?: it.defaultStyle() } ?: ThemeStyle()
-
     private fun refreshChooser() {
-        chooser.setContent(inventory.themes, data, styleValues, environment, inventory, selectedId)
+        chooser.setContent(theme, data, style)
     }
 
     private var dateRequest = 0
@@ -163,13 +125,12 @@ class MainActivity : Activity() {
                 if (browsedDate == null || browsedDate == previousToday) browsedDate = null
                 refreshChooser()
                 if (immersive) {
-                    val theme = currentTheme() ?: return@post
                     // Browsing another date stays put; only the live page follows midnight.
                     if (browsedDate == null) {
                         pageRequest++
                         pageOffset = 0
-                        paging = CalendarPaging(calendar.today, theme.renderer.pagesByMonth)
-                        paper.setPage(theme, calendar, currentStyle(theme), environment, inventory, event.animate)
+                        paging = CalendarPaging(calendar.today)
+                        paper.setPage(theme, calendar, style, event.animate)
                     }
                     updateTodayButton(calendar.today)
                 }
@@ -177,27 +138,25 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun enterImmersive(theme: CalendarTheme) {
+    private fun enterImmersive() {
         val data = data ?: return
-        selectedId = theme.id
-        preferences.edit().putString("theme_id", theme.id).putBoolean("immersive", true).apply()
         immersive = true
         browsedDate = null
         pageRequest++
-        paging = CalendarPaging(data.today, theme.renderer.pagesByMonth)
+        paging = CalendarPaging(data.today)
         pageOffset = 0
-        paper.setPage(theme, data, currentStyle(theme), environment, inventory, animate = false)
+        paper.setPage(theme, data, style, animate = false)
         paper.onLongPress = { exitImmersive() }
         paper.onTap = { }
-        paper.onSwipe = { direction -> if (currentStyle(theme).interactive) browse(direction) }
+        paper.onSwipe = { direction -> if (style.interactive) browse(direction) }
         if (paper.parent == null) {
             root.addView(paper, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT))
         }
+        preferences.edit().putBoolean("immersive", true).apply()
         animateFullscreen(true)
         setSystemBars(immersive = true)
         updateTodayButton(data.today)
-        chooseAmbient()
         syncFaceBrightness()
     }
 
@@ -213,37 +172,21 @@ class MainActivity : Activity() {
         todayButton?.let { root.removeView(it) }
         todayButton = null
         setSystemBars(immersive = false)
-        chooseAmbient()
         refreshChooser()
         syncFaceBrightness()
     }
 
-    private fun chooseAmbient() {
-        ambientMonitor?.stop(); ambientMonitor = null
-        if (!resumed) return
-        val theme = currentTheme()
-        ambientMonitor = AlmanacEnvironmentMonitor(this, theme?.renderer?.isTongSheng == true &&
-            currentStyle(theme).ambientDark) { updated ->
-            val changed = environment.minute != updated.minute || environment.ambientDark != updated.ambientDark
-            environment = updated
-            if (changed) { if (immersive) refreshPage(animate = false) else refreshChooser() }
-        }.also { it.start() }
-    }
-
     private fun refreshPage(animate: Boolean) {
         if (!immersive) return
-        val theme = currentTheme() ?: return
         val date = browsedDate ?: data?.today ?: return
         val pageData = if (date == data?.today) data!! else CalendarData.create(date)
-        paper.setPage(theme, pageData, currentStyle(theme), environment, inventory, animate)
+        paper.setPage(theme, pageData, style, animate)
     }
 
-    /** Interactive mode: one day, or one month for the paged-by-month renderers. */
+    /** Interactive mode: one day per swipe, clamped to the supported calendar range. */
     private fun browse(direction: Int) {
-        val theme = currentTheme() ?: return
-        val style = currentStyle(theme)
         if (!style.interactive) return
-        val pager = paging ?: CalendarPaging(data?.today ?: return, theme.renderer.pagesByMonth).also { paging = it }
+        val pager = paging ?: CalendarPaging(data?.today ?: return).also { paging = it }
         val target = (pager.home + pageOffset + direction).coerceIn(0, pager.count - 1)
         pageOffset = target - pager.home
         val next = pager.date(target)
@@ -253,7 +196,7 @@ class MainActivity : Activity() {
             val calendar = CalendarData.create(next)
             Ui.post {
                 if (destroyed || !immersive || request != pageRequest) return@post
-                paper.setPage(theme, calendar, currentStyle(theme), environment, inventory, animate = style.pageAnimation)
+                paper.setPage(theme, calendar, style, animate = style.pageAnimation)
                 data?.today?.let { updateTodayButton(it) }
             }
         }
@@ -278,11 +221,8 @@ class MainActivity : Activity() {
                 pageOffset = 0
                 pageRequest++
                 data?.let { calendar ->
-                    currentTheme()?.let { theme ->
-                        paging = CalendarPaging(calendar.today, theme.renderer.pagesByMonth)
-                        paper.setPage(theme, calendar, currentStyle(theme), environment, inventory,
-                            currentStyle(theme).pageAnimation)
-                    }
+                    paging = CalendarPaging(calendar.today)
+                    paper.setPage(theme, calendar, style, style.pageAnimation)
                 }
                 updateTodayButton(data?.today)
             }
@@ -295,90 +235,52 @@ class MainActivity : Activity() {
         button.bringToFront()
     }
 
-    private fun openStyleSheet(theme: CalendarTheme) {
-        styleTheme = theme
-        val dialog = StyleSheetDialog(this, theme, currentStyle(theme), environment, inventory,
-            object : StyleSheetDialog.Listener {
-                override fun onChanged(updated: ThemeStyle) = applyStyle(theme, updated)
-
-                override fun onResetImage() {
-                    val old = currentStyle(theme).imagePath
-                    styles.resetImage(theme)
-                    applyStyle(theme, styles.read(theme))
-                    Ui.io { styles.discard(old) }
-                }
-
-                override fun onPickImage() {
-                    val intent = Intent(Intent.ACTION_GET_CONTENT)
-                    intent.type = "image/*"
-                    try { startActivityForResult(Intent.createChooser(intent, "选择图片"), REQUEST_IMAGE) }
-                    catch (_: android.content.ActivityNotFoundException) { toast("此设备没有可用的图片选择器。") }
-                }
-            })
+    private fun openStyleSheet() {
+        val dialog = StyleSheetDialog(this, theme, style, object : StyleSheetDialog.Listener {
+            override fun onChanged(updated: ThemeStyle) = applyStyle(updated)
+        })
         styleSheet = dialog
         dialog.setOnDismissListener { styleSheet = null }
         dialog.show()
     }
 
-    private fun applyStyle(theme: CalendarTheme, updated: ThemeStyle) {
+    private fun applyStyle(updated: ThemeStyle) {
         if (updated.faceBrightness && !hasCameraPermission()) {
-            pendingFaceTheme = theme.id
-            styleSheet?.update(currentStyle(theme), environment, inventory)
+            pendingFaceBrightness = true
+            styleSheet?.update(style)
             if (Build.VERSION.SDK_INT >= 23) requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQUEST_CAMERA)
             return
         }
-        val previous = currentStyle(theme)
-        if (previous == updated) return
-        styles.save(theme, updated)
-        styleValues = styleValues + (theme.id to updated)
-        styleSheet?.update(updated, environment, inventory)
+        if (style == updated) return
+        style = updated
+        styles.save(updated)
+        styleSheet?.update(updated)
         refreshChooser()
         if (immersive) refreshPage(animate = false)
-        if (previous.ambientDark != updated.ambientDark) chooseAmbient()
         syncFaceBrightness()
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_IMAGE || resultCode != RESULT_OK) return
-        val uri = data?.data ?: return
-        val theme = styleTheme ?: return
-        Ui.io {
-            try {
-                val path = styles.importImage(theme, uri)
-                val old = currentStyle(theme).imagePath
-                Ui.post { if (!destroyed) applyStyle(theme, styles.read(theme).copy(imagePath = path))
-                    else { styles.save(theme, styles.read(theme).copy(imagePath = path)) } }
-                Ui.io { styles.discard(old) }
-            } catch (failure: Exception) {
-                Ui.post { toast("无法读取这张图片，请选择其他图片。") }
-            }
-        }
     }
 
     private fun hasCameraPermission() = Build.VERSION.SDK_INT < 23 ||
         checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     private fun syncFaceBrightness() {
-        if (resumed && immersive && currentStyle(currentTheme()).faceBrightness && hasCameraPermission())
+        if (resumed && immersive && style.faceBrightness && hasCameraPermission())
             faceBrightness.start()
         else faceBrightness.stop()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString("pending_face_theme", pendingFaceTheme)
+        outState.putBoolean("pending_face_brightness", pendingFaceBrightness)
         super.onSaveInstanceState(outState)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != REQUEST_CAMERA) return
-        val id = pendingFaceTheme
-        pendingFaceTheme = null
+        val pending = pendingFaceBrightness
+        pendingFaceBrightness = false
         if (hasCameraPermission()) {
-            // Permission dialogs can outlive recreation and the asynchronous catalog load.
-            val theme = inventory.themes.firstOrNull { it.id == id } ?: CalendarTheme.entries.firstOrNull { it.id == id }
-            theme?.let { applyStyle(it, styles.read(it).copy(faceBrightness = true)) }
+            if (pending) applyStyle(style.copy(faceBrightness = true))
         } else toast("未授予摄像头权限，人脸感应亮屏保持关闭。可再次开启以授权。")
     }
 
@@ -455,7 +357,6 @@ class MainActivity : Activity() {
     private fun dp(value: Float) = value * resources.displayMetrics.density
 
     private companion object {
-        const val REQUEST_IMAGE = 41
         const val REQUEST_CAMERA = 42
     }
 }

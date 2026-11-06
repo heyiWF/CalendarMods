@@ -1,68 +1,30 @@
 package com.calendarmods
 
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Rect
-import android.graphics.RectF
 import android.graphics.Typeface
 import kotlin.math.max
-import kotlin.math.min
 
 internal const val ALIGN_LEFT = 0
 internal const val ALIGN_CENTER = 1
 internal const val ALIGN_RIGHT = 2
 
 /**
- * Design-space printing plate. All coordinates are the same units the Compose version used
- * (360x600 portrait, 640x360 landscape), so the layouts translate one to one.
+ * Design-space printing plate. All coordinates are the units the layout uses (360 wide in
+ * portrait, 640 wide in landscape); the canvas supplies the pixel scale.
  */
-internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private val installedFont: Typeface? = null) {
+internal class Plate(val canvas: Canvas, val ink: Int) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    // Compose's Print defaulted to sans-serif; themes that asked for serif pass it explicitly.
     val sans: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     val serif: Typeface = Typeface.create("serif", Typeface.NORMAL)
     val serifBold: Typeface = Typeface.create("serif", Typeface.BOLD)
     val bold: Typeface = Typeface.create("sans-serif", Typeface.BOLD)
     val light: Typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-    val extraLight: Typeface = weightedFont(light, 200)
-    val medium: Typeface = weightedFont(sans, 500)
-    val extraBold: Typeface = weightedFont(bold, 800)
-    val condensed: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
-
-    fun color(value: Long): Int = value.toInt()
 
     fun rule(x: Float, y: Float, w: Float, color: Int = ink, thickness: Float = .65f) {
         paint.reset(); paint.isAntiAlias = true
         paint.color = color
         canvas.drawRect(x, y, x + w, y + thickness, paint)
-    }
-
-    fun box(x: Float, y: Float, w: Float, h: Float, color: Int = ink, stroke: Float = 0f) {
-        paint.reset(); paint.isAntiAlias = true; paint.color = color
-        if (stroke > 0f) {
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = stroke
-            canvas.drawRect(x, y, x + w, y + h, paint)
-        } else canvas.drawRect(x, y, x + w, y + h, paint)
-    }
-
-    /** The spiral binding used by the yellow pad and the hanging page. */
-    fun rings(x: Float, y: Float, w: Float, h: Float, count: Int, dark: Boolean = false) {
-        if (count <= 0) return
-        val gap = w / count
-        paint.reset(); paint.isAntiAlias = true
-        repeat(count) { index ->
-            val cx = x + gap * (index + .5f)
-            paint.color = 0xFF504B40.toInt()
-            canvas.drawRoundRect(RectF(cx - 4, y + h * .61f, cx + 4, y + h * .61f + 6), 2f, 2f, paint)
-            paint.color = if (dark) 0xFF302D27.toInt() else 0xFF7B7A70.toInt()
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.8f
-            canvas.drawRoundRect(RectF(cx - 2.3f, y, cx + 2.3f, y + h * .82f), 3f, 3f, paint)
-            paint.style = Paint.Style.FILL
-            paint.color = 0xBFFFFFFF.toInt(); paint.strokeWidth = .65f
-            canvas.drawLine(cx - 1.5f, y + 2, cx - 1.5f, y + h * .67f, paint)
-        }
     }
 
     /**
@@ -74,8 +36,7 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
         spacing: Float = 0f, maxLines: Int = Int.MAX_VALUE, typeface: Typeface? = null) {
         if (value.isEmpty() || w <= 0f || h <= 0f) return
         paint.reset(); paint.isAntiAlias = true
-        paint.typeface = installedFont?.let { Typeface.create(it, if (bold || typeface?.isBold == true) Typeface.BOLD else Typeface.NORMAL) }
-            ?: typeface ?: if (bold) this.bold else sans
+        paint.typeface = typeface ?: if (bold) this.bold else sans
         paint.color = color
         var actual = size
         var lines: List<String>
@@ -95,6 +56,38 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
             drawLine(line, x, w, baseline, align, spacing)
             baseline += lineHeight
         }
+    }
+
+    /** One unwrapped line on an explicit baseline; returns the advance so callers align runs. */
+    fun textAt(value: String, x: Float, baseline: Float, size: Float, color: Int = ink,
+        typeface: Typeface? = null, spacing: Float = 0f): Float {
+        if (value.isEmpty()) return 0f
+        paint.reset(); paint.isAntiAlias = true
+        paint.typeface = typeface ?: sans
+        paint.textSize = size
+        paint.color = color
+        if (spacing <= 0f) {
+            canvas.drawText(value, x, baseline, paint)
+            return paint.measureText(value)
+        }
+        // API 14 has no Paint letter spacing: advance per glyph.
+        var cursor = x
+        value.forEach { ch ->
+            canvas.drawText(ch.toString(), cursor, baseline, paint)
+            cursor += paint.measureText(ch.toString()) + spacing
+        }
+        return cursor - x - spacing
+    }
+
+    fun advance(value: String, size: Float, typeface: Typeface? = null, spacing: Float = 0f): Float {
+        if (value.isEmpty()) return 0f
+        paint.reset(); paint.isAntiAlias = true
+        paint.typeface = typeface ?: sans
+        paint.textSize = size
+        if (spacing <= 0f) return paint.measureText(value)
+        var total = spacing * (value.length - 1)
+        value.forEach { total += paint.measureText(it.toString()) }
+        return total
     }
 
     private fun drawLine(line: String, x: Float, w: Float, baseline: Float, align: Int, spacing: Float) {
@@ -120,12 +113,6 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
             canvas.drawText(ch.toString(), cursor, baseline, paint)
             cursor += widths[index] + spacing
         }
-    }
-
-    fun textHeight(value: String, width: Float, size: Float, typeface: Typeface = sans, maxLines: Int = Int.MAX_VALUE): Float {
-        paint.reset(); paint.isAntiAlias = true
-        paint.typeface = installedFont ?: typeface; paint.textSize = size
-        return wrap(value, width, maxLines).size * size * 1.17f
     }
 
     private fun wrap(value: String, width: Float, maxLines: Int): List<String> {
@@ -162,159 +149,8 @@ internal class Plate(val canvas: Canvas, val ink: Int, val paper: Int, private v
         return result
     }
 
-    /**
-     * The oversized date numeral, fitted to the box the layout hands over.
-     *
-     * Drawn from the glyph outline instead of drawText: a vendor ROM can resolve a requested
-     * family to a face that measures but paints nothing, and a degenerate measurement used to
-     * blow the text size up until nothing landed inside the box. Fitting the outline keeps the
-     * numeral inside its band on every screen and falls back to the default face when needed.
-     */
-    fun bigDay(day: String, x: Float, y: Float, w: Float, h: Float, color: Int = ink,
-        typeface: Typeface? = bold, scale: Float = .82f) {
-        if (w <= 1f || h <= 1f || day.isEmpty()) return
-        paint.reset(); paint.isAntiAlias = true
-        paint.color = color
-        paint.typeface = installedFont?.let { Typeface.create(it, if (typeface?.isBold == true) Typeface.BOLD else Typeface.NORMAL) } ?: typeface ?: bold
-        // Keep glyph extraction at a normal size even on old vendor font rasterizers.
-        paint.textSize = 100f
-        val glyph = DateNumerals.glyph(day, paint.typeface)
-        val bounds = glyph.bounds
-        if (bounds.width() < .01f || bounds.height() < .01f) {
-            // A malformed vendor face must not leave the date blank.
-            text(day, x, y, w, h, min(w * .72f, h * .9f), color,
-                typeface = Typeface.DEFAULT_BOLD, maxLines = 1)
-            return
-        }
-        // Same size rule as the Compose original: the text is min(0.72 w, 0.9 h) tall, so 1 and
-        // 28 print at one size; only shrink further when the outline would leave the box.
-        var fit = min(w * .72f, h * .9f) / 100f
-        if (bounds.width() * fit > w || bounds.height() * fit > h) {
-            fit = min(w * scale / bounds.width(), h * scale / bounds.height())
-        }
-        if (!fit.isFinite() || fit <= 0f) return
-        DateNumerals.draw(canvas, glyph,
-            x + (w - bounds.width() * fit) / 2f, y + (h - bounds.height() * fit) / 2f,
-            bounds.width() * fit, bounds.height() * fit, color)
-    }
-
-    /** Sunday-first month grid copied from the Compose layout, including the lunar row. */
-    fun monthGrid(data: CalendarData, x: Float, y: Float, w: Float, h: Float,
-        lunar: Boolean = false, outlined: Boolean = false, small: Boolean = false, color: Int = ink) {
-        val headerHeight = if (small) 16f else 25f
-        val cellWidth = w / 7f
-        val rowHeight = (h - headerHeight) / 6f
-        val header = listOf("日", "一", "二", "三", "四", "五", "六")
-        header.forEachIndexed { index, name ->
-            text(name, x + index * cellWidth, y, cellWidth, headerHeight, if (small) 8f else 10f,
-                color = if (index == 0 || index == 6) 0xFFAD4B42.toInt() else color)
-        }
-        data.cells.chunked(7).forEachIndexed { row, week ->
-            week.forEachIndexed { column, cell ->
-                val cx = x + column * cellWidth
-                val cy = y + headerHeight + row * rowHeight
-                if (outlined) box(cx, cy, cellWidth, rowHeight, color = withAlpha(color, .18f), stroke = .35f)
-                val today = cell.date == data.today
-                val weekend = cell.date.dayOfWeek in listOf(6, 7)
-                val diameter = if (small) 16f else if (lunar) 19f else 24f
-                val fit = min(1f, min(cellWidth / diameter, rowHeight / (diameter + if (lunar) 9f else 0f)))
-                val size = diameter * fit
-                val centerX = cx + cellWidth / 2f
-                val labelHeight = if (lunar) (7f * fit).toInt().coerceAtLeast(1) * 1.17f else 0f
-                val numberTop = cy + (rowHeight - size - labelHeight) / 2f
-                if (today) {
-                    paint.reset(); paint.isAntiAlias = true; paint.color = 0xFFAD4B42.toInt()
-                    canvas.drawCircle(centerX, numberTop + size / 2f, size / 2f, paint)
-                }
-                val numberColor = when {
-                    today -> 0xFFFFFFFF.toInt()
-                    !cell.inMonth -> withAlpha(color, .28f)
-                    weekend -> 0xFFAD4B42.toInt()
-                    else -> color
-                }
-                text(cell.date.dayOfMonth.toString(), centerX - size / 2f, numberTop, size, size,
-                    ((if (small) 9f else 14f) * fit).coerceAtLeast(1f), color = numberColor, bold = today, typeface = if (today) bold else medium)
-                if (lunar) {
-                    val label = cell.festivals.firstOrNull() ?: cell.lunar
-                    val labelColor = when {
-                        !cell.inMonth -> withAlpha(color, .25f)
-                        cell.festivals.isNotEmpty() -> 0xFFAD4B42.toInt()
-                        else -> withAlpha(color, .6f)
-                    }
-                    text(label, cx, numberTop + size, cellWidth, labelHeight,
-                        (7f * fit).coerceAtLeast(1f), color = labelColor, maxLines = 1)
-                }
-            }
-        }
-    }
-
-    fun festival(data: CalendarData, x: Float, y: Float, w: Float, h: Float, size: Float = 12f) {
-        if (data.festivals.isEmpty()) return
-        box(x, y, w, h, color = withAlpha(ink, .6f), stroke = .6f)
-        text(data.festivals.joinToString(" · "), x + 16f, y + 7f, w - 32f, h - 14f, size, maxLines = 2)
-    }
-
-    fun cat(x: Float, y: Float, w: Float, h: Float, color: Int = 0xFF526250.toInt()) {
-        val path = Path().apply {
-            moveTo(x + w * .15f, y + h * .82f)
-            cubicTo(x + w * .6f, y + h * 1.1f, x + w * .85f, y + h * .7f, x + w * .68f, y + h * .5f)
-            lineTo(x + w * .54f, y + h * .5f)
-            lineTo(x + w * .47f, y + h * .16f)
-            lineTo(x + w * .33f, y + h * .3f)
-            lineTo(x + w * .18f, y + h * .14f)
-            close()
-        }
-        paint.reset(); paint.isAntiAlias = true
-        paint.color = withAlpha(color, .3f); canvas.drawPath(path, paint)
-        paint.color = color; paint.style = Paint.Style.STROKE; paint.strokeWidth = 1f
-        canvas.drawPath(path, paint)
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(x + w * .26f, y + h * .42f, 1f, paint)
-        canvas.drawCircle(x + w * .42f, y + h * .42f, 1f, paint)
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = 2f
-        val oval = RectF(x + w * .56f, y + h * .29f, x + w * .92f, y + h * .74f)
-        canvas.drawArc(oval, -80f, 245f, false, paint)
-    }
-
-    fun image(bitmap: Bitmap, x: Float, y: Float, w: Float, h: Float, fill: ImageFill) {
-        val source = Rect(0, 0, bitmap.width, bitmap.height)
-        val target = RectF(x, y, x + w, y + h)
-        when (fill) {
-            ImageFill.STRETCH -> canvas.drawBitmap(bitmap, source, target, imagePaint())
-            ImageFill.CROP -> {
-                val scale = max(w / bitmap.width, h / bitmap.height)
-                val cropW = (w / scale).toInt().coerceIn(1, bitmap.width)
-                val cropH = (h / scale).toInt().coerceIn(1, bitmap.height)
-                val left = (bitmap.width - cropW) / 2
-                val top = (bitmap.height - cropH) / 2
-                canvas.save()
-                canvas.clipRect(target)
-                canvas.drawBitmap(bitmap, Rect(left, top, left + cropW, top + cropH), target, imagePaint())
-                canvas.restore()
-            }
-            ImageFill.FIT -> {
-                val scale = min(w / bitmap.width, h / bitmap.height)
-                val drawW = bitmap.width * scale
-                val drawH = bitmap.height * scale
-                canvas.drawBitmap(bitmap, null,
-                    RectF(x + (w - drawW) / 2f, y + (h - drawH) / 2f, x + (w + drawW) / 2f, y + (h + drawH) / 2f),
-                    imagePaint())
-            }
-        }
-    }
-
-    private fun imagePaint(): Paint {
-        paint.reset(); paint.isAntiAlias = true; paint.isFilterBitmap = true; paint.isDither = true
-        return paint
-    }
-
     companion object {
         fun withAlpha(color: Int, alpha: Float): Int =
             (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)
     }
 }
-
-/** Weighted faces exist only on modern systems; legacy devices retain their platform fallback. */
-internal fun weightedFont(base: Typeface, weight: Int): Typeface =
-    if (android.os.Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight, false)
-    else Typeface.create(base, if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)

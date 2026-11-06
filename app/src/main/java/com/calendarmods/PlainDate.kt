@@ -14,16 +14,8 @@ data class PlainDate(val year: Int, val monthValue: Int, val dayOfMonth: Int) : 
         require(year in 1..9999) { "Unsupported year $year" }
     }
 
-    val lengthOfMonth: Int get() = daysInMonth(year, monthValue)
-
     /** ISO weekday: Monday is 1, Sunday is 7. */
     val dayOfWeek: Int get() = (((toEpochDay() + 3) % 7).toInt() + 7) % 7 + 1
-
-    val dayOfYear: Int get() = (toEpochDay() - PlainDate(year, 1, 1).toEpochDay()).toInt() + 1
-
-    val monthName: String get() = MONTHS[monthValue - 1]
-    val monthShort: String get() = MONTHS_SHORT[monthValue - 1]
-    val weekdayName: String get() = WEEKDAYS[dayOfWeek - 1]
 
     fun plusDays(days: Long): PlainDate = ofEpochDay(toEpochDay() + days)
     fun minusDays(days: Long): PlainDate = plusDays(-days)
@@ -55,11 +47,6 @@ data class PlainDate(val year: Int, val monthValue: Int, val dayOfMonth: Int) : 
     override fun toString(): String = "%04d-%02d-%02d".format(year, monthValue, dayOfMonth)
 
     companion object {
-        private val MONTHS = arrayOf("January", "February", "March", "April", "May", "June", "July",
-            "August", "September", "October", "November", "December")
-        private val MONTHS_SHORT = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-        private val WEEKDAYS = arrayOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-
         fun isLeapYear(year: Int): Boolean = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 
         fun daysInMonth(year: Int, month: Int): Int = when (month) {
@@ -99,21 +86,6 @@ data class PlainDate(val year: Int, val monthValue: Int, val dayOfMonth: Int) : 
             val dayOfYear = (153 * monthPrime + 2) / 5 + day - 1
             val dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
             return era * 146_097 + dayOfEra - 719_468
-        }
-
-        /** ISO-8601 week number of the week-based year. */
-        fun isoWeek(date: PlainDate): Int {
-            val week = (date.dayOfYear - date.dayOfWeek + 10) / 7
-            return when {
-                week < 1 -> weeksInYear(date.year - 1)
-                week > weeksInYear(date.year) -> 1
-                else -> week
-            }
-        }
-
-        private fun weeksInYear(year: Int): Int {
-            val first = PlainDate(year, 1, 1).dayOfWeek
-            return if (first == 4 || (isLeapYear(year) && first == 3)) 53 else 52
         }
     }
 }
