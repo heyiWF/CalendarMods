@@ -105,7 +105,7 @@ internal class PaperView(context: Context) : View(context) {
         // The page is laid out in design units; the canvas supplies the pixel scale.
         val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
         val page = DailyPage(theme, data, time, wide, w / unit, h / unit,
-            MotionSettings.enabled(context), SystemClock.uptimeMillis())
+            MotionSettings.enabled(context), SystemClock.uptimeMillis(), style.fontScale)
         canvas.save()
         canvas.scale(unit, unit)
         page.draw(canvas)

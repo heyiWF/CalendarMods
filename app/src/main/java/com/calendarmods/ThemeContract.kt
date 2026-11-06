@@ -25,7 +25,7 @@ data class CalendarTheme(
 
     companion object {
         val DAILY = CalendarTheme("com.calendarmods.daily", "今朝 · 每日一页",
-            ThemeSurfaces(0xFFE6DFD1, 0xFFF7F3EA, 0xFF4A463F))
+            ThemeSurfaces(0xFFDDC79C, 0xFFF7EBCE, 0xFF443B2B))
 
         val entries: List<CalendarTheme> = listOf(DAILY)
     }

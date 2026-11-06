@@ -108,6 +108,9 @@ internal class StyleSheetDialog(
         content.setPadding(dp(24f).toInt(), dp(20f).toInt(), dp(24f).toInt(), dp(16f).toInt())
         heading(theme.title.substringBefore(" · ") + "样式", 22f)
 
+        slider("字号", "整页按比例放大或缩小；空间不足时自动回收，不会重叠或超出屏幕。") {
+            apply(style.copy(fontScale = it))
+        }
         toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", { style.pageAnimation }) {
             apply(style.copy(pageAnimation = it))
         }
@@ -175,5 +178,64 @@ internal class StyleSheetDialog(
     private fun divider() {
         content.addView(View(activity).apply { setBackgroundColor(0x1F000000) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1).apply { topMargin = dp(8f).toInt() })
+    }
+
+    /** Font scale: one step per percent, so the label and the thumb always agree. */
+    private fun slider(title: String, description: String, onChange: (Float) -> Unit) {
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(6f).toInt(), 0, dp(6f).toInt())
+        }
+        val head = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(label(title, 16f, 0xFF23201C.toInt()).apply {
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val reading = label(percent(style.fontScale), 15f, 0xFF9A6B16.toInt()).apply {
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            gravity = Gravity.END
+        }
+        head.addView(reading, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+        row.addView(head, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+        row.addView(label(description, 13f, 0xFF6B6F66.toInt()).apply {
+            setPadding(0, dp(2f).toInt(), 0, dp(4f).toInt())
+        })
+
+        val bar = android.widget.SeekBar(activity).apply {
+            max = STEPS
+            progress = stepOf(style.fontScale)
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: android.widget.SeekBar, value: Int, fromUser: Boolean) {
+                    if (binding || !fromUser) return
+                    val scale = ThemeStyle.clampFontScale(ThemeStyle.MIN_FONT_SCALE + value * STEP)
+                    reading.text = percent(scale)
+                    onChange(scale)
+                }
+                override fun onStartTrackingTouch(bar: android.widget.SeekBar) {}
+                override fun onStopTrackingTouch(bar: android.widget.SeekBar) {}
+            })
+        }
+        bindings += {
+            bar.progress = stepOf(style.fontScale)
+            reading.text = percent(style.fontScale)
+        }
+        row.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40f).toInt()))
+        content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun stepOf(scale: Float): Int =
+        ((ThemeStyle.clampFontScale(scale) - ThemeStyle.MIN_FONT_SCALE) / STEP).toInt().coerceIn(0, STEPS)
+
+    private fun percent(scale: Float): String =
+        "${(ThemeStyle.clampFontScale(scale) * 100).toInt()}%"
+
+    private companion object {
+        const val STEP = .01f
+        val STEPS = ((ThemeStyle.MAX_FONT_SCALE - ThemeStyle.MIN_FONT_SCALE) / STEP).toInt()
     }
 }
