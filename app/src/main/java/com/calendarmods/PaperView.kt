@@ -54,12 +54,12 @@ internal class PaperView(context: Context) : View(context) {
     // redraw when the visible content can actually change.
     private val ticker = Handler(Looper.getMainLooper())
     private var attached = false
+    private var labelDelay = Long.MAX_VALUE
     private val tick = object : Runnable {
         override fun run() {
             if (!attached) return
             face = clockFace(style.hour24)
             invalidate()
-            scheduleTick()
         }
     }
 
@@ -114,6 +114,7 @@ internal class PaperView(context: Context) : View(context) {
         canvas.scale(unit, unit)
         page.draw(canvas)
         canvas.restore()
+        labelDelay = page.labelDelay
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -121,6 +122,9 @@ internal class PaperView(context: Context) : View(context) {
         val data = data ?: return
         drawPage(canvas, theme, data)
         if (animating && outgoing != null) drawOutgoing(canvas)
+        // The frame that was just printed knows when the page can look different again, so the
+        // tick is scheduled from here rather than before the draw.
+        scheduleTick()
     }
 
     private fun drawOutgoing(canvas: Canvas) {
@@ -208,13 +212,16 @@ internal class PaperView(context: Context) : View(context) {
         ticker.removeCallbacks(tick)
     }
 
-    /** Wake on the next clock minute or on the next label transition, whichever comes first. */
+    /**
+     * Wake on the next clock minute, the next label transition or the next step of a walking
+     * label, whichever comes first.
+     */
     private fun scheduleTick() {
         if (!attached || windowVisibility != VISIBLE) return
         ticker.removeCallbacks(tick)
         // The clock follows the wall clock, the label slide follows the monotonic timer.
         val untilMinute = 60_000L - System.currentTimeMillis() % 60_000L
-        val frame = DailyPage.frameDelay(SystemClock.uptimeMillis())
+        val frame = minOf(DailyPage.frameDelay(SystemClock.uptimeMillis()), labelDelay)
         ticker.postDelayed(tick, minOf(untilMinute, frame).coerceAtLeast(16L))
     }
 

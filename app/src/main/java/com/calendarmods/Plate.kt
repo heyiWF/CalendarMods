@@ -30,11 +30,11 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
 
     /**
      * Prints text inside a box: wrapped, vertically centred, shrunk until it fits the height.
-     * `maxLines` mirrors the Compose ellipsis limit.
+     * Text is never truncated, so a caller that cannot grow the box must measure first.
      */
     fun text(value: String, x: Float, y: Float, w: Float, h: Float, size: Float,
         color: Int = ink, bold: Boolean = false, align: Int = ALIGN_CENTER,
-        spacing: Float = 0f, maxLines: Int = Int.MAX_VALUE, typeface: Typeface? = null) {
+        spacing: Float = 0f, typeface: Typeface? = null) {
         if (value.isEmpty() || w <= 0f || h <= 0f) return
         paint.reset(); paint.isAntiAlias = true
         paint.typeface = typeface ?: if (bold) this.bold else sans
@@ -43,7 +43,7 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
         var lines: List<String>
         while (true) {
             paint.textSize = actual
-            lines = wrap(value, w, maxLines)
+            lines = wrap(value, w)
             val lineHeight = actual * 1.17f
             if (lines.size * lineHeight <= h || actual <= 1f) break
             actual -= max(.5f, actual * .02f)
@@ -134,7 +134,7 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
         }
     }
 
-    private fun wrap(value: String, width: Float, maxLines: Int): List<String> {
+    private fun wrap(value: String, width: Float): List<String> {
         val result = mutableListOf<String>()
         value.split('\n').forEach { paragraph ->
             if (paragraph.isEmpty()) { result += ""; return@forEach }
@@ -156,16 +156,7 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
             }
             if (current.isNotEmpty()) result += current.toString()
         }
-        if (result.isEmpty()) return listOf("")
-        if (result.size > maxLines) {
-            val clipped = result.take(maxLines).toMutableList()
-            val last = clipped.last()
-            var text = last
-            while (text.isNotEmpty() && paint.measureText("$text…") > width) text = text.dropLast(1)
-            clipped[clipped.lastIndex] = "$text…"
-            return clipped
-        }
-        return result
+        return if (result.isEmpty()) listOf("") else result
     }
 
     companion object {

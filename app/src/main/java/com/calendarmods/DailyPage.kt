@@ -33,8 +33,16 @@ internal class DailyPage(
     // The RectF overload of drawRoundRect is API 1; the float form is API 21.
     private val chipRect = RectF()
 
+    /**
+     * Milliseconds until a walking label needs another frame; [Long.MAX_VALUE] when every label is
+     * settled. Read by the host view after [draw] to schedule exactly the redraws the page needs.
+     */
+    var labelDelay = Long.MAX_VALUE
+        private set
+
     fun draw(canvas: Canvas) {
         val p = Plate(canvas, ink)
+        labelDelay = Long.MAX_VALUE
         canvas.drawColor(paper)
         if (wide) landscape(p) else portrait(p)
     }
@@ -373,31 +381,66 @@ internal class DailyPage(
 
     /**
      * One cell label. Cells that carry a festival rotate the lunar name and the festival names
-     * upwards; every cell shares the same timeline so a row never splits its phase.
+     * upwards; every cell shares the same timeline so a row never splits its phase. A name too
+     * long for the cell walks sideways instead of being cut off with an ellipsis.
      */
     private fun rotateLabel(p: Plate, fields: List<String>, x: Float, y: Float, w: Float, h: Float,
         size: Float, color: Int) {
         if (fields.isEmpty()) return
         val checkpoint = p.canvas.save()
         p.canvas.clipRect(x, y, x + w, y + h)
-        if (fields.size == 1 || !motion) {
-            p.text(fields[0], x, y, w, h, size, color, maxLines = 1, typeface = p.serifBold)
+        if (!motion) {
+            drawLabel(p, fields[0], x, y, w, h, size, color, 0L, animate = false)
         } else {
             val phase = now % CYCLE_MS
             val index = ((now / CYCLE_MS) % fields.size).toInt()
-            val next = fields[(index + 1) % fields.size]
-            if (phase < HOLD_MS) {
-                p.text(fields[index], x, y, w, h, size, color, maxLines = 1, typeface = p.serifBold)
+            if (fields.size == 1 || phase < HOLD_MS) {
+                drawLabel(p, fields[index], x, y, w, h, size, color, phase, animate = true)
             } else {
                 val progress = (phase - HOLD_MS).toFloat() / TRANSITION_MS
-                p.text(fields[index], x, y - progress * h, w, h, size, color, maxLines = 1,
-                    typeface = p.serifBold)
-                p.text(next, x, y + (1f - progress) * h, w, h, size, color, maxLines = 1,
-                    typeface = p.serifBold)
+                val next = fields[(index + 1) % fields.size]
+                drawLabel(p, fields[index], x, y - progress * h, w, h, size, color, phase,
+                    animate = true)
+                // The incoming name is already at its first frame, so it starts centred.
+                drawLabel(p, next, x, y + (1f - progress) * h, w, h, size, color, 0L,
+                    animate = true)
             }
         }
         p.canvas.restoreToCount(checkpoint)
     }
+
+    /**
+     * One label line. Short names are centred; a name longer than [LabelMarquee.STATIC_CHARS]
+     * walks left after a short pause so the whole of it is read, and a two-character name that
+     * still overflows (a very large font on a narrow cell) is shrunk to fit — never truncated.
+     */
+    private fun drawLabel(p: Plate, value: String, x: Float, y: Float, w: Float, h: Float,
+        size: Float, color: Int, elapsed: Long, animate: Boolean) {
+        if (value.isEmpty()) return
+        p.paint.reset()
+        p.paint.isAntiAlias = true
+        p.paint.typeface = p.serifBold
+        p.paint.color = color
+        p.paint.textSize = size
+        var width = p.paint.measureText(value)
+        val chars = value.codePointCount(0, value.length)
+        if (!LabelMarquee.scrolls(chars, width, w) || !animate) {
+            if (width > w && width > 0f) {
+                p.paint.textSize = size * w / width
+                width = w
+            }
+            p.canvas.drawText(value, x + (w - width) / 2f, labelBaseline(p, y, h), p.paint)
+            return
+        }
+        val overflow = width - w
+        val progress = LabelMarquee.progress(elapsed, overflow)
+        p.canvas.drawText(value, x - overflow * progress, labelBaseline(p, y, h), p.paint)
+        labelDelay = min(labelDelay, LabelMarquee.delayMillis(elapsed, overflow))
+    }
+
+    /** Baseline that centres one line of the current paint inside the label band. */
+    private fun labelBaseline(p: Plate, y: Float, h: Float): Float =
+        y + h / 2f - (p.paint.descent() + p.paint.ascent()) / 2f
 
     // ------------------------------------------------------------------ layout
 
