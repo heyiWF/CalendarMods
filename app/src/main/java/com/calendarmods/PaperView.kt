@@ -26,6 +26,8 @@ internal class PaperView(context: Context) : View(context) {
         private set
     var style: ThemeStyle = ThemeStyle()
         private set
+    var dark: Boolean = false
+        private set
 
     var onLongPress: (() -> Unit)? = null
     var onSwipe: ((Int) -> Unit)? = null
@@ -61,17 +63,19 @@ internal class PaperView(context: Context) : View(context) {
         }
     }
 
-    fun setPage(theme: CalendarTheme, data: CalendarData, style: ThemeStyle, animate: Boolean) {
+    fun setPage(theme: CalendarTheme, data: CalendarData, style: ThemeStyle, animate: Boolean,
+        dark: Boolean) {
         val previousData = this.data
         val changed = previousData != null && previousData.today != data.today
         if (animate && MotionSettings.enabled(context) && changed && width > 0 && height > 0) {
             snapshotCurrent()
-        } else if (changed || this.style != style) {
+        } else if (changed || this.style != style || this.dark != dark) {
             recycleOutgoing()
         }
         this.theme = theme
         this.data = data
         this.style = style
+        this.dark = dark
         time = clockText()
         invalidate()
     }
@@ -104,7 +108,7 @@ internal class PaperView(context: Context) : View(context) {
         val wide = w > h
         // The page is laid out in design units; the canvas supplies the pixel scale.
         val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
-        val page = DailyPage(theme, data, time, wide, w / unit, h / unit,
+        val page = DailyPage(theme.scheme(dark), data, time, wide, w / unit, h / unit,
             MotionSettings.enabled(context), SystemClock.uptimeMillis(), style.fontScale)
         canvas.save()
         canvas.scale(unit, unit)

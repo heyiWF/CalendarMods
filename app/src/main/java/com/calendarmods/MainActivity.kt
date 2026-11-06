@@ -17,10 +17,12 @@ class MainActivity : Activity() {
     private lateinit var paper: PaperView
     private lateinit var preferences: SharedPreferences
     private lateinit var faceBrightness: FaceBrightnessController
+    private lateinit var darkMode: DarkModeController
     private var pendingFaceBrightness = false
     private lateinit var styles: ThemeStyleStore
 
     private var style = ThemeStyle()
+    private var dark = false
     private var data: CalendarData? = null
     private var immersive = false
     private var browsedDate: PlainDate? = null
@@ -42,6 +44,8 @@ class MainActivity : Activity() {
         preferences = getSharedPreferences("calendar", MODE_PRIVATE)
         styles = ThemeStyleStore(this)
         style = styles.read()
+        darkMode = DarkModeController(this) { applyDark(it) }
+        dark = darkMode.resolve(style)
         root = FrameLayout(this)
         chooser = ChooserView(this)
         if (Build.VERSION.SDK_INT >= 20) {
@@ -54,6 +58,9 @@ class MainActivity : Activity() {
         root.addView(chooser, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(
+            theme.scheme(dark).backdrop.toInt()))
+        setSystemBars(immersive = false)
         faceBrightness = FaceBrightnessController(this, root, ::toast)
         pendingFaceBrightness = savedInstanceState?.getBoolean("pending_face_brightness") ?: false
 
@@ -91,11 +98,13 @@ class MainActivity : Activity() {
     private fun startMonitor() {
         stopMonitor()
         syncFaceBrightness()
+        darkMode.start(style)
         dayMonitor = CalendarDayMonitor(this) { event -> onNewDate(event) }.also { it.start() }
     }
 
     private fun stopMonitor() {
         dayMonitor?.stop(); dayMonitor = null
+        darkMode.stop()
     }
 
     override fun onDestroy() {
@@ -109,7 +118,7 @@ class MainActivity : Activity() {
     }
 
     private fun refreshChooser() {
-        chooser.setContent(theme, data, style)
+        chooser.setContent(theme, data, style, dark)
     }
 
     private var dateRequest = 0
@@ -130,7 +139,7 @@ class MainActivity : Activity() {
                         pageRequest++
                         pageOffset = 0
                         paging = CalendarPaging(calendar.today)
-                        paper.setPage(theme, calendar, style, event.animate)
+                        paper.setPage(theme, calendar, style, event.animate, dark)
                     }
                     updateTodayButton(calendar.today)
                 }
@@ -145,7 +154,7 @@ class MainActivity : Activity() {
         pageRequest++
         paging = CalendarPaging(data.today)
         pageOffset = 0
-        paper.setPage(theme, data, style, animate = false)
+        paper.setPage(theme, data, style, animate = false, dark = dark)
         paper.onLongPress = { exitImmersive() }
         paper.onTap = { }
         paper.onSwipe = { direction -> if (style.interactive) browse(direction) }
@@ -180,7 +189,7 @@ class MainActivity : Activity() {
         if (!immersive) return
         val date = browsedDate ?: data?.today ?: return
         val pageData = if (date == data?.today) data!! else CalendarData.create(date)
-        paper.setPage(theme, pageData, style, animate)
+        paper.setPage(theme, pageData, style, animate, dark)
     }
 
     /** Interactive mode: one day per swipe, clamped to the supported calendar range. */
@@ -196,7 +205,7 @@ class MainActivity : Activity() {
             val calendar = CalendarData.create(next)
             Ui.post {
                 if (destroyed || !immersive || request != pageRequest) return@post
-                paper.setPage(theme, calendar, style, animate = style.pageAnimation)
+                paper.setPage(theme, calendar, style, animate = style.pageAnimation, dark = dark)
                 data?.today?.let { updateTodayButton(it) }
             }
         }
@@ -222,7 +231,7 @@ class MainActivity : Activity() {
                 pageRequest++
                 data?.let { calendar ->
                     paging = CalendarPaging(calendar.today)
-                    paper.setPage(theme, calendar, style, style.pageAnimation)
+                    paper.setPage(theme, calendar, style, style.pageAnimation, dark)
                 }
                 updateTodayButton(data?.today)
             }
@@ -254,10 +263,22 @@ class MainActivity : Activity() {
         if (style == updated) return
         style = updated
         styles.save(updated)
+        darkMode.setStyle(updated)
         styleSheet?.update(updated)
         refreshChooser()
         if (immersive) refreshPage(animate = false)
         syncFaceBrightness()
+    }
+
+    /** The page and the window follow whichever printing the dark-mode source asked for. */
+    private fun applyDark(value: Boolean) {
+        if (dark == value) return
+        dark = value
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(
+            theme.scheme(dark).backdrop.toInt()))
+        setSystemBars(immersive)
+        if (loaded) refreshChooser()
+        if (immersive) refreshPage(animate = false)
     }
 
     private fun hasCameraPermission() = Build.VERSION.SDK_INT < 23 ||
@@ -290,20 +311,23 @@ class MainActivity : Activity() {
 
     private fun setSystemBars(immersive: Boolean) {
         val window = window
+        var flags = View.SYSTEM_UI_FLAG_VISIBLE
         if (immersive) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            var flags = View.SYSTEM_UI_FLAG_LOW_PROFILE or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            flags = View.SYSTEM_UI_FLAG_LOW_PROFILE or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             if (Build.VERSION.SDK_INT >= 16) {
                 flags = flags or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             }
             if (Build.VERSION.SDK_INT >= 19) flags = flags or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            window.decorView.systemUiVisibility = flags
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
         }
+        // 0x2000 is SYSTEM_UI_FLAG_LIGHT_STATUS_BAR (API 23): dark icons for the light sheet.
+        // The flag is written as a literal so the constant is not resolved on older releases.
+        if (!dark && Build.VERSION.SDK_INT >= 23) flags = flags or 0x00002000
+        window.decorView.systemUiVisibility = flags
     }
 
     @android.annotation.SuppressLint("GestureBackNavigation")

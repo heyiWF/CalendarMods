@@ -12,6 +12,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.RadioButton
 import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.math.min
@@ -32,6 +33,7 @@ internal class StyleSheetDialog(
     private val bindings = mutableListOf<() -> Unit>()
     private var binding = false
     private var built = false
+    private var lastHeight = 0
     private val dp = { value: Float -> value * activity.resources.displayMetrics.density }
 
     init {
@@ -82,6 +84,8 @@ internal class StyleSheetDialog(
     private fun refreshBindings() {
         binding = true
         try { bindings.forEach { it() } } finally { binding = false }
+        // Rows are shown and hidden by the selected source, so the sheet re-measures.
+        fitToContent()
     }
 
     /**
@@ -94,7 +98,8 @@ internal class StyleSheetDialog(
         content.post {
             if (!isShowing) return@post
             val measured = content.height
-            if (measured <= 0) return@post
+            if (measured <= 0 || measured == lastHeight) return@post
+            lastHeight = measured
             window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, min(measured, maxHeight))
         }
     }
@@ -111,6 +116,8 @@ internal class StyleSheetDialog(
         slider("字号", "整页按比例放大或缩小；空间不足时自动回收，不会重叠或超出屏幕。") {
             apply(style.copy(fontScale = it))
         }
+        darkSection()
+        divider()
         toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", { style.pageAnimation }) {
             apply(style.copy(pageAnimation = it))
         }
@@ -180,6 +187,107 @@ internal class StyleSheetDialog(
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1).apply { topMargin = dp(8f).toInt() })
     }
 
+    /**
+     * Light / dark printing. Four sources share one switch, so exactly one is selected; the two
+     * hour sliders belong to the night window and only appear while it is in use.
+     */
+    private fun darkSection() {
+        content.addView(label("深色模式", 16f, TITLE).apply {
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setPadding(0, dp(12f).toInt(), 0, dp(2f).toInt())
+        })
+        content.addView(label("整页换成深色纸，也可以交给时间或环境光自动切换。", 13f, MUTED).apply {
+            setPadding(0, 0, 0, dp(4f).toInt())
+        })
+        option("关闭", "始终使用纸张黄的浅色页。", DarkMode.OFF)
+        option("始终深色", "无论时间与环境，都使用深色页。", DarkMode.ON)
+        option("定时切换", "到达设定的时间自动切换，可以跨过午夜。", DarkMode.SCHEDULE)
+        val sensor = DarkModeController.hasLightSensor(activity)
+        option("跟随环境光",
+            if (sensor) "环境变暗时切到深色，变亮时切回浅色。" else "此设备没有光线传感器。",
+            DarkMode.SENSOR, sensor)
+
+        val window = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24f).toInt(), 0, 0, 0)
+            tag = "dark-window"
+        }
+        window.addView(hourSlider("深色开始", { style.darkFrom }) { apply(style.copy(darkFrom = it)) })
+        window.addView(hourSlider("深色结束", { style.darkTo }) { apply(style.copy(darkTo = it)) })
+        bindings += {
+            window.visibility = if (style.darkMode == DarkMode.SCHEDULE) View.VISIBLE else View.GONE
+        }
+        content.addView(window, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    /** One exclusive choice, sized like a settings row so it is easy to tap. */
+    private fun option(title: String, description: String, mode: DarkMode, enabled: Boolean = true) {
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(56f).toInt()
+        }
+        val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(label(title, 15f, TITLE))
+        column.addView(label(description, 12f, MUTED))
+        row.addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val radio = RadioButton(activity).apply {
+            isChecked = style.darkMode == mode
+            isEnabled = enabled
+            setOnCheckedChangeListener { _, checked -> if (checked && !binding) apply(style.copy(darkMode = mode)) }
+        }
+        bindings += { radio.isChecked = style.darkMode == mode }
+        row.isEnabled = enabled
+        row.alpha = if (enabled) 1f else .5f
+        row.setOnClickListener { if (enabled) apply(style.copy(darkMode = mode)) }
+        row.addView(radio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+        content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    /** Night window edge: one step per hour, printed as a 24-hour time. */
+    private fun hourSlider(title: String, current: () -> Int, onChange: (Int) -> Unit): View {
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(2f).toInt(), 0, 0)
+        }
+        val head = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(label(title, 14f, TITLE), LinearLayout.LayoutParams(0,
+            ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val reading = label(hourText(current()), 14f, 0xFF9A6B16.toInt()).apply {
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            gravity = Gravity.END
+        }
+        head.addView(reading, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+        row.addView(head, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+        val bar = android.widget.SeekBar(activity).apply {
+            max = 23
+            progress = ThemeStyle.clampHour(current())
+            tag = "dark-hours"
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: android.widget.SeekBar, value: Int, fromUser: Boolean) {
+                    if (binding || !fromUser) return
+                    reading.text = hourText(value)
+                    onChange(value)
+                }
+                override fun onStartTrackingTouch(bar: android.widget.SeekBar) {}
+                override fun onStopTrackingTouch(bar: android.widget.SeekBar) {}
+            })
+        }
+        bindings += {
+            bar.progress = ThemeStyle.clampHour(current())
+            reading.text = hourText(current())
+        }
+        row.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(36f).toInt()))
+        return row
+    }
+
+    private fun hourText(hour: Int) = String.format("%02d:00", ThemeStyle.clampHour(hour))
+
     /** Font scale: one step per percent, so the label and the thumb always agree. */
     private fun slider(title: String, description: String, onChange: (Float) -> Unit) {
         val row = LinearLayout(activity).apply {
@@ -208,6 +316,7 @@ internal class StyleSheetDialog(
         val bar = android.widget.SeekBar(activity).apply {
             max = STEPS
             progress = stepOf(style.fontScale)
+            tag = "font"
             setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: android.widget.SeekBar, value: Int, fromUser: Boolean) {
                     if (binding || !fromUser) return
@@ -237,5 +346,7 @@ internal class StyleSheetDialog(
     private companion object {
         const val STEP = .01f
         val STEPS = ((ThemeStyle.MAX_FONT_SCALE - ThemeStyle.MIN_FONT_SCALE) / STEP).toInt()
+        val TITLE = 0xFF23201C.toInt()
+        val MUTED = 0xFF6B6F66.toInt()
     }
 }

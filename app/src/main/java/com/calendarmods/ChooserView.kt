@@ -20,6 +20,8 @@ internal class ChooserView(context: Context) : View(context) {
     var theme: CalendarTheme? = null
     var data: CalendarData? = null
     var style: ThemeStyle = ThemeStyle()
+    var dark: Boolean = false
+        private set
 
     var onSelect: (() -> Unit)? = null
     var onStyle: (() -> Unit)? = null
@@ -58,10 +60,11 @@ internal class ChooserView(context: Context) : View(context) {
         invalidate()
     }
 
-    fun setContent(theme: CalendarTheme?, data: CalendarData?, style: ThemeStyle) {
+    fun setContent(theme: CalendarTheme?, data: CalendarData?, style: ThemeStyle, dark: Boolean) {
         this.theme = theme
         this.data = data
         this.style = style
+        this.dark = dark
         invalidate()
     }
 
@@ -80,13 +83,14 @@ internal class ChooserView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val theme = theme ?: return
         val data = data ?: return
-        canvas.drawColor(theme.surfaces.backdrop.toInt())
-        val foreground = theme.surfaces.chrome.toInt()
+        val scheme = theme.scheme(dark)
+        canvas.drawColor(scheme.backdrop.toInt())
+        val foreground = scheme.chrome.toInt()
         val rect = previewRect()
 
         // A soft drop shadow lifts the sheet off the backdrop without a second card.
         paint.reset(); paint.isAntiAlias = true
-        paint.color = 0x1F000000
+        paint.color = if (dark) 0x66000000 else 0x1F000000
         canvas.drawRect(rect.left + dp(2f), rect.top + dp(4f), rect.right + dp(2f), rect.bottom + dp(4f), paint)
 
         drawPreview(canvas, theme, data, rect)
@@ -132,12 +136,12 @@ internal class ChooserView(context: Context) : View(context) {
         val scale = min(1f, PREVIEW_EDGE / maxOf(rect.width(), rect.height()))
         val bw = (w * scale).toInt().coerceAtLeast(1)
         val bh = (h * scale).toInt().coerceAtLeast(1)
-        val key = PreviewCache.key(theme, data, style, bw, bh)
+        val key = PreviewCache.key(theme, data, style, dark, bw, bh)
         val bitmap = PreviewCache.get(key)
         if (bitmap != null) {
             canvas.drawBitmap(bitmap, null, rect, bitmapPaint)
         } else {
-            paint.reset(); paint.isAntiAlias = true; paint.color = theme.surfaces.paper.toInt()
+            paint.reset(); paint.isAntiAlias = true; paint.color = theme.scheme(dark).paper.toInt()
             canvas.drawRect(rect, paint)
             requestPreview(key, theme, data, bw, bh)
         }
@@ -146,9 +150,11 @@ internal class ChooserView(context: Context) : View(context) {
     private fun requestPreview(key: String, theme: CalendarTheme, data: CalendarData, w: Int, h: Int) {
         if (!pending.add(key)) return
         val requestedStyle = style
+        val requestedDark = dark
         Ui.io {
             try {
-                PreviewCache.render(context.applicationContext, key, theme, data, requestedStyle, w, h)
+                PreviewCache.render(context.applicationContext, key, theme, data, requestedStyle,
+                    requestedDark, w, h)
             } finally {
                 Ui.post { pending.remove(key); invalidate() }
             }

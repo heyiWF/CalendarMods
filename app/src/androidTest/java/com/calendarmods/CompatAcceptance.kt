@@ -39,34 +39,40 @@ class CompatAcceptance : Instrumentation() {
                 val scales = listOf(ThemeStyle.MIN_FONT_SCALE, ThemeStyle.DEFAULT_FONT_SCALE,
                     ThemeStyle.MAX_FONT_SCALE)
                 for ((w, h) in listOf(360 to 640, 640 to 360)) {
-                    for (scale in scales) {
-                        val page = PaperView(host)
-                        page.setPage(CalendarTheme.DAILY, data, ThemeStyle(fontScale = scale), false)
-                        page.layout(0, 0, w, h)
-                        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                        page.draw(Canvas(bitmap))
-                        val paper = CalendarTheme.DAILY.surfaces.paper.toInt()
-                        var ink = 0
-                        for (y in 0 until h step 2) for (x in 0 until w step 2) {
-                            if (bitmap.getPixel(x, y) != paper) ink++
-                        }
-                        check(ink > w * h / 200) {
-                            "Page printed almost nothing at $w x $h, scale $scale ($ink pixels)"
-                        }
-                        // The page keeps its bottom border: nothing is clipped off the screen.
-                        for (y in h - 3 until h) for (x in 0 until w) {
-                            check(bitmap.getPixel(x, y) == paper) {
-                                "Ink reached the bottom edge at $w x $h, scale $scale (row $y)"
+                    for (dark in listOf(false, true)) {
+                        val scheme = CalendarTheme.DAILY.scheme(dark)
+                        for (scale in scales) {
+                            val page = PaperView(host)
+                            page.setPage(CalendarTheme.DAILY, data, ThemeStyle(fontScale = scale),
+                                false, dark)
+                            page.layout(0, 0, w, h)
+                            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                            page.draw(Canvas(bitmap))
+                            val paper = scheme.paper.toInt()
+                            var ink = 0
+                            for (y in 0 until h step 2) for (x in 0 until w step 2) {
+                                if (bitmap.getPixel(x, y) != paper) ink++
                             }
+                            check(ink > w * h / 200) {
+                                "Page printed almost nothing at $w x $h, scale $scale, dark $dark ($ink pixels)"
+                            }
+                            // The page keeps its bottom border: nothing is clipped off the screen.
+                            for (y in h - 3 until h) for (x in 0 until w) {
+                                check(bitmap.getPixel(x, y) == paper) {
+                                    "Ink reached the bottom edge at $w x $h, scale $scale, dark $dark (row $y)"
+                                }
+                            }
+                            check(bitmap.getPixel(0, 0) == paper) {
+                                "Page did not fill its top-left corner at $w x $h, dark $dark"
+                            }
+                            File(output, "daily-$w-${(scale * 100).toInt()}-${if (dark) "dark" else "light"}.png")
+                                .outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                            bitmap.recycle()
                         }
-                        File(output, "daily-$w-${(scale * 100).toInt()}.png").outputStream().use {
-                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-                        }
-                        bitmap.recycle()
                     }
                 }
                 checks += "portrait and landscape pages print date, clock, 宜忌 and the month grid" +
-                    " at 85%, 100% and 140% font scale without clipping the page edge"
+                    " at 85%, 100% and 140% on both sheets without clipping the page edge"
 
                 var value = ThemeStyle()
                 lateinit var dialog: StyleSheetDialog
@@ -86,7 +92,8 @@ class CompatAcceptance : Instrumentation() {
                 box.performClick()
                 check(value.pageAnimation && box.isChecked)
                 // The font slider mirrors the stored scale and the sheet keeps its controls.
-                val slider = descendants(decor).filterIsInstance<android.widget.SeekBar>().single()
+                val sliders = descendants(decor).filterIsInstance<android.widget.SeekBar>()
+                val slider = sliders.first { it.tag == "font" }
                 check(slider.max > 0)
                 dialog.update(value.copy(fontScale = ThemeStyle.MAX_FONT_SCALE))
                 check(slider.progress == slider.max) {
@@ -95,13 +102,58 @@ class CompatAcceptance : Instrumentation() {
                 dialog.update(value.copy(fontScale = ThemeStyle.MIN_FONT_SCALE))
                 check(slider.progress == 0) { "Font slider did not reach its minimum" }
                 check(descendants(decor).any { it === label }) { "Font slider rebuilt its controls" }
+
+                // Dark mode: four exclusive choices, exactly one selected, bound two ways.
+                val darkLabel = labels.first { it.text.toString() == "始终深色" }
+                val darkRow = darkLabel.parent.parent as ViewGroup
+                val darkRadio = descendants(darkRow).filterIsInstance<android.widget.RadioButton>().single()
+                check(!darkRadio.isChecked && value.darkMode == DarkMode.OFF)
+                darkRadio.performClick()
+                check(value.darkMode == DarkMode.ON && darkRadio.isChecked) {
+                    "Dark mode radio did not reach the stored style"
+                }
+                check(descendants(decor).filterIsInstance<android.widget.RadioButton>().count { it.isChecked } == 1) {
+                    "Dark mode choices are not exclusive"
+                }
+                dialog.update(value.copy(darkMode = DarkMode.SCHEDULE))
+                val hourBars = sliders.filter { it.tag == "dark-hours" }
+                val windowRows = descendants(decor).first { it.tag == "dark-window" }
+                check(hourBars.size == 2 && windowRows.visibility == View.VISIBLE) {
+                    "The night window only shows while 定时切换 is in use"
+                }
+                check(hourBars[0].progress == ThemeStyle.DEFAULT_DARK_FROM)
+                check(hourBars[1].progress == ThemeStyle.DEFAULT_DARK_TO)
+                dialog.update(value.copy(darkMode = DarkMode.ON))
+                check(windowRows.visibility == View.GONE) {
+                    "The night window stayed visible for a fixed source"
+                }
+                dialog.update(value.copy(darkMode = DarkMode.OFF))
                 dialog.dismiss()
-                checks += "style sheet: label/checkbox parity, font slider binding and stable controls"
+                checks += "style sheet: label/checkbox parity, font slider binding, exclusive dark" +
+                    " mode choices and the night-window rows"
             }
-            val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive").apply { isAccessible = true }
-            val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
+            // A forced dark style must reach the window, the chooser and the retained page.
+            val applyStyle = MainActivity::class.java
+                .getDeclaredMethod("applyStyle", ThemeStyle::class.java).apply { isAccessible = true }
+            val darkField = MainActivity::class.java.getDeclaredField("dark").apply { isAccessible = true }
+            val chooserField = MainActivity::class.java.getDeclaredField("chooser").apply { isAccessible = true }
             val paperField = MainActivity::class.java.getDeclaredField("paper").apply { isAccessible = true }
             val page = paperField.get(host) as PaperView
+            checkedMain { applyStyle.invoke(host, ThemeStyle(darkMode = DarkMode.ON)) }
+            Thread.sleep(250)
+            checkedMain {
+                check(darkField.getBoolean(host)) { "Dark mode did not reach the window" }
+                check((chooserField.get(host) as ChooserView).dark) { "The chooser kept the light sheet" }
+            }
+            checkedMain { applyStyle.invoke(host, ThemeStyle()) }
+            Thread.sleep(250)
+            checkedMain {
+                check(!darkField.getBoolean(host)) { "The light sheet did not come back" }
+                check(!(chooserField.get(host) as ChooserView).dark)
+            }
+            checks += "forced dark mode reaches the window and the chooser, and reverts cleanly"
+            val enter = MainActivity::class.java.getDeclaredMethod("enterImmersive").apply { isAccessible = true }
+            val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
             checkedMain { enter.invoke(host) }
             Thread.sleep(100)
             checkedMain {

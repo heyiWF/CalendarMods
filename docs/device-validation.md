@@ -1,68 +1,50 @@
-# CalendarMods 0.1.0 设备验收
+# 设备验收
 
-首次验收日期：2026-10-11；全屏过渡复验：2026-10-12。独立 Jetpack Compose 工程，包名 `com.calendarmods`，最低 Android 12 / API 31。
+验收对象：`mycompat` 分支的单页版式（**今朝 · 每日一页**），含深色模式。
 
 ## 构建与设备
 
-- `testDebugUnitTest assembleDebug assembleDebugAndroidTest lintDebug --offline --no-daemon` 构建成功。
-- 10 个单元测试通过，0 失败：2000–2100 年月份格子及闰日、农历新年、跨年周序、节气首日、同日多节日、入九、真实宜忌、午夜和夏令时日长。
+- 构建命令：`testDebugUnitTest assembleDebug assembleDebugAndroidTest lintDebug --offline`。
+- 38 个 JVM 单元测试通过，0 失败：历法、分页、字号缩放边界、配色对比度、夜间窗口、光线迟滞与人脸相关规则。
 - Lint：`No issues found.`
-- ADB 设备：`emulator-5554`，Android 15 / API 35，1440 × 2560，density 360，字体缩放 1.0。本轮没有另行使用 Android 12 设备。
-- 设备手势与日期验收最终结果：`PASS 52 checks`。
+- ADB 设备：`emulator-5554`，Android 15 / API 35，1440 × 2560，density 360，字体缩放 1.0。
 
-## 沉浸显示
+## 页面渲染
 
-- 七种主题分别完成竖屏和横屏验收：左右滑动选择、单击进入全屏、长按返回同一主题；保留短滑回弹和反向滑动行为。
-- 沉浸页占满窗口，选择页标题、页码和提示隐藏；检查系统栏隐藏及屏幕常亮标志。返回选择页恢复系统栏和正常熄屏策略。
-- 设备采用硬件导航，没有软件导航栏 InsetsSource；状态栏隐藏经过设备验证，退出时导航状态与设备原值一致。软件导航栏的实际显示效果尚未单独验证。
-- 七主题适配横竖屏：照片与月历、日期与说明在横屏重新排列。修正慢笺横屏农历截断、岁时竖屏月历最后一行空间不足。
-- 沉浸模式在左横屏、右横屏和竖屏重建后保留；普通单击和左右滑动不会退出或换主题。
-- 从桌面回到 App 后继续隐藏系统栏；系统返回操作回到选择页。
-- 另行通过冷启动验证：进入第七个悬挂日历主题，强制停止并重新打开后，仍为沉浸模式，显示实际日期 2026-10-11。
-- 验收后恢复时区 `Asia/Shanghai`、`accelerometer_rotation=1`、`user_rotation=0`；字体缩放保持 1.0、自动时间保持开启。测试包已卸载，设备上保留新版 App，并停在第七主题的沉浸显示。
+- `CompatAcceptance` 用例在设备上逐张渲染 **竖屏 360 × 640** 与 **横屏 640 × 360** × **85% / 100% / 140%** 字号 × **浅色 / 深色** 两种印法，共 12 张，全部 PASS。
+- 每张渲染图检查两件事：整页确实印出了内容（非纸色像素 > 千分之五）；**画面最底三行像素必须仍是纸色**，即没有任何内容被裁切到屏幕外。左上角像素必须是所选印法的纸色，确保整页铺满。
+- 人工核对：日期行（“11月 7 日 星期六” + 右侧农历）同基线对齐，日号明显更大更粗；时钟、六行七列月历、左下角宜忌在深浅两套配色下都清晰可读；深色页的色块为浅色填充 + 深色字；横屏日期行与分隔线贯穿全宽，月历整体下移并贴住屏幕下沿。
+- 滚动轮播在 11/07（立冬）与 11/22（小雪）等日期上确认：农历与节气/节日每 3 秒上滑切换，同一行的格子同步。
 
-## 动态日期
+## 样式面板
 
-- 沉浸模式前台从 2026-12-31 午夜自动进入 2027-01-01，日期、月份和年份更新；不重启 App，返回选择页后七个主题均使用新日期。
-- 同一测试时刻切换系统时区 Pacific/Kiritimati → Pacific/Honolulu，日期从 2027-01-01 更新为 2026-12-31。
-- 进入后台后改变注入的测试时钟，恢复前台时显示 2028-02-29，并更新农历、节日和宜忌。
-- 恢复生产时钟后显示设备实际日期。测试只注入界面时钟，没有修改设备系统时间。
+- 字号滑块读数与存储值双向一致；拉到 85% / 140% 时机身不出现重叠、覆盖、裁切或超出屏幕。
+- 深色模式四项互斥，选中项与存储值一致；选中「定时切换」后「深色开始 / 深色结束」两条滑块才出现，切回固定来源时隐藏，面板高度随之重新测量。
+- 设备带光线传感器时「跟随环境光」可选；无传感器的设备该项置灰。
+- 翻页动画、人脸感应亮屏、交互式日历三个开关与验收脚本原有断言一致。
 
-## 设备截图
+## 深色模式
 
-截图日期为 2026-10-11，App 实际日期随设备时间变化。素材为生成的替代照片和插画，详见 [素材说明](assets.md)；普通文句属于主题设计，宜忌来自历法计算。
+- 强制「始终深色」后，窗口底色、预览页、全屏页同时换页；切回「关闭」后恢复浅色，均无需重启。
+- 「定时切换」把窗口设为 13:00 – 15:00、设备时间为 01:11 时，页面保持浅色；窗口设为默认 19:00 – 07:00 时为深色，说明本地小时判定与持久化都正常。
+- 「跟随环境光」在模拟器上可选并保持深色（模拟器光线读数处于暗区）；逻辑本身由 `LuxDarkGateTest` 覆盖阈值、迟滞与确认窗口。
+- 偏好在 `theme_styles` 中持久化：`dark_mode`、`dark_from`、`dark_to` 与字号、开关一并保存。
 
-| 主题 | 选择页竖屏 | 选择页横屏 | 沉浸竖屏 | 沉浸横屏 |
-| --- | --- | --- | --- | --- |
-| 晴日 · 黄页台历 | [查看](screenshots/portrait-1-golden.png) | [查看](screenshots/landscape-1-golden.png) | [查看](screenshots/immersive-portrait-1-golden.png) | [查看](screenshots/immersive-landscape-1-golden.png) |
-| 冬日来信 · 插画月历 | [查看](screenshots/portrait-2-teddy.png) | [查看](screenshots/landscape-2-teddy.png) | [查看](screenshots/immersive-portrait-2-teddy.png) | [查看](screenshots/immersive-landscape-2-teddy.png) |
-| 拾光 · 照片台历 | [查看](screenshots/portrait-3-photo.png) | [查看](screenshots/landscape-3-photo.png) | [查看](screenshots/immersive-portrait-3-photo.png) | [查看](screenshots/immersive-landscape-3-photo.png) |
-| 好日 · 字体日历 | [查看](screenshots/portrait-4-good_day.png) | [查看](screenshots/landscape-4-good_day.png) | [查看](screenshots/immersive-portrait-4-good_day.png) | [查看](screenshots/immersive-landscape-4-good_day.png) |
-| 慢笺 · 竖排文句 | [查看](screenshots/portrait-5-verse.png) | [查看](screenshots/landscape-5-verse.png) | [查看](screenshots/immersive-portrait-5-verse.png) | [查看](screenshots/immersive-landscape-5-verse.png) |
-| 岁时 · 复古黄历 | [查看](screenshots/portrait-6-almanac.png) | [查看](screenshots/landscape-6-almanac.png) | [查看](screenshots/immersive-portrait-6-almanac.png) | [查看](screenshots/immersive-landscape-6-almanac.png) |
-| 一页 · 悬挂日历 | [查看](screenshots/portrait-7-hanging.png) | [查看](screenshots/landscape-7-hanging.png) | [查看](screenshots/immersive-portrait-7-hanging.png) | [查看](screenshots/immersive-landscape-7-hanging.png) |
+## 交互
 
-## 2026-10-12 连续全屏过渡复验
-
-- 日历预览与沉浸页使用共享边界，进入时从当前纸张位置放大到全屏，退出时缩回同一位置；约 460 ms，遵循系统动画时长设置。
-- 纸张内容在缩放中交接，标题与提示独立淡入淡出。使用固定的系统栏安全区，退出动画完成后再恢复系统栏，避免纸张在途中跳位。
-- 过渡期间暂停主题滑动及重复进入；进入途中按系统返回键可反向收回，横竖屏均检查预览最终位置和尺寸与进入前一致。
-- 最终 APK 在同一 Android 15 ADB 设备上通过 **54 项检查**，包括原有七主题、系统栏、日期、时区、后台恢复及旋转验收。测试读取最新可访问节点，并等待旧页面真正移除，避免动画中的缓存节点造成误判。
-- 10 个 JVM 单元测试通过；`lintDebug` 为 `No issues found.`。本轮没有额外验证 Android 12 设备或软件导航栏设备。
-- 分别录制竖屏、横屏的进入、长按退出、快速返回和再次进入，并检查中间帧。以下逐帧图每行按时间从左到右排列，记录实际设备渲染；不以录屏帧率作为性能基准。
-
-| 竖屏过渡中间帧 | 横屏过渡中间帧 |
-| --- | --- |
-| [查看](screenshots/transition-portrait.jpg) | [查看](screenshots/transition-landscape.jpg) |
-
-验收后卸载测试包，保留新版 App；恢复 `Asia/Shanghai`、`accelerometer_rotation=1`、`user_rotation=0`，系统动画倍率保持 `1.0`。设备停在小熊主题的选择页，可直接单击体验过渡。
+- 单击进入全屏、长按或返回键退回预览；进入途中按返回可反向收回，预览与全屏页衔接不跳位。
+- 滑动或误触不会触发全屏或退出；开启交互式日历后左右滑动切换日期，离开今天时出现“回到今天”。
+- 前台跨过午夜自动换日并播放翻页动画；从后台返回时直接同步到当天。
+- 验收后恢复屏幕方向与自动旋转设置，清空应用数据回到默认样式。
 
 ## 复现
 
-构建和设备验收命令见 [README](../README.md#验证)。测试包 `CalendarAcceptanceInstrumentation` 输出逐项结果；CI 执行 JVM 单元测试和 Lint，设备交互测试通过 ADB 单独运行。
+```bash
+./gradlew :app:testDebugUnitTest :app:lintDebug --offline
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --offline
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w com.calendarmods.test/com.calendarmods.CompatAcceptance
+```
 
-后台测试会等待桌面完成切换，再通过系统命令重新打开 App，以避免桌面尚未完成恢复就立即再次启动造成的设备过渡超时。
-
-APK：`app/build/outputs/apk/debug/app-debug.apk`。CI 使用独立 Debug 签名，各次构建的校验值随 APK 存放在 `SHA256SUMS.txt` 中。
-
-2026-10-12 本地验收 APK SHA-256：`767EA43B99314520DC5BB055642F5992AA9E7D77493D724EE3DC442331BC7BED`。
+验收渲染图会写入设备的 `Android/data/com.calendarmods/files/acceptance/`，可用 `adb pull` 取回逐张核对。

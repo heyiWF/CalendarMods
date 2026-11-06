@@ -15,7 +15,7 @@ import kotlin.math.min
  * drop below [MIN_CELL]. Nothing is clipped, overlapped or pushed off the page at any slider step.
  */
 internal class DailyPage(
-    private val theme: CalendarTheme,
+    private val scheme: PageScheme,
     private val data: CalendarData,
     private val time: String,
     private val wide: Boolean,
@@ -25,10 +25,11 @@ internal class DailyPage(
     private val now: Long,
     private val userScale: Float = 1f,
 ) {
-    private val ink = 0xFF14110C.toInt()
-    private val paper = theme.surfaces.paper.toInt()
-    private val red = 0xFFB3362B.toInt()
-    private val green = 0xFF2E6F3E.toInt()
+    private val ink = scheme.ink.toInt()
+    private val paper = scheme.paper.toInt()
+    private val red = scheme.accent.toInt()
+    private val green = scheme.herb.toInt()
+    private val onAccent = scheme.onAccent.toInt()
     // The RectF overload of drawRoundRect is API 1; the float form is API 21.
     private val chipRect = RectF()
 
@@ -208,7 +209,7 @@ internal class DailyPage(
         val radius = chipH * .3f
         chipRect.set(layout.almanacX, top, layout.almanacX + chipW, top + chipH)
         p.canvas.drawRoundRect(chipRect, radius, radius, p.paint)
-        p.text(label, layout.almanacX, top, chipW, chipH, chipSize, paper,
+        p.text(label, layout.almanacX, top, chipW, chipH, chipSize, onAccent,
             align = ALIGN_CENTER, typeface = p.serifBold)
 
         val textX = layout.almanacX + chipW + chipSize * .6f
