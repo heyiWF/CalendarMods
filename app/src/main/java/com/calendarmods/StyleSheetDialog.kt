@@ -113,26 +113,24 @@ internal class StyleSheetDialog(
         content.setPadding(dp(24f).toInt(), dp(20f).toInt(), dp(24f).toInt(), dp(16f).toInt())
         heading(theme.title.substringBefore(" · ") + "样式", 22f)
 
-        slider("字号", "整页按比例放大或缩小；空间不足时自动回收，不会重叠或超出屏幕。") {
+        slider("字号", "整页等比缩放，不会重叠") {
             apply(style.copy(fontScale = it))
         }
-        toggle("24小时制", "关闭后按 12 小时制显示时间，例如“上午9:05”；上午/下午与数字同号。",
-            { style.hour24 }) {
+        toggle("24小时制", "关闭后读作上午9:05", { style.hour24 }) {
             apply(style.copy(hour24 = it))
         }
         darkSection()
         divider()
-        toggle("翻页动画", "日期切换时播放动画；关闭后直接切换。", { style.pageAnimation }) {
+        toggle("翻页动画", "关闭后日期直接切换", { style.pageAnimation }) {
             apply(style.copy(pageAnimation = it))
         }
         val cameraAvailable = FaceBrightnessController.hasCamera()
         toggle("人脸感应亮屏",
-            if (cameraAvailable) "仅全屏时使用摄像头本机检测。有人脸时提亮，连续 8 秒无人脸时降低亮度，日历仍可见。画面不保存、不上传。"
-            else "此设备没有可用摄像头。",
+            if (cameraAvailable) "有人脸提亮，画面不上传" else "此设备无可用摄像头",
             { style.faceBrightness }, enabled = cameraAvailable) {
             apply(style.copy(faceBrightness = it))
         }
-        toggle("交互式日历", "全屏时左右滑动切换日期，点击“回到今天”恢复。", { style.interactive }) {
+        toggle("交互式日历", "左右滑动切换日期，点击回今天", { style.interactive }) {
             apply(style.copy(interactive = it))
         }
         divider()
@@ -200,15 +198,15 @@ internal class StyleSheetDialog(
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             setPadding(0, dp(12f).toInt(), 0, dp(2f).toInt())
         })
-        content.addView(label("整页换成深色纸，也可以交给时间或环境光自动切换。", 13f, MUTED).apply {
+        content.addView(label("整页换成深色纸，可手动或自动", 13f, MUTED).apply {
             setPadding(0, 0, 0, dp(4f).toInt())
         })
-        option("关闭", "始终使用纸张黄的浅色页。", DarkMode.OFF)
-        option("始终深色", "无论时间与环境，都使用深色页。", DarkMode.ON)
-        option("定时切换", "到达设定的时间自动切换，可以跨过午夜。", DarkMode.SCHEDULE)
+        option("关闭", "始终使用纸张黄的浅色页", DarkMode.OFF)
+        option("始终深色", "无论时间与环境都用深色", DarkMode.ON)
+        option("定时切换", "到达设定时间自动切换", DarkMode.SCHEDULE)
         val sensor = DarkModeController.hasLightSensor(activity)
         option("跟随环境光",
-            if (sensor) "环境变暗时切到深色，变亮时切回浅色。" else "此设备没有光线传感器。",
+            if (sensor) "环境暗时切深色，变亮切回" else "此设备没有光线传感器",
             DarkMode.SENSOR, sensor)
 
         val window = LinearLayout(activity).apply {
