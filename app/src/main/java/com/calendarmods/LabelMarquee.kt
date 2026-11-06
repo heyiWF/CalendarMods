@@ -1,13 +1,17 @@
 package com.calendarmods
 
 /**
- * Timing for a cell label that is wider than the cell. Two characters are always set whole; a
- * longer name waits a beat and then walks left until its last character is in view, so nothing is
- * ever cut off with an ellipsis. Every cell shares one timeline, so a row scrolls in phase.
+ * How a cell label that is wider than its cell is brought into view. Two characters are always set
+ * whole; three are set whole by shrinking them a little; only a name that would have to shrink
+ * below [MIN_FIT] walks sideways. Nothing is ever cut off with an ellipsis. Every cell shares one
+ * timeline, so a row scrolls in phase.
  */
 internal object LabelMarquee {
-    /** Labels up to this many characters never walk; a rare overflow is shrunk to fit instead. */
+    /** Labels up to this many characters are set whole, shrinking only if they overflow. */
     const val STATIC_CHARS = 2
+
+    /** Below this share of the label size a name is too small to read, so it walks instead. */
+    const val MIN_FIT = .62f
 
     /** A beat on the first characters before the walk starts. */
     const val PAUSE_MS = 1_000L
@@ -17,9 +21,16 @@ internal object LabelMarquee {
 
     const val FRAME_MS = 16L
 
-    /** A label walks only when it is longer than [STATIC_CHARS] and does not fit its cell. */
+    /**
+     * A label is set whole while it is up to [STATIC_CHARS] characters or still readable when
+     * shrunk to the cell; a longer name that would fall below [MIN_FIT] walks.
+     */
     fun scrolls(chars: Int, width: Float, cellWidth: Float): Boolean =
-        chars > STATIC_CHARS && width > cellWidth
+        chars > STATIC_CHARS && width > cellWidth && cellWidth / width < MIN_FIT
+
+    /** Share of the label size that sets the whole name inside the cell. */
+    fun fitRatio(width: Float, cellWidth: Float): Float =
+        if (width <= 0f || cellWidth >= width) 1f else cellWidth / width
 
     /** Time the walk needs to bring the last character into view. */
     fun walkMillis(overflow: Float): Long =

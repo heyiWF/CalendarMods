@@ -410,9 +410,10 @@ internal class DailyPage(
     }
 
     /**
-     * One label line. Short names are centred; a name longer than [LabelMarquee.STATIC_CHARS]
-     * walks left after a short pause so the whole of it is read, and a two-character name that
-     * still overflows (a very large font on a narrow cell) is shrunk to fit — never truncated.
+     * One label line. A name that fits — or that still reads when shrunk to the cell (three
+     * characters do) — is set whole and centred. A longer one, whose shrink would fall below
+     * [LabelMarquee.MIN_FIT], walks left after a short pause so every character is read. Neither
+     * path ever truncates or prints “…”.
      */
     private fun drawLabel(p: Plate, value: String, x: Float, y: Float, w: Float, h: Float,
         size: Float, color: Int, elapsed: Long, animate: Boolean) {
@@ -424,9 +425,11 @@ internal class DailyPage(
         p.paint.textSize = size
         var width = p.paint.measureText(value)
         val chars = value.codePointCount(0, value.length)
-        if (!LabelMarquee.scrolls(chars, width, w) || !animate) {
-            if (width > w && width > 0f) {
-                p.paint.textSize = size * w / width
+        if (!animate || !LabelMarquee.scrolls(chars, width, w)) {
+            // Set the whole name: shrink only as far as the cell requires.
+            val ratio = LabelMarquee.fitRatio(width, w)
+            if (ratio < 1f) {
+                p.paint.textSize = size * ratio
                 width = w
             }
             p.canvas.drawText(value, x + (w - width) / 2f, labelBaseline(p, y, h), p.paint)
