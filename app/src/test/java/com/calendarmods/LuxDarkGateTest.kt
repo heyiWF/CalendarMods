@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LuxDarkGateTest {
-    private val gate = LuxDarkGate(darkBelow = 12f, lightAbove = 45f, confirmMillis = 1_200L)
+    private val gate = LuxDarkGate()
 
     @Test fun aBriefReadingCannotFlipTheSheet() {
         assertFalse(gate.update(3f, 0L))
@@ -18,11 +18,11 @@ class LuxDarkGateTest {
 
     @Test fun theBandKeepsTheCurrentPrinting() {
         gate.reset(true)
-        assertTrue("20 lx must not flip a dark page", gate.update(20f, 0L))
-        assertTrue("35 lx must not flip a dark page", gate.update(35f, 5_000L))
+        assertTrue("15 lx must not flip a dark page", gate.update(15f, 0L))
+        assertTrue("20 lx must not flip a dark page", gate.update(20f, 5_000L))
         assertTrue("a bright sample only starts the change", gate.update(400f, 6_000L))
         assertFalse("the change lands once it holds", gate.update(400f, 7_200L))
-        assertFalse("30 lx must not flip a light page", gate.update(30f, 9_000L))
+        assertFalse("20 lx must not flip a light page", gate.update(20f, 9_000L))
         assertFalse("a dim sample only starts the change", gate.update(5f, 10_000L))
         assertTrue("the change lands once it holds", gate.update(5f, 11_200L))
     }

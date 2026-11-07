@@ -8,8 +8,8 @@ package com.calendarmods
  * repaint the page.
  */
 internal class LuxDarkGate(
-    private val darkBelow: Float = 12f,
-    private val lightAbove: Float = 45f,
+    private val darkBelow: Float = 10f,
+    private val lightAbove: Float = 25f,
     private val confirmMillis: Long = 1_200L,
 ) {
     private var dark = false
