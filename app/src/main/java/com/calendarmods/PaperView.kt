@@ -55,6 +55,9 @@ internal class PaperView(context: Context) : View(context) {
     private val ticker = Handler(Looper.getMainLooper())
     private var attached = false
     private var labelDelay = Long.MAX_VALUE
+    // The uptimeMillis the last frame was drawn at; scheduling from the same clock as the draw
+    // keeps the settle frame from being skipped when a slow draw straddles a transition wrap.
+    private var frameNow = 0L
     private val tick = object : Runnable {
         override fun run() {
             if (!attached) return
@@ -108,8 +111,10 @@ internal class PaperView(context: Context) : View(context) {
         val wide = w > h
         // The page is laid out in design units; the canvas supplies the pixel scale.
         val unit = if (wide) minOf(w / 640f, h / 360f) else minOf(w / 360f, h / 600f)
+        val now = SystemClock.uptimeMillis()
+        frameNow = now
         val page = DailyPage(theme.scheme(dark), data, face, wide, w / unit, h / unit,
-            MotionSettings.enabled(context), SystemClock.uptimeMillis(), style.fontScale)
+            MotionSettings.enabled(context), now, style.fontScale)
         canvas.save()
         canvas.scale(unit, unit)
         page.draw(canvas)
@@ -221,7 +226,9 @@ internal class PaperView(context: Context) : View(context) {
         ticker.removeCallbacks(tick)
         // The clock follows the wall clock, the label slide follows the monotonic timer.
         val untilMinute = 60_000L - System.currentTimeMillis() % 60_000L
-        val frame = minOf(DailyPage.frameDelay(SystemClock.uptimeMillis()), labelDelay)
+        // frameDelay reads the drawn frame's timestamp, not a fresh one: a fresh read can wrap a
+        // transition and delay the next redraw by seconds, freezing the incoming label low.
+        val frame = minOf(DailyPage.frameDelay(frameNow), labelDelay)
         ticker.postDelayed(tick, minOf(untilMinute, frame).coerceAtLeast(16L))
     }
 
