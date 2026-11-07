@@ -78,16 +78,32 @@ data class CalendarData(
             if (months.size > 4) months.remove(months.keys.first())
         }
 
+        /**
+         * 「馀事勿取」 and 「诸事不宜」 close the source's lists with a day verdict — "take nothing
+         * else" — instead of one concrete item. The page prints a single verdict at the end of the
+         * 忌 list and keeps 宜 to the concrete recommendations: 「馀事勿取」 fills the slot whenever
+         * the day carries it, 「诸事不宜」 fills it otherwise.
+         */
+        private fun tabooColumns(recommends: List<String>, avoids: List<String>): Pair<List<String>, List<String>> {
+            fun verdict(item: String) = item.endsWith("事勿取") || item == "诸事不宜"
+            val all = recommends + avoids
+            val closing = all.firstOrNull { it.endsWith("事勿取") } ?: all.firstOrNull { verdict(it) }
+            return recommends.filterNot { verdict(it) } to
+                avoids.filterNot { verdict(it) } + listOfNotNull(closing)
+        }
+
         private fun calculate(date: PlainDate): CalendarData {
             val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
             val lunar = solar.lunarDay
+            val (recommends, avoids) = tabooColumns(
+                lunar.recommends.map { it.name }, lunar.avoids.map { it.name })
             return CalendarData(
                 today = date,
                 lunar = lunar.lunarMonth.name + lunar.name,
                 solarTerm = solarTerm(solar),
                 festivals = festivals(solar),
-                recommends = lunar.recommends.map { it.name },
-                avoids = lunar.avoids.map { it.name },
+                recommends = recommends,
+                avoids = avoids,
                 cells = monthCells(PlainMonth.from(date)),
             )
         }
