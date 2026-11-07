@@ -1,6 +1,7 @@
 package com.calendarmods
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.RectF
 import kotlin.math.max
 import kotlin.math.min
@@ -410,8 +411,8 @@ internal class DailyPage(
 
     /**
      * One cell label. Cells that carry a festival rotate the lunar name and the festival names
-     * upwards; every cell shares the same timeline so a row never splits its phase. A name too
-     * long for the cell walks sideways instead of being cut off with an ellipsis.
+     * on one baseline; every cell shares the same timeline so a row never splits its phase. A
+     * name too long for the cell walks sideways instead of being cut off with an ellipsis.
      */
     private fun rotateLabel(p: Plate, fields: List<String>, x: Float, y: Float, w: Float, h: Float,
         size: Float, color: Int) {
@@ -428,11 +429,15 @@ internal class DailyPage(
             } else {
                 val progress = (phase - HOLD_MS).toFloat() / TRANSITION_MS
                 val next = fields[(index + 1) % fields.size]
-                drawLabel(p, fields[index], x, y - progress * h, w, h, size, color, phase,
-                    animate = true)
-                // The incoming name is already at its first frame, so it starts centred.
-                drawLabel(p, next, x, y + (1f - progress) * h, w, h, size, color, 0L,
-                    animate = true)
+                // Both fields stay on the same baseline, so a rotating cell never sits lower
+                // than its neighbours: the old one fades out before the new one fades in.
+                if (progress < .5f) {
+                    drawLabel(p, fields[index], x, y, w, h, size, color, phase, animate = true,
+                        alpha = 1f - progress * 2f)
+                } else {
+                    drawLabel(p, next, x, y, w, h, size, color, 0L, animate = true,
+                        alpha = (progress - .5f) * 2f)
+                }
             }
         }
         p.canvas.restoreToCount(checkpoint)
@@ -445,12 +450,14 @@ internal class DailyPage(
      * path ever truncates or prints “…”.
      */
     private fun drawLabel(p: Plate, value: String, x: Float, y: Float, w: Float, h: Float,
-        size: Float, color: Int, elapsed: Long, animate: Boolean) {
-        if (value.isEmpty()) return
+        size: Float, color: Int, elapsed: Long, animate: Boolean, alpha: Float = 1f) {
+        if (value.isEmpty() || alpha <= 0f) return
         p.paint.reset()
         p.paint.isAntiAlias = true
         p.paint.typeface = p.bold
         p.paint.color = color
+        // Keep the fade of a dimmed out-of-month cell when the field itself is fading.
+        p.paint.alpha = (Color.alpha(color) * alpha).toInt().coerceIn(0, 255)
         p.paint.textSize = size
         var width = p.paint.measureText(value)
         val chars = value.codePointCount(0, value.length)
