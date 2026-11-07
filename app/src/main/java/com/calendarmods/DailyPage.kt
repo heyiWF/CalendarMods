@@ -361,8 +361,12 @@ internal class DailyPage(
     private fun monthGrid(p: Plate, layout: Layout) {
         val names = listOf("一", "二", "三", "四", "五", "六", "日")
         val headerH = layout.gridHeaderH
-        p.rule(layout.gridX, layout.gridY - 7f * layout.scale, layout.gridW,
-            Plate.withAlpha(ink, .22f), .8f)
+        // Landscape: the full-width rule under the date line already sits just above the grid,
+        // so the grid keeps its own rule only on the portrait page.
+        if (!wide) {
+            p.rule(layout.gridX, layout.gridY - 7f * layout.scale, layout.gridW,
+                Plate.withAlpha(ink, .22f), .8f)
+        }
         names.forEachIndexed { index, name ->
             p.text(name, layout.gridX + index * layout.cellW, layout.gridY, layout.cellW, headerH,
                 headerH * .88f, color = if (index >= 5) red else Plate.withAlpha(ink, .8f),

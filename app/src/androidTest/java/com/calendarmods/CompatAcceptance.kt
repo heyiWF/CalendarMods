@@ -74,6 +74,24 @@ class CompatAcceptance : Instrumentation() {
                                         " scale $scale, dark $dark (column $x)"
                                 }
                             }
+                            // Landscape keeps one separator under the date line: the month grid
+                            // must not add a second, fainter rule of its own above the weekday row.
+                            // Anti-aliasing spreads one rule over two rows, so count rule bands.
+                            if (w > h) {
+                                var rules = 0
+                                var inRule = false
+                                for (y in 0 until h / 3) {
+                                    val solid = (w * 55 / 100 until w).count { x ->
+                                        bitmap.getPixel(x, y) != paper
+                                    } > (w - w * 55 / 100) * 17 / 20
+                                    if (solid && !inRule) rules++
+                                    inRule = solid
+                                }
+                                check(rules == 1) {
+                                    "The landscape page printed $rules horizontal rules above the" +
+                                        " month grid at $w x $h, scale $scale (expected 1)"
+                                }
+                            }
                             File(output, "daily-$w-${(scale * 100).toInt()}-${if (dark) "dark" else "light"}.png")
                                 .outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
                             bitmap.recycle()
@@ -81,7 +99,8 @@ class CompatAcceptance : Instrumentation() {
                     }
                 }
                 checks += "portrait and landscape pages print date, clock, 宜忌 and the month grid" +
-                    " at 85%, 100% and 140% on both sheets without clipping the page edge"
+                    " at 85%, 100% and 140% on both sheets without clipping the page edge," +
+                    " and landscape keeps a single separator under the date line"
 
                 // The lunar run can carry a three-character festival on top of a six-character
                 // lunar name. Measure the date line instead of trusting the render: the weekday
@@ -237,12 +256,25 @@ class CompatAcceptance : Instrumentation() {
             Thread.sleep(100)
             checkedMain {
                 if (MotionSettings.enabled(host)) check(page.alpha > 0f && page.alpha < 1f)
+                // Fullscreen owns the whole display: when the navigation bar hides, the page
+                // reaches the physical bottom instead of leaving a strip of window colour.
+                if (android.os.Build.VERSION.SDK_INT >= 17) {
+                    val real = android.graphics.Point()
+                    @Suppress("DEPRECATION")
+                    host.windowManager.defaultDisplay.getRealSize(real)
+                    val decor = host.window.decorView
+                    check(decor.height == real.y && page.height >= decor.height) {
+                        "The page stopped at the system-bar gap: page ${page.height}," +
+                            " decor ${decor.height}, display ${real.y}"
+                    }
+                }
                 exit.invoke(host)
                 check(page.parent != null) { "Interrupted entry removed page before exit animation" }
             }
             Thread.sleep(400)
             checkedMain { check(page.parent == null) }
-            checks += "fullscreen entry/exit animate and interrupted entry retains the outgoing page"
+            checks += "fullscreen entry/exit animate and interrupted entry retains the outgoing page," +
+                " and the fullscreen page reaches the bottom of the display"
             verifyHistoryRegressions(host, checks)
             val result = Bundle().apply { putString("stream", "PASS: ${checks.joinToString("; ")}\n") }
             finish(android.app.Activity.RESULT_OK, result)
