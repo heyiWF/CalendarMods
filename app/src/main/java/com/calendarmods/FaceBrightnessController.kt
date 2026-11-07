@@ -56,7 +56,8 @@ internal class FaceBrightnessController(
 
     fun start() {
         if (active) return
-        if (!hasCamera()) { onError("此设备没有可用摄像头。"); return }
+        // The switch is only offered on devices that report a camera, so this stays a quiet no-op.
+        if (!hasCamera()) return
         active = true
         originalBrightness = activity.window.attributes.screenBrightness
         lastFrame = SystemClock.elapsedRealtime()

@@ -7,10 +7,21 @@ data class CalendarCell(val date: PlainDate, val inMonth: Boolean, val lunar: St
 data class CalendarData(
     val today: PlainDate,
     val lunar: String,
+    /** The solar term that starts on this very day, or null on the other 353 days. */
+    val solarTerm: String?,
+    /** Festivals of this day in the order the source lists them, lunar names first. */
+    val festivals: List<String>,
     val recommends: List<String>,
     val avoids: List<String>,
     val cells: List<CalendarCell>,
 ) {
+    /**
+     * Right side of the date line: the lunar name with the day's solar term, or with the first
+     * festival the source lists, joined without a space — `九月廿九立冬`. A solar term outranks a
+     * festival, and the run is printed once, so the header never rotates.
+     */
+    val lunarHeadline get() = lunar + (solarTerm ?: festivals.firstOrNull()).orEmpty()
+
     fun suitableText(limit: Int) = recommends.take(limit).joinToString(" · ").ifBlank { "暂无" }
     fun avoidText(limit: Int) = avoids.take(limit).joinToString(" · ").ifBlank { "暂无" }
     val day get() = today.dayOfMonth.toString()
@@ -24,13 +35,25 @@ data class CalendarData(
         private val months = LinkedHashMap<PlainMonth, List<CalendarCell>>(2, .75f, true)
 
         // A term labels only its actual starting date, never every day in that two-week period.
-        private fun festivals(solar: SolarDay): List<String> = buildSet {
-            solar.termDay?.takeIf { it.dayIndex == 0 }?.let { add(it.solarTerm.name) }
+        private fun solarTerm(solar: SolarDay): String? =
+            solar.termDay?.takeIf { it.dayIndex == 0 }?.solarTerm?.name
+
+        /** Festivals of one day, in the order the source lists them: lunar names, then solar ones. */
+        private fun festivals(solar: SolarDay): List<String> = buildList {
             solar.lunarDay.festival?.let { add(it.name) }
             solar.festival?.let { add(it.name) }
+        }.distinct()
+
+        /**
+         * Everything the month grid rotates through: the term, the festivals, then the seasonal
+         * markers (数九 / 三伏), which mark a stretch of the year rather than a festival day.
+         */
+        private fun marks(solar: SolarDay): List<String> = buildList {
+            solarTerm(solar)?.let { add(it) }
+            addAll(festivals(solar))
             solar.nineDay?.takeIf { it.dayIndex == 0 }?.let { add(it.nine.name) }
             solar.dogDay?.takeIf { it.dayIndex == 0 }?.let { add(it.dog.name) }
-        }.toList()
+        }.distinct()
 
         /** Monday-first, six complete weeks: Saturday and Sunday close every printed row. */
         fun monthDates(month: PlainMonth): List<PlainDate> {
@@ -49,7 +72,7 @@ data class CalendarData(
             val solar = SolarDay.fromYmd(date.year, date.monthValue, date.dayOfMonth)
             val lunar = solar.lunarDay
             CalendarCell(date, PlainMonth.from(date) == month,
-                if (lunar.day == 1) lunar.lunarMonth.name else lunar.name, festivals(solar))
+                if (lunar.day == 1) lunar.lunarMonth.name else lunar.name, marks(solar))
         }.also {
             months[month] = it
             if (months.size > 4) months.remove(months.keys.first())
@@ -61,6 +84,8 @@ data class CalendarData(
             return CalendarData(
                 today = date,
                 lunar = lunar.lunarMonth.name + lunar.name,
+                solarTerm = solarTerm(solar),
+                festivals = festivals(solar),
                 recommends = lunar.recommends.map { it.name },
                 avoids = lunar.avoids.map { it.name },
                 cells = monthCells(PlainMonth.from(date)),

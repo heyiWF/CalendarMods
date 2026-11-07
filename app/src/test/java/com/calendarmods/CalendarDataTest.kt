@@ -112,6 +112,37 @@ class CalendarDataTest {
         assertEquals("初二", cellOf(newYear.plusDays(1)).lunar)
     }
 
+    @Test fun theDateLineJoinsTheTermToTheLunarNameWithoutASpace() {
+        val lidong = CalendarData.create(PlainDate.of(2026, 11, 7))
+        assertEquals("立冬", lidong.solarTerm)
+        assertEquals("九月廿九立冬", lidong.lunarHeadline)
+        // The other 353 days keep the bare lunar name — no separator, no placeholder.
+        val before = CalendarData.create(PlainDate.of(2026, 11, 6))
+        assertEquals(null, before.solarTerm)
+        assertEquals("九月廿八", before.lunarHeadline)
+    }
+
+    @Test fun aTermOutranksAFestivalOnTheSameDate() {
+        val dongzhi = CalendarData.create(PlainDate.of(2026, 12, 22))
+        assertEquals(listOf("冬至节"), dongzhi.festivals)
+        assertEquals("十一月十四冬至", dongzhi.lunarHeadline)
+    }
+
+    @Test fun theFirstFestivalOfTheDayJoinsTheLunarName() {
+        val nationalDay = CalendarData.create(PlainDate.of(2020, 10, 1))
+        assertEquals(listOf("中秋节", "国庆节"), nationalDay.festivals)
+        assertEquals("八月十五中秋节", nationalDay.lunarHeadline)
+    }
+
+    @Test fun seasonalMarkersRotateInTheGridAndStayOutOfTheDateLine() {
+        val date = PlainDate.of(2024, 12, 21)
+        assertEquals(listOf("冬至", "冬至节", "一九"), cellOf(date).festivals)
+        val data = CalendarData.create(date)
+        assertEquals(listOf("冬至节"), data.festivals)
+        // 数九 is a stretch of the year, so it rotates in the grid and stays out of the date line.
+        assertTrue(data.lunarHeadline.endsWith("冬至"))
+    }
+
     private fun cellOf(date: PlainDate): CalendarCell =
         CalendarData.create(date).cells.single { it.date == date }
 }

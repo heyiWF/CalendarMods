@@ -302,7 +302,7 @@ class MainActivity : Activity() {
         pendingFaceBrightness = false
         if (hasCameraPermission()) {
             if (pending) applyStyle(style.copy(faceBrightness = true))
-        } else toast("未授予摄像头权限，人脸感应亮屏保持关闭。可再次开启以授权。")
+        } else toast("人脸感应亮屏需要摄像头权限，再次开启即可授权。")
     }
 
     private fun toast(message: String) {

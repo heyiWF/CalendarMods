@@ -113,7 +113,7 @@ internal class StyleSheetDialog(
         content.setPadding(dp(24f).toInt(), dp(20f).toInt(), dp(24f).toInt(), dp(16f).toInt())
         heading(theme.title.substringBefore(" · ") + "样式", 22f)
 
-        slider("字号", "整页等比缩放，不会重叠") {
+        slider("字号", "整页等比缩放，版面完整") {
             apply(style.copy(fontScale = it))
         }
         toggle("24小时制", "关闭后读作上午9:05", { style.hour24 }) {
@@ -124,11 +124,11 @@ internal class StyleSheetDialog(
         toggle("翻页动画", "关闭后日期直接切换", { style.pageAnimation }) {
             apply(style.copy(pageAnimation = it))
         }
-        val cameraAvailable = FaceBrightnessController.hasCamera()
-        toggle("人脸感应亮屏",
-            if (cameraAvailable) "有人脸提亮，画面不上传" else "此设备无可用摄像头",
-            { style.faceBrightness }, enabled = cameraAvailable) {
-            apply(style.copy(faceBrightness = it))
+        // Settings whose hardware is present on this device, so every row offered can be used.
+        if (FaceBrightnessController.hasCamera()) {
+            toggle("人脸感应亮屏", "有人脸提亮，画面留本机", { style.faceBrightness }) {
+                apply(style.copy(faceBrightness = it))
+            }
         }
         toggle("交互式日历", "左右滑动切换日期，点击回今天", { style.interactive }) {
             apply(style.copy(interactive = it))
@@ -161,7 +161,7 @@ internal class StyleSheetDialog(
         setTextColor(color)
     }
 
-    private fun toggle(title: String, description: String, checked: () -> Boolean, enabled: Boolean = true,
+    private fun toggle(title: String, description: String, checked: () -> Boolean,
         onChange: (Boolean) -> Unit) {
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -170,13 +170,10 @@ internal class StyleSheetDialog(
         row.addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val box = CheckBox(activity).apply {
             isChecked = checked()
-            isEnabled = enabled
             setOnCheckedChangeListener { _, value -> if (!binding) onChange(value) }
         }
         bindings += { box.isChecked = checked() }
-        row.isEnabled = enabled
-        row.alpha = if (enabled) 1f else .5f
-        row.setOnClickListener { if (enabled) box.performClick() }
+        row.setOnClickListener { box.performClick() }
         row.minimumHeight = dp(72f).toInt()
         row.setPadding(0, dp(8f).toInt(), 0, dp(8f).toInt())
         row.addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -204,10 +201,9 @@ internal class StyleSheetDialog(
         option("关闭", "始终使用纸张黄的浅色页", DarkMode.OFF)
         option("始终深色", "无论时间与环境都用深色", DarkMode.ON)
         option("定时切换", "到达设定时间自动切换", DarkMode.SCHEDULE)
-        val sensor = DarkModeController.hasLightSensor(activity)
-        option("跟随环境光",
-            if (sensor) "环境暗时切深色，变亮切回" else "此设备没有光线传感器",
-            DarkMode.SENSOR, sensor)
+        if (DarkModeController.hasLightSensor(activity)) {
+            option("跟随环境光", "环境暗时切深色，变亮切回", DarkMode.SENSOR)
+        }
 
         val window = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -224,7 +220,7 @@ internal class StyleSheetDialog(
     }
 
     /** One exclusive choice, sized like a settings row so it is easy to tap. */
-    private fun option(title: String, description: String, mode: DarkMode, enabled: Boolean = true) {
+    private fun option(title: String, description: String, mode: DarkMode) {
         val row = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -236,13 +232,10 @@ internal class StyleSheetDialog(
         row.addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val radio = RadioButton(activity).apply {
             isChecked = style.darkMode == mode
-            isEnabled = enabled
             setOnCheckedChangeListener { _, checked -> if (checked && !binding) apply(style.copy(darkMode = mode)) }
         }
         bindings += { radio.isChecked = style.darkMode == mode }
-        row.isEnabled = enabled
-        row.alpha = if (enabled) 1f else .5f
-        row.setOnClickListener { if (enabled) apply(style.copy(darkMode = mode)) }
+        row.setOnClickListener { apply(style.copy(darkMode = mode)) }
         row.addView(radio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT))
         content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,

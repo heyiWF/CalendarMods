@@ -1,7 +1,8 @@
 # Face presence brightness
 
-Each theme has an independent, default-off setting. It requires an available camera and the
-CAMERA runtime permission on Android 6+. Capture runs only while the opted-in theme is fullscreen
+Each theme has an independent, default-off setting, offered in the style sheet on devices that
+report a camera. It requires the CAMERA runtime permission on Android 6+. Capture runs only while
+the opted-in theme is fullscreen
 and the activity is resumed. All cameras exposed by the API are enumerated, ordered by front-facing metadata and then ID.
 A failed camera/configuration falls back to the remaining candidates, with retries at a bounded frequency.
 Front-facing metadata normally identifies the screen-side camera; incorrect OEM metadata,

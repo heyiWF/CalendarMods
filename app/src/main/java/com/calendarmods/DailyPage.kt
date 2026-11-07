@@ -158,9 +158,10 @@ internal class DailyPage(
     // ------------------------------------------------------------------ blocks
 
     /**
-     * Date line: 11月 6日 星期五 with the day's lunar name right-aligned on the same baseline. Every
-     * run is set at the same size, so the line reads as one block rather than a headline and a
-     * footnote; when the line is too wide the whole run gives up size together.
+     * Date line: 11月 6日 星期五 with the day's lunar name right-aligned on the same baseline. The
+     * lunar run carries the day's solar term or first festival without a space — `九月廿九立冬`.
+     * Every run is set at the same size, so the line reads as one block rather than a headline and
+     * a footnote; when the line is too wide the whole run gives up size together.
      */
     private fun header(p: Plate, layout: Layout, x: Float, w: Float, top: Float) {
         val size = HEADER_SIZE * layout.scale * layout.headerScale
@@ -171,11 +172,11 @@ internal class DailyPage(
         cursor += p.textAt("日", cursor, baseline, size, ink, p.serifBold) + GAP_WEEKDAY * size
         p.textAt(data.weekdayChinese, cursor, baseline, size, ink, p.serifBold)
 
-        val lunarWidth = p.advance(data.lunar, size, p.serifBold)
-        p.textAt(data.lunar, x + w - lunarWidth, baseline, size, ink, p.serifBold)
+        val lunarWidth = p.advance(data.lunarHeadline, size, p.serifBold)
+        p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size, ink, p.serifBold)
     }
 
-    /** How much the date line has to give up so the lunar name keeps its space on the right. */
+    /** How much the date line has to give up so the lunar run keeps its space on the right. */
     private fun headerFit(p: Plate, w: Float, scale: Float): Float {
         val needed = headerWidth(p, HEADER_SIZE * scale)
         if (needed <= w) return 1f
@@ -188,7 +189,7 @@ internal class DailyPage(
             p.advance(data.day, size, p.serifBold) + GAP_DAY * size +
             p.advance("日", size, p.serifBold) + GAP_WEEKDAY * size +
             p.advance(data.weekdayChinese, size, p.serifBold) + GAP_LUNAR * size +
-            p.advance(data.lunar, size, p.serifBold)
+            p.advance(data.lunarHeadline, size, p.serifBold)
 
     private fun rule(p: Plate, x: Float, y: Float, w: Float) {
         p.rule(x, y, w, Plate.withAlpha(ink, .55f), 1f)
@@ -486,7 +487,8 @@ internal class DailyPage(
 
         /** The date line is one size: 11月, the day, 日, the weekday and the lunar name all match. */
         private const val HEADER_SIZE = 46f
-        private const val HEADER_MIN = .40f
+        /** Floor for the date line: the lunar run can carry a term or festival, so it can get long. */
+        private const val HEADER_MIN = .30f
         /** Gaps between the runs, in ems of the date line. */
         private const val GAP_MONTH = .12f
         private const val GAP_DAY = .05f
