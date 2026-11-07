@@ -143,6 +143,19 @@ class CalendarDataTest {
         assertTrue(data.lunarHeadline.endsWith("冬至"))
     }
 
+    @Test fun aThreeCharacterFestivalMakesTheLongestDateLineOfTheYear() {
+        // 腊八节 sits on a fifth lunar day name, so the run reaches eight characters — the longest
+        // the source produces in 2026-2028. Nine is the ceiling once a term or festival is joined
+        // to 十一月三十, which is what the date line is measured against.
+        val laba = CalendarData.create(PlainDate.of(2026, 1, 26))
+        assertEquals("腊八节", laba.festivals.single())
+        assertEquals("十二月初八腊八节", laba.lunarHeadline)
+        assertEquals(8, laba.lunarHeadline.length)
+
+        val chongyang = CalendarData.create(PlainDate.of(2026, 10, 18))
+        assertEquals("九月初九重阳节", chongyang.lunarHeadline)
+    }
+
     private fun cellOf(date: PlainDate): CalendarCell =
         CalendarData.create(date).cells.single { it.date == date }
 }

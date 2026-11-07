@@ -158,7 +158,7 @@ internal class DailyPage(
     // ------------------------------------------------------------------ blocks
 
     /**
-     * Date line: 11月 6日 星期五 with the day's lunar name right-aligned on the same baseline. The
+     * Date line: 11月 6日 星期六 with the day's lunar name right-aligned on the same baseline. The
      * lunar run carries the day's solar term or first festival without a space — `九月廿九立冬`.
      * Every run is set at the same size, so the line reads as one block rather than a headline and
      * a footnote; when the line is too wide the whole run gives up size together.
@@ -167,29 +167,53 @@ internal class DailyPage(
         val size = HEADER_SIZE * layout.scale * layout.headerScale
         val baseline = top + size * .86f
         var cursor = x
-        cursor += p.textAt(data.monthLabel, cursor, baseline, size, ink, p.serifBold) + GAP_MONTH * size
-        cursor += p.textAt(data.day, cursor, baseline, size, ink, p.serifBold) + GAP_DAY * size
-        cursor += p.textAt("日", cursor, baseline, size, ink, p.serifBold) + GAP_WEEKDAY * size
-        p.textAt(data.weekdayChinese, cursor, baseline, size, ink, p.serifBold)
+        cursor += p.textAt(data.monthLabel, cursor, baseline, size, ink, p.bold) + GAP_MONTH * size
+        cursor += p.textAt(data.day, cursor, baseline, size, ink, p.bold) + GAP_DAY * size
+        cursor += p.textAt("日", cursor, baseline, size, ink, p.bold) + GAP_WEEKDAY * size
+        p.textAt(data.weekdayChinese, cursor, baseline, size, ink, p.bold)
 
-        val lunarWidth = p.advance(data.lunarHeadline, size, p.serifBold)
-        p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size, ink, p.serifBold)
+        val lunarWidth = p.advance(data.lunarHeadline, size, p.bold)
+        p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size, ink, p.bold)
     }
 
-    /** How much the date line has to give up so the lunar run keeps its space on the right. */
-    private fun headerFit(p: Plate, w: Float, scale: Float): Float {
-        val needed = headerWidth(p, HEADER_SIZE * scale)
+    /**
+     * How much the date line has to give up so the lunar run keeps its space on the right. There is
+     * no floor: the headline can carry a term or festival (`十一月三十重阳节` is nine characters),
+     * and the weekday run clearing the lunar run outranks keeping a minimum size.
+     */
+    private fun headerFit(p: Plate, w: Float, scale: Float, headline: String = data.lunarHeadline): Float {
+        val needed = headerWidth(p, HEADER_SIZE * scale, headline)
         if (needed <= w) return 1f
-        return (w / needed).coerceIn(HEADER_MIN, 1f)
+        return w / needed
     }
+
+    /** Everything left of the lunar run, run gaps included. */
+    private fun headerLeftWidth(p: Plate, size: Float): Float =
+        p.advance(data.monthLabel, size, p.bold) + GAP_MONTH * size +
+            p.advance(data.day, size, p.bold) + GAP_DAY * size +
+            p.advance("日", size, p.bold) + GAP_WEEKDAY * size +
+            p.advance(data.weekdayChinese, size, p.bold)
 
     /** Gaps are em-based, so the whole line gives up size together and never closes up. */
-    private fun headerWidth(p: Plate, size: Float): Float =
-        p.advance(data.monthLabel, size, p.serifBold) + GAP_MONTH * size +
-            p.advance(data.day, size, p.serifBold) + GAP_DAY * size +
-            p.advance("日", size, p.serifBold) + GAP_WEEKDAY * size +
-            p.advance(data.weekdayChinese, size, p.serifBold) + GAP_LUNAR * size +
-            p.advance(data.lunarHeadline, size, p.serifBold)
+    private fun headerWidth(p: Plate, size: Float, headline: String): Float =
+        headerLeftWidth(p, size) + GAP_LUNAR * size + p.advance(headline, size, p.bold)
+
+    /**
+     * Where the two halves of the date line land, measured the way [header] prints them. The
+     * device acceptance pass walks it over every marked day of the year to prove that the weekday
+     * run stops short of the lunar run whatever length the term or festival adds.
+     */
+    internal fun headerSpan(p: Plate, scale: Float, headline: String = data.lunarHeadline): HeaderSpan {
+        val w = width - EDGE * 2f
+        val size = HEADER_SIZE * scale * headerFit(p, w, scale, headline)
+        return HeaderSpan(
+            size = size,
+            leftEnd = EDGE + headerLeftWidth(p, size),
+            lunarLeft = EDGE + w - p.advance(headline, size, p.bold),
+        )
+    }
+
+    internal class HeaderSpan(val size: Float, val leftEnd: Float, val lunarLeft: Float)
 
     private fun rule(p: Plate, x: Float, y: Float, w: Float) {
         p.rule(x, y, w, Plate.withAlpha(ink, .55f), 1f)
@@ -243,7 +267,7 @@ internal class DailyPage(
     private fun almanacRow(p: Plate, layout: Layout, label: String, items: List<String>,
         color: Int, top: Float): Float {
         val chipSize = layout.chipSize
-        val chipW = p.advance(label, chipSize, p.serifBold) + chipSize * .95f
+        val chipW = p.advance(label, chipSize, p.bold) + chipSize * .95f
         val chipH = chipSize * 1.55f
         p.paint.reset()
         p.paint.isAntiAlias = true
@@ -252,7 +276,7 @@ internal class DailyPage(
         chipRect.set(layout.almanacX, top, layout.almanacX + chipW, top + chipH)
         p.canvas.drawRoundRect(chipRect, radius, radius, p.paint)
         p.text(label, layout.almanacX, top, chipW, chipH, chipSize, onAccent,
-            align = ALIGN_CENTER, typeface = p.serifBold)
+            align = ALIGN_CENTER, typeface = p.bold)
 
         val textX = layout.almanacX + chipW + chipSize * .6f
         val textW = (layout.almanacX + layout.almanacW - textX).coerceAtLeast(1f)
@@ -261,7 +285,7 @@ internal class DailyPage(
         var baseline = top + (chipH - lines.size * lineHeight) / 2f + layout.itemSize * 1.02f
         if (baseline < top + layout.itemSize) baseline = top + layout.itemSize
         lines.forEach { line ->
-            p.textAt(line, textX, baseline, layout.itemSize, color, p.serifBold)
+            p.textAt(line, textX, baseline, layout.itemSize, color, p.bold)
             baseline += lineHeight
         }
         return max(chipH, lines.size * lineHeight)
@@ -279,7 +303,7 @@ internal class DailyPage(
     }
 
     private fun almanacHeight(p: Plate, layout: Layout): Float {
-        val chipW = p.advance("宜", layout.chipSize, p.serifBold) + layout.chipSize * .95f
+        val chipW = p.advance("宜", layout.chipSize, p.bold) + layout.chipSize * .95f
         val textW = (layout.almanacW - chipW - layout.chipSize * .6f).coerceAtLeast(1f)
         val lineHeight = layout.itemSize * 1.42f
         val chipH = layout.chipSize * 1.55f
@@ -293,11 +317,11 @@ internal class DailyPage(
     private fun wrapItems(p: Plate, items: List<String>, w: Float, size: Float): List<String> {
         if (items.isEmpty()) return emptyList()
         val separator = "　"
-        val separatorWidth = p.advance(separator, size, p.serifBold)
+        val separatorWidth = p.advance(separator, size, p.bold)
         val lines = mutableListOf(StringBuilder())
         var lineWidth = 0f
         items.forEach { item ->
-            val itemWidth = p.advance(item, size, p.serifBold)
+            val itemWidth = p.advance(item, size, p.bold)
             val hasText = lines.last().isNotEmpty()
             if (hasText && lineWidth + separatorWidth + itemWidth > w) {
                 lines += StringBuilder()
@@ -342,7 +366,7 @@ internal class DailyPage(
         names.forEachIndexed { index, name ->
             p.text(name, layout.gridX + index * layout.cellW, layout.gridY, layout.cellW, headerH,
                 headerH * .88f, color = if (index >= 5) red else Plate.withAlpha(ink, .8f),
-                typeface = p.serifBold)
+                typeface = p.bold)
         }
 
         val labelH = layout.labelSize * 1.24f
@@ -372,7 +396,7 @@ internal class DailyPage(
                         weekend -> red
                         else -> ink
                     },
-                    bold = true, typeface = if (today) p.bold else p.serifBold)
+                    bold = true, typeface = p.bold)
                 val fields = (listOf(cell.lunar) + cell.festivals).distinct()
                 rotateLabel(p, fields, left, rowTop + numberH + 1f, cellW, labelH,
                     layout.labelSize, if (cell.inMonth) ink else Plate.withAlpha(ink, .26f))
@@ -421,7 +445,7 @@ internal class DailyPage(
         if (value.isEmpty()) return
         p.paint.reset()
         p.paint.isAntiAlias = true
-        p.paint.typeface = p.serifBold
+        p.paint.typeface = p.bold
         p.paint.color = color
         p.paint.textSize = size
         var width = p.paint.measureText(value)
@@ -486,9 +510,7 @@ internal class DailyPage(
         private const val EDGE = 14f
 
         /** The date line is one size: 11月, the day, 日, the weekday and the lunar name all match. */
-        private const val HEADER_SIZE = 46f
-        /** Floor for the date line: the lunar run can carry a term or festival, so it can get long. */
-        private const val HEADER_MIN = .30f
+        internal const val HEADER_SIZE = 46f
         /** Gaps between the runs, in ems of the date line. */
         private const val GAP_MONTH = .12f
         private const val GAP_DAY = .05f

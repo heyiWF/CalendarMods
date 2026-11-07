@@ -117,7 +117,7 @@ internal class ChooserView(context: Context) : View(context) {
         canvas.drawCircle(styleButton.centerX(), styleButton.centerY(), dp(24f), paint)
         paint.color = foreground
         paint.textSize = dp(17f)
-        paint.typeface = android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD)
+        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
         val label = "Aa"
         canvas.drawText(label, styleButton.centerX() - paint.measureText(label) / 2f,
             styleButton.centerY() - (paint.descent() + paint.ascent()) / 2f, paint)

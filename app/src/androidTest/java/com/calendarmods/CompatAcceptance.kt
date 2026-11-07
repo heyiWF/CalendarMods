@@ -35,6 +35,8 @@ class CompatAcceptance : Instrumentation() {
             }
             val output = File(targetContext.getExternalFilesDir(null), "acceptance").apply { mkdirs() }
             val data = CalendarData.create(PlainDate.of(2026, 11, 6))
+            // A throwaway surface: the measuring plate only needs real font metrics.
+            val probeBitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
             checkedMain {
                 val scales = listOf(ThemeStyle.MIN_FONT_SCALE, ThemeStyle.DEFAULT_FONT_SCALE,
                     ThemeStyle.MAX_FONT_SCALE)
@@ -80,6 +82,45 @@ class CompatAcceptance : Instrumentation() {
                 }
                 checks += "portrait and landscape pages print date, clock, 宜忌 and the month grid" +
                     " at 85%, 100% and 140% on both sheets without clipping the page edge"
+
+                // The lunar run can carry a three-character festival on top of a six-character
+                // lunar name. Measure the date line instead of trusting the render: the weekday
+                // run must stop before the lunar run starts, at every size and both orientations.
+                var tightest = 1f
+                for (date in listOf(PlainDate.of(2026, 1, 26), PlainDate.of(2026, 10, 18),
+                    PlainDate.of(2026, 9, 25), PlainDate.of(2026, 11, 6))) {
+                    val day = CalendarData.create(date)
+                    for ((w, h) in listOf(360 to 640, 640 to 360)) {
+                        for (scale in listOf(ThemeStyle.MIN_FONT_SCALE, ThemeStyle.DEFAULT_FONT_SCALE,
+                            ThemeStyle.MAX_FONT_SCALE)) {
+                            val page = DailyPage(CalendarTheme.DAILY.scheme(false), day,
+                                clockFace(true), w > h, w.toFloat(), h.toFloat(), false, 0L, scale)
+                            val plate = Plate(Canvas(probeBitmap), 0)
+                            val span = page.headerSpan(plate, scale)
+                            check(span.leftEnd < span.lunarLeft) {
+                                "The date line collided on ${day.lunarHeadline} at $w x $h," +
+                                    " scale $scale (${span.leftEnd} vs ${span.lunarLeft})"
+                            }
+                            tightest = minOf(tightest, span.size / (DailyPage.HEADER_SIZE * scale))
+                        }
+                    }
+                }
+                // Nine characters is the longest a name, a term and a festival can make together.
+                val worst = DailyPage(CalendarTheme.DAILY.scheme(false),
+                    CalendarData.create(PlainDate.of(2026, 11, 6)), clockFace(true), false,
+                    360f, 640f, false, 0L, ThemeStyle.MAX_FONT_SCALE)
+                for (headline in listOf("十一月三十重阳节", "十一月三十腊八节", "十二月初八平安夜")) {
+                    val span = worst.headerSpan(Plate(Canvas(probeBitmap), 0),
+                        ThemeStyle.MAX_FONT_SCALE, headline)
+                    check(span.leftEnd < span.lunarLeft) {
+                        "A nine-character headline collided at 140% ($headline:" +
+                            " ${span.leftEnd} vs ${span.lunarLeft})"
+                    }
+                    tightest = minOf(tightest, span.size / (DailyPage.HEADER_SIZE * ThemeStyle.MAX_FONT_SCALE))
+                }
+                checks += "the date line keeps its gap when the lunar run carries a term or a" +
+                    " three-character festival: it shrinks to ${(tightest * 100).toInt()}% of the" +
+                    " date size at worst, and the weekday run stops short of the lunar run"
 
                 // The 12-hour reading is wider than 24-hour: it must still fit the same column.
                 for (hour24 in listOf(true, false)) {

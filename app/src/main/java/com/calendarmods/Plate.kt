@@ -16,11 +16,9 @@ internal const val ALIGN_RIGHT = 2
  */
 internal class Plate(val canvas: Canvas, val ink: Int) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    // One family for the whole page: the system sans-serif, in its normal and bold weights.
     val sans: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-    val serif: Typeface = Typeface.create("serif", Typeface.NORMAL)
-    val serifBold: Typeface = Typeface.create("serif", Typeface.BOLD)
     val bold: Typeface = Typeface.create("sans-serif", Typeface.BOLD)
-    val light: Typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
 
     fun rule(x: Float, y: Float, w: Float, color: Int = ink, thickness: Float = .65f) {
         paint.reset(); paint.isAntiAlias = true
