@@ -1,3 +1,5 @@
+[中文](README.md) | [English](README.en.md)
+
 # CalendarMods
 
 <img src="docs/media/app-icon-playstore.png" width="112" alt="CalendarMods：深蓝金属质感与珊瑚橙日历图标">
@@ -101,3 +103,13 @@ CalendarMods 会随设备日期与时区更新。前台全屏跨过午夜时，�
 - [MIT 开源许可](LICENSE)
 
 截图展示的是拍摄当天的内容，实际日历会随日期更新。
+
+## 开发与文档
+
+[中英文文档索引](docs/README.md) · [本次验收](docs/verification-2026-11-08.md)
+
+```powershell
+.\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+```
+
+使用 Android Studio JBR 与本机 SDK。独立验收请在 PowerShell 中为属性参数加引号，例如 `'-Pcalendarmods.applicationId=com.calendarmods.audit'`，并安装匹配的应用／测试包。

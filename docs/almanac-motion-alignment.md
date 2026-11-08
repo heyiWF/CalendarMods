@@ -1,3 +1,7 @@
+[中文](almanac-motion-alignment.md) | [English](almanac-motion-alignment.en.md)
+
+> 历史记录：以下测试数量、命令和行为对应文中日期；当前分支能力以 README 和本次验收记录为准。
+
 # 好日柔和位移与一页固定对齐
 
 2026-10-13 整理。验证设备为 Android 15 / API 35 模拟器 `emulator-5554`，1440 × 2560，字体和系统动画倍率均为 1.0。

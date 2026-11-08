@@ -1,3 +1,7 @@
+[中文](device-validation.md) | [English](device-validation.en.md)
+
+> 历史记录：这是最初 Compose 版本的验收，不代表当前分支的系统要求和测试数量。当前情况见本分支 README 与 2026-11-08 验收记录。
+
 # CalendarMods 0.1.0 设备验收
 
 首次验收日期：2026-10-11；全屏过渡复验：2026-10-12。独立 Jetpack Compose 工程，包名 `com.calendarmods`，最低 Android 12 / API 31。
@@ -59,7 +63,7 @@
 
 ## 复现
 
-构建和设备验收命令见 [README](../README.md#验证)。测试包 `CalendarAcceptanceInstrumentation` 输出逐项结果；CI 执行 JVM 单元测试和 Lint，设备交互测试通过 ADB 单独运行。
+构建和设备验收命令见 [README](../README.md#开发与文档)。测试包 `CalendarAcceptanceInstrumentation` 输出逐项结果；CI 执行 JVM 单元测试和 Lint，设备交互测试通过 ADB 单独运行。
 
 后台测试会等待桌面完成切换，再通过系统命令重新打开 App，以避免桌面尚未完成恢复就立即再次启动造成的设备过渡超时。
 

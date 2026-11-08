@@ -1,3 +1,7 @@
+[中文](theme-refinements.md) | [English](theme-refinements.en.md)
+
+> 历史记录：以下测试数量、命令和行为对应文中日期；当前分支能力以 README 和本次验收记录为准。
+
 # 主题预览、每日文句与样式设置验收
 
 验收日期：2026-10-12。设备：`emulator-5554`，Android 15 / API 35，1440 × 2560，字体与系统动画倍率 1.0。
