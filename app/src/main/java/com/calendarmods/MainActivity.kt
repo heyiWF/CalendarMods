@@ -166,7 +166,7 @@ private fun CalendarContent(clock: CalendarClock, inventory: ThemeInventory, rep
         LocalAlmanacEnvironment provides almanacEnvironment,
         LocalThemeFonts provides remember(inventory.installed) { inventory.installed.associate { it.theme.id to it.fontFamilies } },
         LocalAlmanacCycle provides cycle, LocalGoodDayCycle provides goodDayCycle,
-        LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).asPaddingValues()) {
+        LocalPaperInsets provides WindowInsets.displayCutout.union(WindowInsets.waterfall).union(WindowInsets.captionBar)) {
         themes.firstOrNull { it.id == editingThemeId }?.let { selected ->
             ThemeStyleSheet(selected, styles.getValue(selected.id), styleStore,
                 onChange = { style -> styleStore.save(selected, style); styles = styles + (selected.id to style) },

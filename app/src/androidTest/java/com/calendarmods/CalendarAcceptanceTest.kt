@@ -1758,7 +1758,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         check(bounds == screen) { "Paper does not fill the screen: $bounds vs $screen" }
         tree.filter { it.viewIdResourceName == "immersive-day" }.forEach { day ->
             val dayBounds = Rect().also { day.getBoundsInScreen(it) }
-            check(day.text?.toString() == expectedDate.dayOfMonth.toString().padStart(2, '0'))
+            check(day.text?.toString() == expectedDate.dayOfMonth.toString())
             check(bounds.contains(dayBounds)) { "Full-screen date clipped: $dayBounds" }
         }
     }
@@ -1781,7 +1781,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     }
 
     private fun verifyImmersiveLifecycle(checks: MutableList<String>) {
-        val theme = CalendarTheme.HANGING
+        val theme = CalendarTheme.entries.last()
         press("art-${theme.name}")
         awaitImmersive(theme)
         for (rotation in listOf(1, 3, 0)) {

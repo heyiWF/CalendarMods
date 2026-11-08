@@ -107,10 +107,6 @@ internal fun MidnightPaper(theme: CalendarTheme, data: CalendarData, animate: Bo
     val density = LocalDensity.current
     val insets = LocalPaperInsets.current
     val direction = LocalLayoutDirection.current
-    val leftInset = with(density) { insets.calculateLeftPadding(direction).toPx() }
-    val rightInset = with(density) { insets.calculateRightPadding(direction).toPx() }
-    val topInset = with(density) { insets.calculateTopPadding().toPx() }
-    val bottomInset = with(density) { insets.calculateBottomPadding().toPx() }
     Box(Modifier.fillMaxSize()) {
         oldPage?.let { snapshot ->
             Box(Modifier.fillMaxSize().clearAndSetSemantics { }.drawWithContent {
@@ -133,6 +129,10 @@ internal fun MidnightPaper(theme: CalendarTheme, data: CalendarData, animate: Bo
             outgoing?.let { old ->
                 val p = progress.value
                 val wide = size.width > size.height
+                val leftInset = insets.getLeft(density, direction).toFloat()
+                val rightInset = insets.getRight(density, direction).toFloat()
+                val topInset = insets.getTop(density).toFloat()
+                val bottomInset = insets.getBottom(density).toFloat()
                 val paperHeight = size.height - topInset - bottomInset
                 val unit = min((size.width - leftInset - rightInset) / (if (wide) 640f else 360f), paperHeight / (if (wide) 360f else 600f))
                 val margin = if (theme.renderer == ThemeRenderer.PHOTO || theme.renderer == ThemeRenderer.ALMANAC) 8f * unit else 0f
