@@ -8,7 +8,7 @@
 
 Portrait uses a 360 × 600 design space: date, clock, month grid and bottom-left almanac. Landscape uses 640 × 360: full-width date line, clock/almanac on the left and month grid on the right. `PaperView` scales design coordinates by the actual window dimensions; the remaining height participates in layout. The page margin is 14 design units.
 
-Numerals in the header, clock and month grid, and the final weekday glyph (一–日), request the system's Black weight (900) on API 28+. Supporting text requests ExtraBold (800). Android chooses supported family/glyph fallbacks. API 21–27 uses `sans-serif-black` and bold; API 14–20 uses bold and regular. Font objects are cached once per process. No font files are shipped.
+Numerals in the header, clock and month grid, and the final weekday glyph (一–日), request the system's Black weight (900) on API 28+. Supporting text requests ExtraBold (800). Android chooses supported family/glyph fallbacks. API 21–27 uses `sans-serif-black` and bold; if the OEM omits the Black family alias, it falls back to bold and regular. API 14–20 uses bold and regular. Font objects are cached once per process. No font files are shipped.
 
 The date line shares one baseline. Month/day digits, the final weekday glyph and the lunar headline use base size 46; 月, 日 and 星期 use 72% of it. The entire Saturday/Sunday label is red, based solely on day of week, independent of holidays. Other weekdays retain normal ink. Gaps are proportional to the base size: `.12 / .05 / .30 / .34 em`. Measurement uses the same run sizes and weights as drawing. If the complete line is too wide, all runs and gaps shrink together, with no lower font-size floor, preserving separation before the right-aligned lunar headline.
 

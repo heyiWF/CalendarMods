@@ -170,15 +170,19 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
         // Resolve once, not once per animation frame. Android chooses the closest supported
         // system weight, including the fallback family for Chinese glyphs.
         private val regularFace = Typeface.create("sans-serif", Typeface.NORMAL)
+        private val legacyBoldFace = Typeface.create(regularFace, Typeface.BOLD)
         private val numeralFace = if (Build.VERSION.SDK_INT >= 28) {
             Typeface.create(regularFace, 900, false)
         } else if (Build.VERSION.SDK_INT >= 21) {
-            Typeface.create("sans-serif-black", Typeface.NORMAL)
-        } else Typeface.create(regularFace, Typeface.BOLD)
+            // An unavailable OEM family name resolves to the default regular face.
+            Typeface.create("sans-serif-black", Typeface.NORMAL).let {
+                if (it == regularFace || it == Typeface.DEFAULT) legacyBoldFace else it
+            }
+        } else legacyBoldFace
         private val supportingFace = if (Build.VERSION.SDK_INT >= 28) {
             Typeface.create(regularFace, 800, false)
         } else if (Build.VERSION.SDK_INT >= 21) {
-            Typeface.create(regularFace, Typeface.BOLD)
+            if (numeralFace == legacyBoldFace) regularFace else legacyBoldFace
         } else regularFace
 
         fun withAlpha(color: Int, alpha: Float): Int =
