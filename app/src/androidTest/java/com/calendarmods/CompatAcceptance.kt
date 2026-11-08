@@ -161,6 +161,44 @@ class CompatAcceptance : Instrumentation() {
                 }
                 checks += "both clock readings print inside the page"
 
+                // Fixed AM/PM readings, weekends, long headlines and both orientations.
+                for (date in listOf(PlainDate.of(2026, 11, 6), PlainDate.of(2026, 11, 7),
+                    PlainDate.of(2026, 11, 8), PlainDate.of(2026, 1, 26))) {
+                    for ((w, h) in listOf(360 to 640, 640 to 360)) {
+                        for (scale in scales) for (period in listOf("上午", "下午")) {
+                            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                            val scheme = CalendarTheme.DAILY.scheme(false)
+                            val page = DailyPage(scheme, CalendarData.create(date),
+                                ClockFace(period, "12", "58"), w > h, w.toFloat(), h.toFloat(),
+                                false, 0L, scale)
+                            page.draw(Canvas(bitmap))
+                            val paper = scheme.paper.toInt()
+                            for (y in 0 until h) for (x in listOf(0, 1, w - 2, w - 1)) {
+                                // Landscape's separator intentionally runs to both edges.
+                                if (w < h) check(bitmap.getPixel(x, y) == paper) {
+                                    "12-hour content escaped its column at $w/$h/$scale/$period"
+                                }
+                            }
+                            for (y in h - 3 until h) for (x in 0 until w) {
+                                check(bitmap.getPixel(x, y) == paper)
+                            }
+                            val redPixels = (0 until 48).sumOf { y ->
+                                (0 until w).count { x -> bitmap.getPixel(x, y) == scheme.accent.toInt() }
+                            }
+                            check((redPixels > 0) == (date.dayOfWeek >= 6)) {
+                                "Header weekend colour does not match $date"
+                            }
+                            if (scale == 1f && date.dayOfMonth == 8) {
+                                File(output, "type-$w-$period.png").outputStream().use {
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                                }
+                            }
+                            bitmap.recycle()
+                        }
+                    }
+                }
+                checks += "AM/PM, weekend header colours and typography fit across orientations and scales"
+
                 var value = ThemeStyle()
                 lateinit var dialog: StyleSheetDialog
                 dialog = StyleSheetDialog(host, CalendarTheme.DAILY, value, object : StyleSheetDialog.Listener {

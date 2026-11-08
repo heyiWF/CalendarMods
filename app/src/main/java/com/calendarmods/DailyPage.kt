@@ -71,7 +71,8 @@ internal class DailyPage(
         layout.headerScale = headerFit(p, layout.contentW, scale)
         val daySize = HEADER_SIZE * scale * layout.headerScale
         layout.ruleY = EDGE + daySize * 1.02f + 5f * scale
-        layout.clockSize = fitClock(p, layout.contentW, CLOCK_SIZE * scale)
+        layout.clockSize = fitClock(p, layout.contentW,
+            CLOCK_SIZE * scale * if (face.period.isEmpty()) 1f else 1.5f)
         layout.clockBaseline = layout.ruleY + 8f * scale + layout.clockSize * .84f
         layout.clockBottom = layout.ruleY + 8f * scale + layout.clockSize * 1.02f
 
@@ -149,10 +150,8 @@ internal class DailyPage(
 
     /** Landscape prints the clock larger, but never wider than its column. */
     private fun fitClock(p: Plate, w: Float, wanted: Float): Float {
-        var size = wanted
-        var guard = 0
-        while (size > 10f && clockWidth(p, size) > w && guard++ < 80) size -= 1f
-        return size
+        // Every run and gap scales linearly; measure once instead of probing up to 80 sizes.
+        return wanted * min(1f, w / clockWidth(p, wanted))
     }
 
     // ------------------------------------------------------------------ blocks
@@ -160,17 +159,20 @@ internal class DailyPage(
     /**
      * Date line: 11月 6日 星期六 with the day's lunar name right-aligned on the same baseline. The
      * lunar run carries the day's solar term or first festival without a space — `九月廿九立冬`.
-     * Every run is set at the same size, so the line reads as one block rather than a headline and
-     * a footnote; when the line is too wide the whole run gives up size together.
+     * Units and the weekday prefix are smaller; numerals and the final weekday glyph are heavier.
+     * When the line is too wide all runs shrink together, including their gaps.
      */
     private fun header(p: Plate, layout: Layout, x: Float, w: Float, top: Float) {
         val size = HEADER_SIZE * layout.scale * layout.headerScale
         val baseline = top + size * .86f
         var cursor = x
-        cursor += p.textAt(data.monthLabel, cursor, baseline, size, ink, p.bold) + GAP_MONTH * size
-        cursor += p.textAt(data.day, cursor, baseline, size, ink, p.bold) + GAP_DAY * size
-        cursor += p.textAt("日", cursor, baseline, size, ink, p.bold) + GAP_WEEKDAY * size
-        p.textAt(data.weekdayChinese, cursor, baseline, size, ink, p.bold)
+        cursor += p.textAt(data.today.monthValue.toString(), cursor, baseline, size, ink, p.heavy)
+        cursor += p.textAt("月", cursor, baseline, size * HEADER_MINOR, ink, p.bold) + GAP_MONTH * size
+        cursor += p.textAt(data.day, cursor, baseline, size, ink, p.heavy) + GAP_DAY * size
+        cursor += p.textAt("日", cursor, baseline, size * HEADER_MINOR, ink, p.bold) + GAP_WEEKDAY * size
+        val weekdayColor = if (data.today.dayOfWeek >= 6) red else ink
+        cursor += p.textAt("星期", cursor, baseline, size * HEADER_MINOR, weekdayColor, p.bold)
+        p.textAt(data.weekdayChinese.takeLast(1), cursor, baseline, size, weekdayColor, p.heavy)
 
         val lunarWidth = p.advance(data.lunarHeadline, size, p.bold)
         p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size, ink, p.bold)
@@ -189,10 +191,12 @@ internal class DailyPage(
 
     /** Everything left of the lunar run, run gaps included. */
     private fun headerLeftWidth(p: Plate, size: Float): Float =
-        p.advance(data.monthLabel, size, p.bold) + GAP_MONTH * size +
-            p.advance(data.day, size, p.bold) + GAP_DAY * size +
-            p.advance("日", size, p.bold) + GAP_WEEKDAY * size +
-            p.advance(data.weekdayChinese, size, p.bold)
+        p.advance(data.today.monthValue.toString(), size, p.heavy) +
+            p.advance("月", size * HEADER_MINOR, p.bold) + GAP_MONTH * size +
+            p.advance(data.day, size, p.heavy) + GAP_DAY * size +
+            p.advance("日", size * HEADER_MINOR, p.bold) + GAP_WEEKDAY * size +
+            p.advance("星期", size * HEADER_MINOR, p.bold) +
+            p.advance(data.weekdayChinese.takeLast(1), size, p.heavy)
 
     /** Gaps are em-based, so the whole line gives up size together and never closes up. */
     private fun headerWidth(p: Plate, size: Float, headline: String): Float =
@@ -228,23 +232,37 @@ internal class DailyPage(
         val tracking = size * CLOCK_TRACKING
         var cursor = x
         if (face.period.isNotEmpty()) {
-            cursor += p.textAt(face.period, cursor, baseline, size, ink, p.bold, tracking) + size * CLOCK_GAP
+            val periodSize = periodSize(p, size)
+            val digitTop = p.inkBounds(face.hour + face.minute, size, p.heavy).top
+            val periodTop = p.inkBounds(face.period, periodSize, p.bold).top
+            cursor += p.textAt(face.period, cursor, baseline + digitTop - periodTop,
+                periodSize, ink, p.bold) + size * CLOCK_GAP
         }
-        cursor += p.textAt(face.hour, cursor, baseline, size, ink, p.bold, tracking) + tracking
+        cursor += p.textAt(face.hour, cursor, baseline, size, ink, p.heavy, tracking) + tracking
         val mark = ":"
-        val markBaseline = baseline + p.centerShift(face.hour, mark, size, p.bold)
-        cursor += p.textAt(mark, cursor, markBaseline, size, ink, p.bold, tracking) + tracking
-        p.textAt(face.minute, cursor, baseline, size, ink, p.bold, tracking)
+        val digits = p.inkBounds(face.hour, size, p.heavy)
+        val center = (digits.top + digits.bottom) / 2f
+        val colon = p.inkBounds(mark, size, p.bold)
+        val markBaseline = baseline + center - (colon.top + colon.bottom) / 2f
+        cursor += p.textAt(mark, cursor, markBaseline, size, ink, p.bold) + tracking
+        p.textAt(face.minute, cursor, baseline, size, ink, p.heavy, tracking)
     }
 
-    /** Width of the whole reading as [clock] prints it, so it can be fitted to its column. */
-    private fun clockWidth(p: Plate, size: Float): Float {
+    /** Half the numeric line's visible height, aligned by ink rather than font ascenders. */
+    private fun periodSize(p: Plate, size: Float): Float {
+        val digitHeight = p.inkBounds("0123456789", 1000f, p.heavy).height()
+        val periodHeight = p.inkBounds(face.period, 1000f, p.bold).height().coerceAtLeast(1)
+        return size * digitHeight / periodHeight * .5f
+    }
+
+    /** Same runs and gaps as drawing, including the smaller period label. */
+    internal fun clockWidth(p: Plate, size: Float): Float {
         val tracking = size * CLOCK_TRACKING
-        var total = p.advance(face.hour, size, p.bold, tracking) + tracking +
-            p.advance(":", size, p.bold, tracking) + tracking +
-            p.advance(face.minute, size, p.bold, tracking)
+        var total = p.advance(face.hour, size, p.heavy, tracking) + tracking +
+            p.advance(":", size, p.bold) + tracking +
+            p.advance(face.minute, size, p.heavy, tracking)
         if (face.period.isNotEmpty()) {
-            total += p.advance(face.period, size, p.bold, tracking) + tracking + size * CLOCK_GAP
+            total += p.advance(face.period, periodSize(p, size), p.bold) + size * CLOCK_GAP
         }
         return total
     }
@@ -354,7 +372,7 @@ internal class DailyPage(
         var size = min(cellW * .84f, numberH * .86f)
         val maxWidth = cellW * .92f
         var guard = 0
-        while (size > 6f && p.advance("88", size, p.bold) > maxWidth && guard++ < 60) size -= .5f
+        while (size > 6f && p.advance("88", size, p.heavy) > maxWidth && guard++ < 60) size -= .5f
         return size.coerceAtLeast(6f)
     }
 
@@ -370,7 +388,7 @@ internal class DailyPage(
         names.forEachIndexed { index, name ->
             p.text(name, layout.gridX + index * layout.cellW, layout.gridY, layout.cellW, headerH,
                 headerH * .88f, color = if (index >= 5) red else Plate.withAlpha(ink, .8f),
-                typeface = p.bold)
+                typeface = p.heavy)
         }
 
         val labelH = layout.labelSize * 1.24f
@@ -400,7 +418,7 @@ internal class DailyPage(
                         weekend -> red
                         else -> ink
                     },
-                    bold = true, typeface = p.bold)
+                    bold = true, typeface = p.heavy)
                 val fields = (listOf(cell.lunar) + cell.festivals).distinct()
                 rotateLabel(p, fields, left, rowTop + numberH + 1f, cellW, labelH,
                     layout.labelSize, if (cell.inMonth) ink else Plate.withAlpha(ink, .26f))
@@ -513,8 +531,9 @@ internal class DailyPage(
         /** Page edge; the page keeps a tighter border than the old template so type can grow. */
         private const val EDGE = 14f
 
-        /** The date line is one size: 11月, the day, 日, the weekday and the lunar name all match. */
+        /** Base size for the date numbers, final weekday glyph and lunar headline. */
         internal const val HEADER_SIZE = 46f
+        private const val HEADER_MINOR = .72f
         /** Gaps between the runs, in ems of the date line. */
         private const val GAP_MONTH = .12f
         private const val GAP_DAY = .05f

@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.os.Build
 import kotlin.math.max
 
 internal const val ALIGN_LEFT = 0
@@ -16,9 +17,17 @@ internal const val ALIGN_RIGHT = 2
  */
 internal class Plate(val canvas: Canvas, val ink: Int) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    // One family for the whole page: the system sans-serif, in its normal and bold weights.
-    val sans: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-    val bold: Typeface = Typeface.create("sans-serif", Typeface.BOLD)
+    val sans: Typeface get() = regularFace
+    val bold: Typeface get() = supportingFace
+    val heavy: Typeface get() = numeralFace
+    private val bounds = Rect()
+
+    fun inkBounds(value: String, size: Float, typeface: Typeface): Rect {
+        paint.typeface = typeface
+        paint.textSize = size
+        paint.getTextBounds(value, 0, value.length, bounds)
+        return bounds
+    }
 
     fun rule(x: Float, y: Float, w: Float, color: Int = ink, thickness: Float = .65f) {
         paint.reset(); paint.isAntiAlias = true
@@ -158,6 +167,20 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
     }
 
     companion object {
+        // Resolve once, not once per animation frame. Android chooses the closest supported
+        // system weight, including the fallback family for Chinese glyphs.
+        private val regularFace = Typeface.create("sans-serif", Typeface.NORMAL)
+        private val numeralFace = if (Build.VERSION.SDK_INT >= 28) {
+            Typeface.create(regularFace, 900, false)
+        } else if (Build.VERSION.SDK_INT >= 21) {
+            Typeface.create("sans-serif-black", Typeface.NORMAL)
+        } else Typeface.create(regularFace, Typeface.BOLD)
+        private val supportingFace = if (Build.VERSION.SDK_INT >= 28) {
+            Typeface.create(regularFace, 800, false)
+        } else if (Build.VERSION.SDK_INT >= 21) {
+            Typeface.create(regularFace, Typeface.BOLD)
+        } else regularFace
+
         fun withAlpha(color: Int, alpha: Float): Int =
             (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)
     }
