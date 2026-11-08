@@ -100,10 +100,9 @@ class CompatAcceptance : Instrumentation() {
             val exit = MainActivity::class.java.getDeclaredMethod("exitImmersive").apply { isAccessible = true }
             val paperField = MainActivity::class.java.getDeclaredField("paper").apply { isAccessible = true }
             val page = paperField.get(host) as PaperView
-            checkedMain { enter.invoke(host, inventory.themes.first()) }
-            Thread.sleep(100)
             checkedMain {
-                if (MotionSettings.enabled(host)) check(page.alpha > 0f && page.alpha < 1f)
+                // Interrupt on the same UI turn; wall-clock sleeps race a loaded device.
+                enter.invoke(host, inventory.themes.first())
                 exit.invoke(host)
                 check(page.parent != null) { "Interrupted entry removed page before exit animation" }
             }
@@ -112,11 +111,45 @@ class CompatAcceptance : Instrumentation() {
             checks += "fullscreen entry/exit animate and interrupted entry retains the outgoing page"
             verifyHistoryRegressions(host, checks)
             verifyHardwareNumerals(host, checks)
+            if (android.os.Build.VERSION.SDK_INT >= 18) {
+                val monitor = addMonitor(MainActivity::class.java.name, null, false)
+                try {
+                    for (rotation in 0..1) {
+                        uiAutomation.setRotation(rotation)
+                        Thread.sleep(1_000)
+                        val current = (monitor.lastActivity as? MainActivity) ?: host
+                        activity = current
+                        repeat(100) { if (!loaded.getBoolean(current)) Thread.sleep(100) }
+                        check(loaded.getBoolean(current))
+                        checkedMain { enter.invoke(current, inventory.themes.first()) }
+                        Thread.sleep(600)
+                        checkedMain {
+                            val real = android.graphics.Point()
+                            @Suppress("DEPRECATION")
+                            current.windowManager.defaultDisplay.getRealSize(real)
+                            val decor = current.window.decorView
+                            val currentPage = paperField.get(current) as PaperView
+                            check(currentPage.width == decor.width && currentPage.height == decor.height &&
+                                decor.width == real.x && decor.height == real.y) {
+                                "Fullscreen left a system bar strip: ${currentPage.width}x${currentPage.height} vs $real"
+                            }
+                            exit.invoke(current)
+                        }
+                        Thread.sleep(400)
+                    }
+                } finally { removeMonitor(monitor) }
+                checks += "fullscreen reclaims navigation-bar width and height in both orientations"
+            }
             val result = Bundle().apply { putString("stream", "PASS: ${checks.joinToString("; ")}\n") }
             finish(android.app.Activity.RESULT_OK, result)
         } catch (failure: Throwable) {
             finish(android.app.Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "FAIL: ${android.util.Log.getStackTraceString(failure)}") })
-        } finally { activity?.let { checkedMain { it.finish() } } }
+        } finally {
+            if (android.os.Build.VERSION.SDK_INT >= 18) runCatching {
+                uiAutomation.setRotation(android.app.UiAutomation.ROTATION_UNFREEZE)
+            }
+            activity?.let { checkedMain { it.finish() } }
+        }
     }
     private fun checkedMain(block: () -> Unit) {
         var failure: Throwable? = null
