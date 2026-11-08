@@ -1,23 +1,22 @@
-# Launch and back navigation validation
+[中文](launch-navigation-validation.md) | [English](launch-navigation-validation.en.md)
 
-The launch animation uses the application's calendar icon: the bound header settles, the highlighted date grows into place, and the splash fades into the first calendar frame. It uses the Android 12+ platform splash, observes disabled animations and bounds the initial-data wait.
+# 启动与返回导航验收
 
-Navigation coverage:
+启动动画使用应用的日历图标：装订页头就位、高亮日期放大，然后淡入首帧日历。实现采用 Android 12 及以上的系统启动屏，遵守系统关闭动画的设置，并对首次数据等待设置上限。
 
-- Fullscreen calendar back to theme selection.
-- Theme store back to theme selection.
-- Store edit mode back to the store, preserving pending-favorite rules.
-- Theme deletion confirmation back to its parent.
-- Every theme's Material style sheet, using Material3's platform predictive-back support.
-- On pro, both scheduled-night start/end time dialogs back to the containing style sheet, with unconfirmed input discarded.
+导航覆盖范围：
 
-Custom surfaces share progress, cancellation and commit handling. Only commit changes navigation. The Android 15 instrumentation dispatches start/progress/cancel/commit events to the focused window's back dispatcher and compares real screenshots during progress; sheet dismissal is checked separately. These checks verify app integration, not system edge-gesture delivery.
+- 全屏日历返回主题选择页。
+- 主题商店返回主题选择页。
+- 商店编辑模式返回商店，保留待提交收藏的规则。
+- 删除主题确认对话框返回父页面。
+- 每个主题的 Material 样式面板，使用 Material 3 提供的系统预测性返回支持。
+- pro 的夜间开始、结束时间选择对话框返回样式面板，丢弃未确认输入。
 
-The available MuMu system does not attach an EdgeBackGestureHandler, even with its navigation overlay enabled. Its original navigation setting was restored. A gesture-enabled physical device or standard emulator is still required for end-to-end system predictive-back acceptance, especially Material's sheet animation. Do not report dispatcher tests as that acceptance.
+自定义页面共用返回进度、取消和提交处理；只有提交才改变导航。Android 15 验收向当前窗口的返回分发器发送开始、进度、取消和提交事件，并比较过程截图；面板关闭另行检查。这些用例验证应用接入，不等于系统边缘手势验收。
 
-Run the existing instrumentation with `-e navigation true` using matching isolated application IDs. Pro additionally supports `-e parity true` to export all eleven themes at equal pixel dimensions and dates for comparison with the framework branch.
+当前 MuMu 系统即使启用导航覆盖层，也没有挂接 EdgeBackGestureHandler。验收后恢复了原导航设置。完整系统预测性返回仍需支持手势导航的实体设备或标准模拟器，尤其是 Material 面板动画；不能把分发器用例称作这项实机验收。
 
-All four traditional themes now share the compat default palette: red on weekends, calendar
-festivals and enabled special editions; green otherwise. Explicit ink choices override the
-default in both day and night modes. `-e palette true` checks weekday/weekend/festival and manual
-override colours on real rendered pages.
+使用相匹配的独立应用 ID 和测试包，以 `-e navigation true` 运行现有 instrumentation。pro 还支持 `-e parity true`，按相同日期和像素尺寸导出十一主题，与传统 View 分支对照。
+
+四款传统黄历沿用 compat 默认配色：周末、节日与启用的特别版式为红色，其余为绿色；显式字色在昼夜均优先。`-e palette true` 验证实际页面的工作日／周末／节日与用户覆盖颜色。
