@@ -1,3 +1,5 @@
+[中文](compat-android-4.md) | [English](compat-android-4.en.md)
+
 # Android 4.0 兼容分支
 
 `compat` 分支从 `pro` 派生，把最低系统要求从 Android 12 / API 31 降到 Android 4.0 / API 14。
@@ -41,3 +43,5 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 ```
 
 CI（`.github/workflows/android.yml`）在推送后构建 `CalendarMods-debug.apk`，产物在 Actions 的 Artifacts 中。
+
+全屏从 API 16 起同时使用 `LAYOUT_HIDE_NAVIGATION` 和 `LAYOUT_FULLSCREEN`；导航栏隐藏后的空间由日历布局占用，退出时恢复系统栏。API 14–15 保留受支持的旧标志。

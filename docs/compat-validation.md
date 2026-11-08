@@ -1,39 +1,28 @@
-# Framework compatibility maintenance
+[中文](compat-validation.md) | [English](compat-validation.en.md)
 
-The compat branch retains the eleven built-in calendars, existing installed theme data,
-per-theme fonts/images/fill, page motion, interactive day/month paging and almanac appearance.
-It has no theme store, favorites editor or free ordering UI. Unreachable repository mutation
-operations were removed; existing package/index migration remains supported.
+# 传统 View 兼容维护
 
-Changes include stable bound settings controls with full-row click targets, an animated sheet
-entrance, fullscreen scale/fade transitions, normal-size cached numeral outlines with a default
-font fallback, bounded image decoding and heap-relative caches, EXIF-aware imports, stale
-request guards, lifecycle cleanup and month paging that preserves the preferred day.
+这是 compat 分支的历史验收记录。该分支保留十一款内置日历、已有安装主题数据、按主题保存的字体／图片／填充、翻页动画、按日／月交互分页及黄历外观；没有主题商店、收藏编辑器或自由排序界面。不可达的仓库修改接口已删除，已有包和索引仍可迁移。mycompat 后来改为单页版式，不能把本报告的十一主题覆盖视为其当前功能。
 
-Validation on 2026-11-01:
+修复包括：稳定绑定的设置控件和整行点击、面板进入动画、全屏缩放淡变、按正常字号提取并缓存的数字轮廓与默认字体回退、有界图片解码和按堆大小限制的缓存、EXIF 方向处理、过期请求保护、生命周期清理、保留期望日号的按月分页。
 
-- `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` passed.
-- Framework instrumentation on Android 15 passed 248 ordinary/traditional date/font raster checks, eleven themes in
-  both orientations, and label/checkbox parity with retained control identity for every theme.
-  Follow-up checks cover interrupted fullscreen entry, cancelled/displaced gestures, midnight
-  browsing preservation and return-to-today paging. Pro/compat galleries use the same date and
-  360×640 / 640×360 pixel sizes; intentional ink and legacy-font differences are documented in
-  `compat-history-review.md`.
-- A separate application ID was used so the existing app's data was not replaced.
-- The minimum SDK remains 14. No Android 4.0 device is connected; actual API 14 and vendor font
-  driver acceptance remain additional device checks, rather than inferred from the build.
+## 2026-11-01 验收
 
-Run `adb shell am instrument -w <applicationId>.test/com.calendarmods.CompatAcceptance` with
-the matching app and androidTest APKs. The runner exports a theme gallery to the test app's
-external `files/acceptance` directory.
+- `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` 通过。
+- Android 15 的传统 View 验收通过 248 项普通／传统主题日期字体栅格检查、十一主题横竖屏，以及所有主题的标签／复选框一致性和控件身份保留。补充覆盖进入全屏途中返回、取消／移动后的手势、午夜保留浏览日期和回到今天后的分页。pro/compat 图集采用相同日期和 360×640／640×360 像素尺寸；有意保留的墨色和旧字体差异见 [历史审查](compat-history-review.md)。
+- 使用独立应用 ID，未覆盖原应用数据。
+- 最低 API 仍为 14。未连接 Android 4.0 设备，不能由构建通过推断旧设备及厂商字体驱动验收通过。
 
-Follow-up for older hardware: large numerals now use bounded, cached software rasters before
-hardware composition. Only numeral glyphs are rasterized; the page and animations remain
-accelerated. This addresses the software-preview/hardware-fullscreen rendering split reported
-on a YOGA Tablet 2-1050F running Android 5.0.1. The window instrumentation now verifies actual
-hardware Canvas output as well as offscreen rendering. Physical validation on that device is
-still required; the connected device is a different Android version/GPU. Days 1–9 are unpadded.
+使用匹配的应用 APK 与 androidTest APK 运行：
 
-Follow-up validation: 56 shared unit tests, lint/build, 248 software numeral cases and 16
-hardware-window cases pass. Hardware screenshots of day 1 in the four traditional themes and
-the golden theme were inspected on the connected Android 15 device; all date numerals appear.
+```text
+adb shell am instrument -w <applicationId>.test/com.calendarmods.CompatAcceptance
+```
+
+图集导出到测试应用外部目录 `files/acceptance`。
+
+## 旧硬件补充
+
+大日期数字先生成有界缓存的软件位图，再由硬件合成。只有数字字形栅格化，页面和动画继续硬件加速，用于处理 YOGA Tablet 2-1050F / Android 5.0.1 上软件预览正常而硬件全屏缺字的问题。窗口验收同时检查实际硬件 Canvas 和离屏渲染。该具体硬件仍需实测；已连接设备使用不同 Android 版本和 GPU。1–9 日不补零。
+
+后续 56 项共享单测、Lint／构建、248 项软件数字场景和 16 项硬件窗口场景均通过。已检查 Android 15 上四款传统黄历及晴日主题的 1 日硬件截图，数字均显示。这些数字属于当时验收，不代表本次构建的测试数量。

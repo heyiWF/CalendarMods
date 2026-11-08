@@ -1,3 +1,5 @@
+[中文](traditional-theme.md) | [English](traditional-theme.en.md)
+
 # 四款老黄历主题（pro）
 
 从 `main` 的 `fa0b413` 创建 `pro`，追加四款内置主题（原有七款顺序不变）。首款永久主题 ID 为

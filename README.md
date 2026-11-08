@@ -1,3 +1,5 @@
+[中文](README.md) | [English](README.en.md)
+
 # CalendarMods
 
 <img src="docs/media/app-icon-playstore.png" width="112" alt="CalendarMods：深蓝金属质感与珊瑚橙日历图标">
@@ -8,7 +10,7 @@ CalendarMods 是一款专注于日历展示的 Android 应用。十一种各具�
 
 **十一种主题 · 沉浸全屏 · 午夜翻页 · 自选照片 · 离线使用**
 
-`pro` 分支新增 **南洋 · 手撕通胜、福历 · 岭南通胜、鸿运 · 经典皇历、时和 · 电子老黄历**：米白纸面与绿色印刷，超大日期、双语星期、农历干支、宜忌、
+本分支保留 `pro` 新增的 **南洋 · 手撕通胜、福历 · 岭南通胜、鸿运 · 经典皇历、时和 · 电子老黄历**：米白纸面与绿色印刷，超大日期、双语星期、农历干支、宜忌、
 十二时辰、九宫八卦、诸葛择日、生肖配数与民俗文案。各栏计算口径、来源及与纸历的差异见 [主题说明](docs/traditional-theme.md)。底栏以岁时摘要呈现节气、节日、神诞或物候。
 
 支持 **Android 4.0（API 14）及以上**。`compat` 分支使用系统 View 与 Canvas 重写界面，不再依赖 Jetpack Compose。
@@ -98,7 +100,7 @@ CalendarMods 会随设备日期与时区更新。前台全屏跨过午夜时，�
 
 ## 下载体验
 
-[![Build APK](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml?query=branch%3Amain)
+[![Build APK](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml/badge.svg?branch=compat)](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml?query=branch%3Acompat)
 
 前往 [安装包下载页面](https://github.com/heyiWF/CalendarMods/actions/workflows/android.yml)，选择一次成功的构建，在 **Artifacts** 中下载 `CalendarMods-debug-运行序号`，解压后安装 `CalendarMods-debug.apk`。
 
@@ -114,3 +116,13 @@ CalendarMods 会随设备日期与时区更新。前台全屏跨过午夜时，�
 截图展示的是拍摄当天的内容，实际日历会随日期更新。
 
 交互式日历开启后保持原有页面大小，左右滑动浏览日期。离开今天后，底部中央浮现“回到今天”按钮；返回今天后淡出，不预留底栏空间。
+
+## 开发与文档
+
+[中英文文档索引](docs/README.md) · [本次验收](docs/verification-2026-11-08.md)
+
+```powershell
+.\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+```
+
+使用 Android Studio JBR 与本机 SDK。独立验收请在 PowerShell 中为属性参数加引号，例如 `'-Pcalendarmods.applicationId=com.calendarmods.audit'`，并安装匹配的应用／测试包。

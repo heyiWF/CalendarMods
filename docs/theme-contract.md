@@ -1,6 +1,10 @@
+[中文](theme-contract.md) | [English](theme-contract.en.md)
+
+> 分支范围：compat 没有主题商店、安装／卸载／排序界面。本文保留包格式与 Compose 商店架构参考；本分支实际通过 PageArtwork、系统 Canvas 与固定主题仓库读取已有安装数据。新安装接口与 StateFlow 示例适用于 main/pro，不能直接复制到 compat。
+
 # 主题设计契约 v1 / v2
 
-主题是可版本化的数据；模板是 App 提供的可信渲染能力。内置主题和安装主题共用 `CalendarTheme`，预览、全屏、设置和选择持久化均消费同一份描述。本地主题商店已提供七个预设主题的添加、收藏和排序；账号、上传、审核和网络下载尚未实现。
+主题是可版本化的数据；模板是 App 提供的可信渲染能力。内置主题和安装主题共用 `CalendarTheme`，预览、全屏、设置和选择持久化均消费同一份描述。本地主题商店已提供十一款预设主题的添加、收藏和排序；账号、上传、审核和网络下载尚未实现。
 
 ## 分层与入口
 
@@ -43,7 +47,7 @@ flowchart TD
 
 主题选择保存为 `calendar.theme_id`。仅首次无 ID 时，把旧 `calendar.theme` 序号按原七主题顺序迁移。安装新主题、移除前面的主题或更新标题不会改变选中的 ID；选中主题不存在时回退到第一个内置主题。页面总数、语义描述和 Pager key 均来自仓库；底部最多显示九个邻近指示点。
 
-## 七套原生模板与设置
+## 原生模板与设置
 
 | 内置 ID 后缀 | renderer | 布局内容 | 可调整属性 |
 | --- | --- | --- | --- |
@@ -53,12 +57,13 @@ flowchart TD
 | `good-day` | `good-day.v1` | 衬线大日期、节日、居中宜事项轮播 | 无 |
 | `verse` | `verse.v1` | 竖排文句、月历、每日心语 | 无 |
 | `almanac` | `almanac.v1` | 复古黄历、节日、完整宜忌、月历 | 无 |
-| `traditional` | `traditional.v1` | 南洋手撕通胜、完整黄历分栏、九宫与民俗栏目 | 无 |
-| `canton` | `canton.v1` | 岭南红历、星座生肖、横排时辰与黄历表格 | 无 |
-| `auspicious` | `auspicious.v1` | 经典皇历、左右月周、花边与横向宜忌 | 无 |
+| `traditional` | `traditional.v1` | 南洋手撕通胜、完整黄历分栏、九宫与民俗栏目 | 黄历外观 |
+| `canton` | `canton.v1` | 岭南红历、星座生肖、横排时辰与黄历表格 | 黄历外观 |
+| `auspicious` | `auspicious.v1` | 经典皇历、左右月周、花边与横向宜忌 | 黄历外观 |
 | `hanging` | `hanging.v1` | 悬挂装订、大日期、双项宜忌轮播 | 无 |
+| `peitaiyi` | `peitaiyi.v1` | 时和电子老黄历、节气插画与完整黄历 | 黄历外观 |
 
-三款黄历渲染器统一声明 `ALMANAC` 数据能力，通过宿主共享的[黄历引擎接口](almanac-engine.md)取数，
+四款黄历渲染器统一声明 `ALMANAC` 数据能力，通过宿主共享的[黄历引擎接口](almanac-engine.md)取数，
 支持独立配色、节庆版式和手动/定时/环境光深色模式。
 
 上表列出模板专属属性；所有模板还提供 `page_animation`（默认 true）与 `interactive`（默认 false）两个 `ThemeSetting.Toggle` 开关。它们由宿主提供，按稳定主题 ID 保存为用户偏好，不增加 manifest 字段或改变 v1/v2 包格式。卸载主题时一并重置。

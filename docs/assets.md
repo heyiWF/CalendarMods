@@ -1,3 +1,5 @@
+[中文](assets.md) | [English](assets.en.md)
+
 # 素材来源
 
 ## 应用图标

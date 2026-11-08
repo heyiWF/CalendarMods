@@ -1,20 +1,22 @@
-# Framework branch history review
+[中文](compat-history-review.md) | [English](compat-history-review.en.md)
 
-The baseline is `pro` at `4733e02`; the review follows the framework rewrite and every subsequent commit through `ff4e65e`. Android 4.0 / API 14 remains the minimum. The theme store and ordering are intentionally absent.
+# 传统 View 分支历史审查
 
-| History | Finding and disposition |
+基线为 pro 的 `4733e02`，范围从传统 View 重写至后续 `ff4e65e`。最低 Android 4.0 / API 14；主题商店与排序有意不保留。这是历史记录，mycompat 后来的单页产品变化另见当前 README。
+
+| 提交 | 发现与处理 |
 | --- | --- |
-| `843deb6` framework rewrite | Keep framework Views, date arithmetic and legacy image decoding. Fix repeated settings construction, asynchronous result races, excessive bitmap budgets, ignored installed fonts, duplicate illustration padding and landscape column widths. |
-| `54b04be` midnight preservation | Keep the browsed date. Also reset the live paging origin after midnight and when returning to today; discard superseded date loads. |
-| `ad7e760`, `9c2b7a1` layout/store removal | Keep fixed theme inventory. Remove unreachable store mutations and stale documentation. Compare all 11 renderers with the retained pro layouts. |
-| `ba105a7` chooser coordinates | Keep the separate strip offset and single-page fling. Reject cancelled and displaced taps. Retain bounded previews. |
-| `127498a` page indicators | Keep one indicator per installed theme, including all 11 built-ins. |
-| `9f34f1c` numeral bands and gestures | Keep column-aware date bounds. Reject moved, cancelled and multiple-pointer gestures before treating release as a long press. |
-| `82b7688` sheet measurement | Keep margin-aware layout parameters and window height cap. Bind existing controls instead of rebuilding the sheet on every change. |
-| `fdfeb6c` ambient policy and default ink | Preserve the intentional 10 lux threshold with timed stability, and weekday green / weekend or festival red defaults. These are deliberate compat differences from pro. |
-| `068a2d8` short-screen dates | Preserve the minimum free-band calculation; do not restore dimensions that collapsed dates on short screens. |
-| `ff4e65e` outlines and rotating text | Keep outline rendering and two-second text paging. Extract glyphs at a normal size, extend the safe path to traditional plates, and stop hidden-page timers. |
+| `843deb6` View 重写 | 保留系统 View、日期运算与旧版图片解码；修复设置反复重建、异步结果竞态、过大位图预算、忽略安装字体、重复插画内边距和横屏列宽。 |
+| `54b04be` 午夜保留 | 保留浏览日期；午夜与回到今天时重置实时分页原点，丢弃已被替代的日期请求。 |
+| `ad7e760`、`9c2b7a1` 布局／移除商店 | 保留固定主题清单，删除不可达的商店修改接口和过期文档，对照 pro 保留的十一套布局。 |
+| `ba105a7` 选择页坐标 | 保留独立条带偏移和单页滑动，拒绝取消／移动后的点击，保留有界预览。 |
+| `127498a` 页码指示 | 每个安装主题一个指示点，包含十一款内置主题。 |
+| `9f34f1c` 数字区域与手势 | 保留按列限制的日期边界；先排除移动、取消和多指，再判断抬手是否为长按。 |
+| `82b7688` 面板测量 | 保留含边距的布局参数和窗口高度上限；更新已有控件而非每次重建。 |
+| `fdfeb6c` 环境光和默认墨色 | 保留有意采用的 10 lx 与稳定时间，以及工作日绿色、周末／节日红色；这些是 compat 与 pro 的设计差异。 |
+| `068a2d8` 矮屏日期 | 保留最小空闲区域计算，不能恢复曾使矮屏日期区域坍缩的尺寸。 |
+| `ff4e65e` 轮廓和轮播 | 保留轮廓绘制与两秒文本分页；按正常字号提取字形，传统黄历共用安全路径，隐藏页面停止计时。 |
 
-Additional regression fixes: interrupting fullscreen entry must retain the page for exit; unchanged sensor samples must not redraw or cancel page transitions; scheduled preview colours must update at the selected minute, not the next five-minute cache boundary.
+补充回归修复：打断全屏进入时保留退出所需页面；不变的传感器读数不能触发重绘或取消翻页；定时预览颜色在选定分钟更新，不延迟至下一个五分钟缓存边界。
 
-`CompatAcceptance` exercises real font rasterization, every built-in theme in both orientations, setting row/checkbox behavior, interrupted fullscreen transitions, cancelled/displaced gestures and midnight/return-to-today paging. `compat-validation.md` records the environment and limitations. Build/lint and a modern device do not substitute for testing an actual API 14 vendor device.
+`CompatAcceptance` 覆盖真实字体栅格、各内置主题横竖屏、设置整行／复选框一致性、打断全屏、取消／移动手势、午夜和回到今天。环境与限制见 [兼容验收](compat-validation.md)。构建、Lint 和现代设备结果不能替代 API 14 厂商设备测试。

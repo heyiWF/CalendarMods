@@ -1,3 +1,7 @@
+[中文](theme-fonts.md) | [English](theme-fonts.en.md)
+
+> 分支范围：compat 保留已有主题字体读取与用户选择；下文安装 API、Compose 入口和专项 runner 为 main/pro 的扩展开发参考，compat 没有主题商店或新增安装界面。
+
 # 主题字体扩展指南
 
 七套模板均通过 `CalendarPaper` 提供字体覆盖；无字体目录的主题保持原来的字体和设置面板。主题有字体时，`CalendarTheme.settings` 在模板原有属性后增加 `font` 选项。

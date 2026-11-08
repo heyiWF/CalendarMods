@@ -1,3 +1,7 @@
+[中文](theme-store-validation.md) | [English](theme-store-validation.en.md)
+
+> 历史记录：以下测试数量、命令和行为对应文中日期；当前分支能力以 README 和本次验收记录为准。
+
 # 主题商店与午夜动画验收
 
 验收日期：2026-10-14。设备：Android 15，ADB `emulator-5554`，1440 × 2560，横竖屏；调试 APK。使用注入时钟跨日，没有修改设备系统时间。

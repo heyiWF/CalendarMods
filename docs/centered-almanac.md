@@ -1,3 +1,7 @@
+[中文](centered-almanac.md) | [English](centered-almanac.en.md)
+
+> 历史记录：以下测试数量、命令和行为对应文中日期；当前分支能力以 README 和本次验收记录为准。
+
 # 好日宜项居中与连续位移动画
 
 后续已将位移改为更舒缓的 640 ms 并与淡变重叠，同时调整“一页”的固定对齐；最新行为、验证和 APK 见[后续验收](almanac-motion-alignment.md)。本文保留首次居中优化的记录。
