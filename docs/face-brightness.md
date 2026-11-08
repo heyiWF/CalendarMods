@@ -1,63 +1,25 @@
-# Face presence brightness
+[中文](face-brightness.md) | [English](face-brightness.en.md)
 
-Each theme has an independent, default-off setting, offered in the style sheet on devices that
-report a camera. It requires the CAMERA runtime permission on Android 6+. Capture runs only while
-the opted-in theme is fullscreen
-and the activity is resumed. All cameras exposed by the API are enumerated, ordered by front-facing metadata and then ID.
-A failed camera/configuration falls back to the remaining candidates, with retries at a bounded frequency.
-Front-facing metadata normally identifies the screen-side camera; incorrect OEM metadata,
-external displays and physical lenses not exposed by the legacy API cannot be inferred reliably.
+# 人脸存在感应亮度
 
-The detector is Android's open-source `android.media.FaceDetector` (AOSP, available since API 1):
+mycompat 的单页主题提供默认关闭的独立开关，仅在设备报告有摄像头时显示。Android 6 及以上需要相机运行时权限。只有该主题启用此功能、处于全屏且 Activity 在前台时才采集。实现枚举旧版相机 API 暴露的所有相机，按前置标记、ID 排序；某相机或配置失败后尝试其余候选，并限制重试频率。厂商标记错误、外接屏幕或旧 API 不暴露的镜头无法可靠推断。
 
-- https://android.googlesource.com/platform/frameworks/base/+/nougat-release/media/java/android/media/FaceDetector.java
-- https://developer.android.com/reference/android/media/FaceDetector
+检测器使用 Android 自带的开源 `android.media.FaceDetector`，API 1 起可用：[AOSP 源码](https://android.googlesource.com/platform/frameworks/base/+/nougat-release/media/java/android/media/FaceDetector.java)、[API 文档](https://developer.android.com/reference/android/media/FaceDetector)。框架源码采用 Apache-2.0；应用调用系统 API，不另行分发原生库，也不依赖 Google Play 服务。
 
-The framework implementation's source is Apache-2.0 licensed. The application calls that
-platform API; it does not redistribute a separate native library or require Google Play services.
-This is presence detection, not identity recognition. Frames never leave memory, and no images,
-face templates or identities are saved. No network or storage permission is added.
+这是有人脸／无人脸的存在检测，不是身份识别。画面仅留在内存，不保存图片、模板或身份，不新增网络或存储权限。
 
-One worker samples NV21 luminance at two frames per second into a reused, orientation-correct,
-RGB_565 bitmap with maximum edge 320 pixels. A detected face raises this window to 85% brightness.
-After eight seconds without a face it fades to 2%, keeping the calendar displayed. Startup uses
-the same eight-second grace. Camera errors or a stalled feed restore the original window
-brightness while automatically reconnecting; leaving fullscreen, pausing or destroying the activity releases capture. Global
-brightness settings are never changed. Front-facing, well-lit faces work best; this legacy
-detector is not a security or liveness check, and darkness/occlusion can cause misses.
+单个工作线程每秒分析两帧 NV21 亮度数据，复用最长边 320 像素、方向校正后的 RGB_565 位图。发现人脸时把当前窗口亮度升到 85%；连续八秒无人脸后渐暗到 2%，日历仍显示。启动同样有八秒宽限。相机错误或帧停滞时恢复原窗口亮度并自动重连；退出全屏、暂停或销毁时释放采集。不会修改全局亮度。正面、光线充分的脸更容易识别；遮挡或黑暗可能漏检，不作为安全或活体检测。分析每秒两帧不等于相机只在这两帧期间运行。
 
-The instrumentation-only `face-fixture.png` is NASA's public-domain photograph of Eileen Collins,
-distributed as `skimage.data.astronaut` by scikit-image:
-https://scikit-image.org/docs/stable/api/skimage.data#skimage.data.astronaut
-https://github.com/scikit-image/scikit-image/blob/v0.24.0/skimage/data/astronaut.png
-It is excluded from the application APK and is used solely to test positive/negative frames and
-all camera rotations. No endorsement is implied.
+测试专用 `face-fixture.png` 为 NASA 的 Eileen Collins 公共领域照片，由 scikit-image 作为 `skimage.data.astronaut` 分发：[数据说明](https://scikit-image.org/docs/stable/api/skimage.data#skimage.data.astronaut)、[文件](https://github.com/scikit-image/scikit-image/blob/v0.24.0/skimage/data/astronaut.png)。仅在 instrumentation 包中测试正负样本与方向，不进入应用 APK，不暗示其认可本项目。
 
-Validation: 61 unit tests and lint/build passed. Android 15 instrumentation checks all four
-rotations against known-face and blank frames, all eleven per-theme settings, actual camera
-frame delivery, pause/resume capture lifecycle, and fullscreen-exit brightness restoration.
-The shared 248 numeral checks and framework history regressions also pass on mycompat.
-Actual API 14 hardware and physical face/lighting variations still require device acceptance.
+相机操作由进程级工作线程串行执行，Activity 重建后不会在旧相机释放前打开新相机。纹理销毁延迟到生产者停止后再释放。若系统不重建 Activity，显示旋转仍更新原始帧方向而不强制重启预览。实际预览尺寸／格式从驱动读回；广告尺寸组合不可用时回退默认。`FaceBrightness` 日志只包含相机 ID、方向和异常，不含画面或人脸数据。
 
-Camera operations share one process-level worker across Activity recreation, so rotation cannot
-open a new camera before the old one has released it. Texture destruction defers release until
-the producer stops. Display rotation also updates raw-frame orientation without requiring a
-preview restart when Android keeps the Activity alive. Negotiated preview dimensions/format
-are read back from the driver; unsupported advertised size combinations fall back to defaults.
-Diagnostic `FaceBrightness` logs contain camera IDs, orientation and exception information,
-never frames or face data. Tests include non-square frames and real display rotations.
+无人值守恢复没有重试次数上限。12 秒帧看门狗重启停滞采集；失败重连从 350 ms 退避至最多 30 秒，稳定分析 30 秒后重置。暂停或退出全屏停止待执行重试。全屏常亮标志独立于检测状态，因此无人脸只降低亮度，不让屏幕休眠。物理故障或卡死驱动不保证可恢复，可通过 logcat 诊断。
 
-Unattended recovery has no retry-count cutoff. A twelve-second frame watchdog reopens stalled
-capture; failed reconnects back off from 350 ms to at most 30 seconds, resetting after thirty
-seconds of stable analysed frames. Pending retries stop when leaving fullscreen or pausing.
-Fullscreen retains FLAG_KEEP_SCREEN_ON independently of face presence and brightness, so a
-missing face dims the calendar without letting the display sleep. A physically failed or
-blocked camera driver cannot be guaranteed to recover; diagnostics remain available in logcat.
+## 历史验收及范围
 
-Follow-up device validation on Android 15: non-square known-face/blank frames pass at all four
-orientations; seven actual display rotations retain analysed frames. During a 75-second run
-with a 15-second screen timeout and plugged-in wake overrides disabled, three deliberately
-stopped camera streams recovered automatically, preferring the previously working front
-camera. The window remained awake throughout and the original power settings were restored.
-This is fault-recovery coverage, not a long-duration certification of the reported YOGA Tablet
-2-1050F / Android 5.0.1 hardware; that device is not connected to this environment.
+以下是单页改版之前的记录：61 项单测、Lint／构建通过；Android 15 验证四方向已知人脸／空白帧、当时十一主题独立设置、实际相机帧、暂停／恢复和退出全屏亮度还原，共享 248 项数字检查与历史回归也通过。它不代表当前 mycompat 仍有十一主题。
+
+后续 Android 15 验证非方形样本四方向、七次实际旋转后持续分析。在关闭插电唤醒覆盖、屏幕超时 15 秒的 75 秒运行中，三次主动停止流均自动恢复，优先复用已成功的前置相机；窗口始终常亮，测试后恢复原电源设置。
+
+上述为故障恢复覆盖，不是 YOGA Tablet 2-1050F / Android 5.0.1 长时间认证。该设备未连接；旧硬件和实际人脸／光照差异仍需单独验收。

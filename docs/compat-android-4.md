@@ -1,6 +1,8 @@
+[中文](compat-android-4.md) | [English](compat-android-4.en.md)
+
 # Android 4.0 兼容分支
 
-`compat` 分支从 `pro` 派生，把最低系统要求从 Android 12 / API 31 降到 Android 4.0 / API 14。
+`mycompat` 基于从 `pro` 派生的传统 View 兼容实现，把最低系统要求从 Android 12 / API 31 降到 Android 4.0 / API 14。
 界面层由 Jetpack Compose 改为系统 View 与 Canvas，历法计算与存储保持不变。
 
 ## 为什么不是只改一行 minSdk
@@ -30,7 +32,7 @@ API 14 上即使强制覆盖清单合并也会在启动时崩溃，因此界面�
 ## 版式取舍
 
 - 跨日动画统一为一次向前翻页。
-- 只使用系统默认的无衬线字族（`sans-serif`）的常规与粗体两个字重。
+- 使用系统无衬线字族的 Black／ExtraBold 层级，按 API 与系统字体支持回退到粗体／常规，详见页面版式文档。
 - 启动图标在 API 26 以下使用位图，26 以上走自适应图标。
 
 ## 构建
