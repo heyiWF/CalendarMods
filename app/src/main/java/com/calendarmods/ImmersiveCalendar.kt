@@ -31,7 +31,7 @@ import kotlin.math.min
 
 private val PaperInk = Color(0xFF20231E)
 private val Cream = Color(0xFFFFFEF9)
-internal val LocalPaperInsets = staticCompositionLocalOf<PaddingValues> { PaddingValues(0.dp) }
+internal val LocalPaperInsets = staticCompositionLocalOf<WindowInsets> { WindowInsets(0, 0, 0, 0) }
 
 @Composable
 fun ImmersiveCalendar(theme: CalendarTheme, data: CalendarData, onExit: () -> Unit, modifier: Modifier = Modifier, animateDay: Boolean = false) {
@@ -68,8 +68,9 @@ internal fun CalendarPaper(theme: CalendarTheme, data: CalendarData, modifier: M
     val fontId = theme.resolveFont(style.fontId)
     CompositionLocalProvider(LocalCalendarFont provides LocalThemeFonts.current[theme.id]?.get(fontId)) {
         Box(modifier.fillMaxSize().background(paper)) {
-            // Paint to every edge, but keep printed content clear of camera cutouts.
-            Box(Modifier.fillMaxSize().padding(LocalPaperInsets.current)) {
+            // Hidden navigation bars reserve no space. Read only physical obstructions and the
+            // desktop caption bar at layout time, so resizing never uses stale composition padding.
+            Box(Modifier.fillMaxSize().windowInsetsPadding(LocalPaperInsets.current)) {
                 FullPaper { wide ->
                     when (theme.renderer) {
                         ThemeRenderer.GOLDEN -> GoldenPaper(data, wide)

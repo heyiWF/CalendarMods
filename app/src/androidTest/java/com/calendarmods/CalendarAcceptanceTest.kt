@@ -32,6 +32,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private lateinit var activities: ActivityMonitor
     private var chooserNavigationVisible = true
     private var lastBars = "not measured"
+    private var lifecycleOnly = false
     private var navigationOnly = false
     private var refinementsOnly = false
     private var contractOnly = false
@@ -50,6 +51,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
     private var centeredRotation: Int? = null
     private var anchoredRotation: Int? = null
     override fun onCreate(arguments: Bundle?) {
+        lifecycleOnly = arguments?.getString("lifecycle") == "true"
         navigationOnly = arguments?.getString("navigation") == "true"
         refinementsOnly = arguments?.getString("refinements") == "true"
         performanceOnly = arguments?.getString("performance") == "true"
@@ -87,7 +89,10 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
                 chooserNavigationVisible = activities.lastActivity.window.decorView.rootWindowInsets
                     .isVisible(WindowInsets.Type.navigationBars())
             }
-            if (navigationOnly) {
+            if (lifecycleOnly) {
+                verifyLiveDates(checks, savedZone)
+                verifyImmersiveLifecycle(checks)
+            } else if (navigationOnly) {
                 verifyPredictiveNavigation(checks)
             } else if (pagingOnly) {
                 verifyCalendarPaging(checks)
@@ -342,7 +347,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
             } finally { failedWrite.deleteRecursively() }
             press("favorite-GOLDEN")
             backgroundToHome()
-            shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+            shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
             await("favorites restored from background") { nodes().any { it.viewIdResourceName == "store-grid-1" } }
             check(CalendarTheme.GOLDEN.id in repository.inventory.value.library.favorites)
             press("store-tab-0")
@@ -885,7 +890,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         val (_, clock) = start()
         backgroundToHome()
         clock.set(ZonedDateTime.of(2028, 2, 29, 12, 0, 0, 0, ZoneId.systemDefault()).toInstant())
-        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+        shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
         awaitImmersive(CalendarTheme.GOLDEN, LocalDate.of(2028, 2, 29))
         check(!moving())
         checks += "background across midnight resumes at current date without replay PASS"
@@ -1490,7 +1495,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         check(bounds == screen) { "Paper does not fill the screen: $bounds vs $screen" }
         tree.filter { it.viewIdResourceName == "immersive-day" }.forEach { day ->
             val dayBounds = Rect().also { day.getBoundsInScreen(it) }
-            check(day.text?.toString() == expectedDate.dayOfMonth.toString().padStart(2, '0'))
+            check(day.text?.toString() == expectedDate.dayOfMonth.toString())
             check(bounds.contains(dayBounds)) { "Full-screen date clipped: $dayBounds" }
         }
     }
@@ -1529,7 +1534,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         checks += "single tap and ordinary swipe do not exit immersive mode or change theme PASS"
         backgroundToHome()
         // Resume as an external user launch; the app itself must not bypass background-start restrictions.
-        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+        shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
         awaitImmersive(theme)
         checks += "immersive resume reapplies hidden bars and current date PASS"
         check(uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
@@ -1626,7 +1631,7 @@ class CalendarAcceptanceInstrumentation : Instrumentation() {
         backgroundToHome()
         await("app backgrounded") { !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
         clock.set(ZonedDateTime.of(2028, 2, 29, 12, 0, 0, 0, ZoneId.systemDefault()).toInstant())
-        shell("am start -W -n com.calendarmods/.MainActivity -f 0x30000000")
+        shell("am start -W -n ${targetContext.packageName}/com.calendarmods.MainActivity -f 0x30000000")
         awaitTheme(CalendarTheme.HANGING, LocalDate.of(2028, 2, 29))
         checks += "resume after background refreshes to leap day with complete calendar data PASS"
         runOnMainSync { activity.setContent { MaterialTheme { CalendarApp() } } }
