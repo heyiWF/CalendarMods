@@ -233,9 +233,12 @@ internal class DailyPage(
         var cursor = x
         if (face.period.isNotEmpty()) {
             val periodSize = periodSize(p, size)
-            val digitTop = p.inkBounds(face.hour + face.minute, size, p.heavy).top
-            val periodTop = p.inkBounds(face.period, periodSize, p.bold).top
-            cursor += p.textAt(face.period, cursor, baseline + digitTop - periodTop,
+            val bottomAligned = face.period == "下午"
+            val digits = p.inkBounds(face.hour + face.minute, size, p.heavy)
+            val digitEdge = if (bottomAligned) digits.bottom else digits.top
+            val period = p.inkBounds(face.period, periodSize, p.bold)
+            val periodEdge = if (bottomAligned) period.bottom else period.top
+            cursor += p.textAt(face.period, cursor, baseline + digitEdge - periodEdge,
                 periodSize, ink, p.bold) + size * CLOCK_GAP
         }
         cursor += p.textAt(face.hour, cursor, baseline, size, ink, p.heavy, tracking) + tracking
@@ -248,7 +251,7 @@ internal class DailyPage(
         p.textAt(face.minute, cursor, baseline, size, ink, p.heavy, tracking)
     }
 
-    /** Half the numeric line's visible height, aligned by ink rather than font ascenders. */
+    /** Half the numeric line's visible height; AM aligns at the top, PM at the bottom. */
     private fun periodSize(p: Plate, size: Float): Float {
         val digitHeight = p.inkBounds("0123456789", 1000f, p.heavy).height()
         val periodHeight = p.inkBounds(face.period, 1000f, p.bold).height().coerceAtLeast(1)
