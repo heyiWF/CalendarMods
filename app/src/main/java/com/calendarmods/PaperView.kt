@@ -228,7 +228,9 @@ internal class PaperView(context: Context) : View(context) {
         val untilMinute = 60_000L - System.currentTimeMillis() % 60_000L
         // frameDelay reads the drawn frame's timestamp, not a fresh one: a fresh read can wrap a
         // transition and delay the next redraw by seconds, freezing the incoming label low.
-        val frame = minOf(DailyPage.frameDelay(frameNow), labelDelay)
+        val frame = if (MotionSettings.enabled(context)) {
+            minOf(DailyPage.frameDelay(frameNow), labelDelay)
+        } else Long.MAX_VALUE
         ticker.postDelayed(tick, minOf(untilMinute, frame).coerceAtLeast(16L))
     }
 

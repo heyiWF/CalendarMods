@@ -35,4 +35,15 @@ class LuxDarkGateTest {
         gate.reset(false)
         assertFalse(gate.update(Float.NaN, 2_000L))
     }
+
+    @Test fun confirmationRequiresAnUninterruptedThresholdReading() {
+        assertFalse(gate.update(3f, 0L))
+        assertFalse(gate.update(20f, 1_000L))
+        assertFalse(gate.update(3f, 1_300L))
+        assertTrue(gate.update(3f, 2_500L))
+        assertTrue(gate.update(40f, 3_000L))
+        assertTrue(gate.update(Float.NaN, 4_000L))
+        assertTrue(gate.update(40f, 4_300L))
+        assertFalse(gate.update(40f, 5_500L))
+    }
 }

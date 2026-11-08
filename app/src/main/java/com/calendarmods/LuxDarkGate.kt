@@ -23,12 +23,12 @@ internal class LuxDarkGate(
     }
 
     fun update(lux: Float, now: Long): Boolean {
-        if (lux.isNaN()) return dark
+        if (lux.isNaN() || lux.isInfinite() || lux < 0f) { pending = null; return dark }
         val wanted = when {
             lux <= darkBelow -> true
             lux >= lightAbove -> false
             // Inside the band the page keeps what it has, which is what stops the flicker.
-            else -> return dark
+            else -> { pending = null; return dark }
         }
         if (wanted == dark) { pending = null; return dark }
         if (pending != wanted) {
