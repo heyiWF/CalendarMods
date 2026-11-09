@@ -26,7 +26,7 @@ Landscape retains only the full-width rule below the header. The month-grid rule
 
 The grid always has six rows and seven columns, Monday first. Numerals and weekday headings use the stronger weight; lunar/festival labels use the supporting weight. Weekend dates are red, today uses a solid circle with reversed text, and out-of-month cells use 26% opacity. Labels share normal light/dark ink with numerals. The number band occupies the space above a label band of about 30% of cell height; fitting uses actual cell width and available height.
 
-Green 宜 and red 忌 chips sit at the lower left, with matching entry text separated by ideographic spaces and wrapped to width. Whole-day verdicts `馀事勿取`/`诸事不宜` appear once at the end of the avoid column, while the suitable column contains concrete entries. Empty suitable/avoid columns show `诸事不宜`/`诸事皆宜` respectively.
+Green 宜 and red 忌 chips sit at the lower left, with matching entry text separated by ideographic spaces and wrapped to width. Whole-day verdicts split by column: `馀事勿取` closes the suitable column and `诸事不宜` closes the avoid column. Empty suitable/avoid columns show `诸事不宜`/`无` respectively.
 
 ## Schemes and sizing protection
 

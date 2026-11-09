@@ -280,7 +280,7 @@ internal class DailyPage(
         var y = layout.almanacY
         y += almanacRow(p, layout, "宜", entries(data.recommends, "诸事不宜"), green, y)
         y += ALMANAC_GAP * layout.scale
-        almanacRow(p, layout, "忌", entries(data.avoids, "诸事皆宜"), red, y)
+        almanacRow(p, layout, "忌", entries(data.avoids, "无"), red, y)
     }
 
     private fun entries(items: List<String>, fallback: String) = items.ifEmpty { listOf(fallback) }
@@ -329,7 +329,7 @@ internal class DailyPage(
         val lineHeight = layout.itemSize * 1.42f
         val chipH = layout.chipSize * 1.55f
         val first = wrapItems(p, entries(data.recommends, "诸事不宜"), textW, layout.itemSize).size
-        val second = wrapItems(p, entries(data.avoids, "诸事皆宜"), textW, layout.itemSize).size
+        val second = wrapItems(p, entries(data.avoids, "无"), textW, layout.itemSize).size
         return max(chipH, first * lineHeight) + ALMANAC_GAP * layout.scale +
             max(chipH, second * lineHeight)
     }

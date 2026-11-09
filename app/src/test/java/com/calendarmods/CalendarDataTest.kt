@@ -78,27 +78,27 @@ class CalendarDataTest {
         assertEquals("暂无", missing.avoidText(4))
     }
 
-    @Test fun theClosingPhrasePrintsUnderTheAvoidColumn() {
+    @Test fun theClosingVerdictsKeepTheirOwnColumn() {
         // 2026-11-07 closes its 宜 list with 「馀事勿取」 and has an empty 忌 list: the phrase
-        // moves over so the two columns read 解除 / 馀事勿取 instead of a bare verdict.
+        // stays with the recommendations, and the empty 忌 column falls back to 无.
         val today = CalendarData.create(PlainDate.of(2026, 11, 7))
-        assertEquals(listOf("解除"), today.recommends)
-        assertEquals(listOf("馀事勿取"), today.avoids)
+        assertEquals(listOf("解除", "馀事勿取"), today.recommends)
+        assertTrue(today.avoids.isEmpty())
 
-        // When both lists close with a verdict the day prints one — 「馀事勿取」 wins the slot.
-        val already = CalendarData.create(PlainDate.of(2024, 1, 8))
-        assertEquals(listOf("解除", "破屋", "坏垣"), already.recommends)
-        assertEquals(listOf("馀事勿取"), already.avoids)
+        // A day that carries both verdicts keeps each in its own column.
+        val both = CalendarData.create(PlainDate.of(2024, 1, 8))
+        assertEquals(listOf("解除", "破屋", "坏垣", "馀事勿取"), both.recommends)
+        assertEquals(listOf("诸事不宜"), both.avoids)
 
-        // A phrase the source already placed under 忌 stays there, unduplicated.
+        // A phrase the source already placed under 忌 moves over to close the 宜 list.
         val inPlace = CalendarData.create(PlainDate.of(2024, 2, 14))
-        assertEquals(listOf("祭祀", "解除", "治病", "破屋", "坏垣", "扫舍"), inPlace.recommends)
-        assertEquals(listOf("馀事勿取"), inPlace.avoids)
+        assertEquals(listOf("祭祀", "解除", "治病", "破屋", "坏垣", "扫舍", "馀事勿取"), inPlace.recommends)
+        assertTrue(inPlace.avoids.isEmpty())
 
-        // The phrase closes the 忌 list after the source's own taboo items.
+        // The phrase closes the 宜 list after the source's own recommendations, leaving 忌 intact.
         val mixed = CalendarData.create(PlainDate.of(2024, 1, 4))
-        assertEquals(listOf("祭祀", "平治道涂", "除服", "成服", "安葬"), mixed.recommends)
-        assertEquals(listOf("嫁娶", "入宅", "纳采", "订盟", "掘井", "馀事勿取"), mixed.avoids)
+        assertEquals(listOf("祭祀", "平治道涂", "除服", "成服", "安葬", "馀事勿取"), mixed.recommends)
+        assertEquals(listOf("嫁娶", "入宅", "纳采", "订盟", "掘井"), mixed.avoids)
     }
 
     @Test fun monthGridStartsOnMondayAndKeepsLeapDaysAcrossYearBoundaries() {

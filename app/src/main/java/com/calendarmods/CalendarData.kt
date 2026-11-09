@@ -80,16 +80,17 @@ data class CalendarData(
 
         /**
          * 「馀事勿取」 and 「诸事不宜」 close the source's lists with a day verdict — "take nothing
-         * else" — instead of one concrete item. The page prints a single verdict at the end of the
-         * 忌 list and keeps 宜 to the concrete recommendations: 「馀事勿取」 fills the slot whenever
-         * the day carries it, 「诸事不宜」 fills it otherwise.
+         * else" — instead of one concrete item. Each verdict keeps its own column: 「馀事勿取」
+         * closes the 宜 list and 「诸事不宜」 closes the 忌 list, whichever column the source dropped
+         * it in. A day that carries neither keeps both lists untouched.
          */
         private fun tabooColumns(recommends: List<String>, avoids: List<String>): Pair<List<String>, List<String>> {
             fun verdict(item: String) = item.endsWith("事勿取") || item == "诸事不宜"
             val all = recommends + avoids
-            val closing = all.firstOrNull { it.endsWith("事勿取") } ?: all.firstOrNull { verdict(it) }
-            return recommends.filterNot { verdict(it) } to
-                avoids.filterNot { verdict(it) } + listOfNotNull(closing)
+            val closingYi = all.firstOrNull { it.endsWith("事勿取") }
+            val closingJi = all.firstOrNull { it == "诸事不宜" }
+            return recommends.filterNot { verdict(it) } + listOfNotNull(closingYi) to
+                avoids.filterNot { verdict(it) } + listOfNotNull(closingJi)
         }
 
         private fun calculate(date: PlainDate): CalendarData {
