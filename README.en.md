@@ -19,14 +19,11 @@ Requires **Android 4.0 / API 14 or later**.
 
 ## Today on one page
 
-Month, day, weekday, lunar date and the day's term or festival share the header, for example `11月7日 星期六 九月廿九立冬`. Smaller 月/日/星期 labels emphasize the numbers and final weekday glyph. The entire Saturday/Sunday label is red regardless of holidays. Numerals and final weekday glyphs request the strongest standard system weight, with supporting text one tier lighter and older-system fallbacks.
+Open to today — date, lunar name, term and festival in one line, a clock and the day's 宜 and 忌 beside them, the whole month grid below. Portrait stacks them vertically, landscape spreads them wide, and light and dark paper switch at a tap.
 
-The clock, complete month grid and bottom-left almanac adapt to orientation. Landscape places the clock/almanac left and grid right beneath a full-width header. Light and dark schemes keep content in place.
-
-- Six rows and seven columns provide a complete month context, starting Monday; every cell includes its lunar date.
-- Today is reversed inside a solid circle, weekend dates are red, and neighboring-month dates fade back.
-- Lunar dates, terms, festivals and seasonal nine-day/dog-day markers rotate beneath the numbers.
-- Green 宜 and red 忌 organize the almanac; whole-day verdicts appear once at the end of the avoid column. These are folk-calendar traditions.
+- **Today at a glance:** a large date in a filled circle, weekends in red, so rest days stand out.
+- **The month in hand:** a Monday-first grid where lunar dates, terms and festivals rotate day by day.
+- **宜 and 忌 in place:** green for suitable, red for avoid — folk-calendar content that changes every day.
 
 ## Tap to expand
 
