@@ -19,14 +19,16 @@ CalendarMods 是一款专注于日历展示的 Android 应用。十一种各具�
 
 从明亮的黄页台历，到温暖的插画与照片，再到安静的竖排文句和复古黄历，左右滑动即可预览，选中喜欢的一页开始使用。
 
+截图更新于 **2026-11-10**，来自本分支最新构建。预览图保留右下角的样式设置按钮；全屏图单独展示。
+
 | 晴日 · 黄页台历 | 冬日来信 · 插画月历 | 拾光 · 照片台历 |
 | --- | --- | --- |
-| <img src="docs/screenshots/refinement-portrait-1-golden.jpg" width="220" alt="晴日：黄色星期条与醒目的大日期"> | <img src="docs/screenshots/refinement-portrait-2-teddy.jpg" width="220" alt="冬日来信：小熊插画与月历"> | <img src="docs/screenshots/refinement-portrait-3-photo.jpg" width="220" alt="拾光：温暖照片与纸质月历"> |
+| <img src="docs/screenshots/readme/preview-golden.png" width="220" alt="晴日：黄色星期条与醒目的大日期"> | <img src="docs/screenshots/readme/preview-teddy.png" width="220" alt="冬日来信：小熊插画与月历"> | <img src="docs/screenshots/readme/preview-photo.png" width="220" alt="拾光：温暖照片与纸质月历"> |
 | 明亮的黄色星期条，搭配清晰醒目的大日期。 | 用一幅温暖插画，陪伴每天的日常。 | 把喜欢的照片，放进每天都会看到的日历。 |
 
 | 好日 · 字体日历 | 慢笺 · 竖排文句 | 岁时 · 复古黄历 | 一页 · 悬挂日历 |
 | --- | --- | --- | --- |
-| <img src="docs/screenshots/refinement-portrait-4-good_day.jpg" width="180" alt="好日：留白与衬线大日期"> | <img src="docs/screenshots/refinement-portrait-5-verse.jpg" width="180" alt="慢笺：淡绿色纸面与竖排文句"> | <img src="docs/screenshots/refinement-portrait-6-almanac.jpg" width="180" alt="岁时：复古纸张与传统黄历信息"> | <img src="docs/screenshots/refinement-portrait-7-hanging.jpg" width="180" alt="一页：悬挂装订与大号日期"> |
+| <img src="docs/screenshots/readme/preview-good_day.png" width="180" alt="好日：留白与衬线大日期"> | <img src="docs/screenshots/readme/preview-verse.png" width="180" alt="慢笺：淡绿色纸面与竖排文句"> | <img src="docs/screenshots/readme/preview-almanac.png" width="180" alt="岁时：复古纸张与传统黄历信息"> | <img src="docs/screenshots/readme/preview-hanging.png" width="180" alt="一页：悬挂装订与大号日期"> |
 | 留白、衬线字体与缓缓切换的宜事项。 | 竖排短句与每日心语，留一点安静的空间。 | 农历、节日与完整宜忌，延续纸质黄历的熟悉感。 | 简洁的大日期，配上装订细节与小猫线稿。 |
 
 ## 四款老黄历
@@ -37,7 +39,7 @@ CalendarMods 是一款专注于日历展示的 Android 应用。十一种各具�
 
 | 南洋通胜 | 岭南通胜 | 经典皇历 | 时和老黄历 |
 | --- | --- | --- | --- |
-| <img src="docs/screenshots/pro-traditional-portrait.png" width="180"> | <img src="docs/screenshots/pro-canton-portrait.png" width="180"> | <img src="docs/screenshots/pro-classic-portrait.png" width="180"> | <img src="docs/screenshots/pro-peitaiyi-portrait.png" width="180"> |
+| <img src="docs/screenshots/readme/preview-traditional.png" width="180"> | <img src="docs/screenshots/readme/preview-canton.png" width="180"> | <img src="docs/screenshots/readme/preview-classic.png" width="180"> | <img src="docs/screenshots/readme/preview-peitaiyi.png" width="180"> |
 
 [主题与横屏、节日截图](docs/traditional-theme.md) · [共享黄历接口](docs/almanac-engine.md)
 
@@ -51,7 +53,7 @@ CalendarMods 是一款专注于日历展示的 Android 应用。十一种各具�
 
 | 竖屏，一页完整的日历 | 横屏，舒展的桌面展示 |
 | --- | --- |
-| <img src="docs/screenshots/immersive-portrait-6-almanac.png" width="240" alt="岁时主题的竖屏沉浸显示"> | <img src="docs/screenshots/immersive-landscape-6-almanac.png" width="440" alt="岁时主题的横屏沉浸显示"> |
+| <img src="docs/screenshots/readme/fullscreen-almanac-portrait.png" width="240" alt="岁时主题的竖屏沉浸显示"> | <img src="docs/screenshots/readme/fullscreen-almanac-landscape.png" width="440" alt="岁时主题的横屏沉浸显示"> |
 
 ## 把喜欢的主题，收进自己的日历
 

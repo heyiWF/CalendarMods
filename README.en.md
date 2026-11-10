@@ -16,15 +16,17 @@ Requires **Android 4.0 / API 14 or later**. This is the **compat** branch, imple
 
 Swipe between bright desk calendars, warm artwork, photographs, quiet vertical words and traditional almanacs.
 
+Screenshots refreshed on **2026-11-10** from this branch’s latest build. Preview images retain the style button at the lower right; fullscreen images are shown separately.
+
 | Theme | Appearance | Preview |
 | --- | --- | --- |
-| 晴日 / Golden | Yellow weekday strip and prominent date | [View](docs/screenshots/refinement-portrait-1-golden.jpg) |
-| 冬日来信 / Winter Letter | Bear illustration and lunar month grid | [View](docs/screenshots/refinement-portrait-2-teddy.jpg) |
-| 拾光 / Captured Light | Your photograph and a paper month grid | [View](docs/screenshots/refinement-portrait-3-photo.jpg) |
-| 好日 / Good Day | Space, serif date and suitable-activity carousel | [View](docs/screenshots/refinement-portrait-4-good_day.jpg) |
-| 慢笺 / Verse | Pale green paper and vertical daily words | [View](docs/screenshots/refinement-portrait-5-verse.jpg) |
-| 岁时 / Almanac | Lunar dates, festivals and complete almanac entries | [View](docs/screenshots/refinement-portrait-6-almanac.jpg) |
-| 一页 / One Page | Hanging binding, large date and cat line art | [View](docs/screenshots/refinement-portrait-7-hanging.jpg) |
+| 晴日 / Golden | Yellow weekday strip and prominent date | [View](docs/screenshots/readme/preview-golden.png) |
+| 冬日来信 / Winter Letter | Bear illustration and lunar month grid | [View](docs/screenshots/readme/preview-teddy.png) |
+| 拾光 / Captured Light | Your photograph and a paper month grid | [View](docs/screenshots/readme/preview-photo.png) |
+| 好日 / Good Day | Space, serif date and suitable-activity carousel | [View](docs/screenshots/readme/preview-good_day.png) |
+| 慢笺 / Verse | Pale green paper and vertical daily words | [View](docs/screenshots/readme/preview-verse.png) |
+| 岁时 / Almanac | Lunar dates, festivals and complete almanac entries | [View](docs/screenshots/readme/preview-almanac.png) |
+| 一页 / One Page | Hanging binding, large date and cat line art | [View](docs/screenshots/readme/preview-hanging.png) |
 
 ## Four traditional almanacs
 
@@ -32,7 +34,7 @@ Nanyang, Lingnan, Classic and Shihe add large dates, bilingual weekdays, lunar s
 
 | Nanyang | Lingnan | Classic | Shihe |
 | --- | --- | --- | --- |
-| ![Nanyang](docs/screenshots/pro-traditional-portrait.png) | ![Lingnan](docs/screenshots/pro-canton-portrait.png) | ![Classic](docs/screenshots/pro-classic-portrait.png) | ![Shihe](docs/screenshots/pro-peitaiyi-portrait.png) |
+| ![Nanyang](docs/screenshots/readme/preview-traditional.png) | ![Lingnan](docs/screenshots/readme/preview-canton.png) | ![Classic](docs/screenshots/readme/preview-classic.png) | ![Shihe](docs/screenshots/readme/preview-peitaiyi.png) |
 
 
 ## Tap to expand
@@ -43,7 +45,7 @@ Portrait resembles a complete sheet; landscape rearranges photo, date and grid i
 
 | Portrait | Landscape |
 | --- | --- |
-| <img src="docs/screenshots/immersive-portrait-6-almanac.png" width="240" alt="Portrait almanac"> | <img src="docs/screenshots/immersive-landscape-6-almanac.png" width="440" alt="Landscape almanac"> |
+| <img src="docs/screenshots/readme/fullscreen-almanac-portrait.png" width="240" alt="Portrait almanac"> | <img src="docs/screenshots/readme/fullscreen-almanac-landscape.png" width="440" alt="Landscape almanac"> |
 
 ## Fixed theme inventory
 
