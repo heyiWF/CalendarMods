@@ -1,0 +1,51 @@
+{
+  "branch": "mycompat",
+  "source_commit": "60fbc6ba003e2170e7bc77182b9a6c0c3d452ab8",
+  "capture_date": "2026-11-10",
+  "timezone": "Asia/Shanghai",
+  "android_version": "15",
+  "density_dpi": 420,
+  "portrait_pixels": [
+    1080,
+    1920
+  ],
+  "landscape_pixels": [
+    1920,
+    1080
+  ],
+  "application_id": "com.calendarmods.screens.mycompat",
+  "apk_sha256": "dbde74fad285036d993c73b03b068aeef373e172fc2794659b58ef8f0750215e",
+  "capture_method": "adb shell screencap -p; full display, no crop or compositing",
+  "files": [
+    {
+      "file": "fullscreen-dark-landscape.png",
+      "role": "fullscreen",
+      "sha256": "212e43657959ebabb49e5678e5aedd0defef05bb4ca30f29ff0100aa88fb50c7"
+    },
+    {
+      "file": "fullscreen-dark-portrait.png",
+      "role": "fullscreen",
+      "sha256": "1672954f06311c8a653f47b8810eb3403de4de0b87ec7d605673870549ec619c"
+    },
+    {
+      "file": "fullscreen-light-landscape.png",
+      "role": "fullscreen",
+      "sha256": "92c61608a3d48c2b113db01cd5a212392b9e977eafa6a8072e14daf42a667334"
+    },
+    {
+      "file": "fullscreen-light-portrait.png",
+      "role": "fullscreen",
+      "sha256": "15d50eaa25632d38013f3064c31b602b3b5a5a50c012e5372ada4ccdcc0e2755"
+    },
+    {
+      "file": "preview-dark.png",
+      "role": "preview",
+      "sha256": "298ce1d93705f91afa4b2e5d55cbf1022c965f4e62f6e21f7f47d456ec91f4ed"
+    },
+    {
+      "file": "preview-light.png",
+      "role": "preview",
+      "sha256": "ef9cd8b88e52c58ff2771e4171c2a7433cbccccaf987f2d4b5eaf86d575cd57b"
+    }
+  ]
+}

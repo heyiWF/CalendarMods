@@ -12,10 +12,12 @@ CalendarMods 是一款专注于日历展示的 Android 应用。整页只保留�
 
 支持 **Android 4.0（API 14）及以上**。
 
+截图更新于 **2026-11-10**，来自本分支最新构建。预览图保留右下角的样式设置按钮；全屏图单独展示。
+
 | 竖屏，一页完整的日历 | 横屏，通栏日期行与整块下移的月历 |
 | --- | --- |
-| <img src="docs/screenshots/daily-page-portrait.png" width="240" alt="今朝主题竖屏：日期行、时钟、月历与左下角的宜忌"> | <img src="docs/screenshots/daily-page-landscape.png" width="440" alt="今朝主题横屏：通栏日期行，左列时钟与宜忌，右侧月历"> |
-| <img src="docs/screenshots/daily-page-dark-portrait.png" width="240" alt="深色竖屏：深色纸面、米白文字与浅色宜忌色块"> | <img src="docs/screenshots/daily-page-dark-landscape.png" width="440" alt="深色横屏：通栏日期行、左列时钟与宜忌、右侧月历"> |
+| <img src="docs/screenshots/readme/fullscreen-light-portrait.png" width="240" alt="今朝主题竖屏：日期行、时钟、月历与左下角的宜忌"> | <img src="docs/screenshots/readme/fullscreen-light-landscape.png" width="440" alt="今朝主题横屏：通栏日期行，左列时钟与宜忌，右侧月历"> |
+| <img src="docs/screenshots/readme/fullscreen-dark-portrait.png" width="240" alt="深色竖屏：深色纸面、米白文字与浅色宜忌色块"> | <img src="docs/screenshots/readme/fullscreen-dark-landscape.png" width="440" alt="深色横屏：通栏日期行、左列时钟与宜忌、右侧月历"> |
 
 ## 一页纸，看完今天
 
@@ -42,7 +44,7 @@ CalendarMods 是一款专注于日历展示的 Android 应用。整页只保留�
 
 | 预览页：点右下角 Aa 调整样式 | 深色模式下的预览页 |
 | --- | --- |
-| <img src="docs/screenshots/daily-page-preview.png" width="260" alt="预览页：一页日历卡片与右下角的 Aa 样式按钮"> | <img src="docs/screenshots/daily-page-dark-preview.png" width="260" alt="深色模式下的预览页：深色底与深色卡片"> |
+| <img src="docs/screenshots/readme/preview-light.png" width="260" alt="预览页：一页日历卡片与右下角的 Aa 样式按钮"> | <img src="docs/screenshots/readme/preview-dark.png" width="260" alt="深色模式下的预览页：深色底与深色卡片"> |
 
 ## 日期之外，也有每天的新内容
 

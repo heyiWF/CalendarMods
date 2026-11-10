@@ -12,10 +12,12 @@ CalendarMods turns an Android phone or tablet into a live calendar. The mycompat
 
 Requires **Android 4.0 / API 14 or later**.
 
+Screenshots refreshed on **2026-11-10** from this branch’s latest build. Preview images retain the style button at the lower right; fullscreen images are shown separately.
+
 | Portrait | Landscape |
 | --- | --- |
-| <img src="docs/screenshots/daily-page-portrait.png" width="240" alt="Daily page in portrait"> | <img src="docs/screenshots/daily-page-landscape.png" width="440" alt="Full-width date header and landscape month grid"> |
-| <img src="docs/screenshots/daily-page-dark-portrait.png" width="240" alt="Dark portrait page"> | <img src="docs/screenshots/daily-page-dark-landscape.png" width="440" alt="Dark landscape page"> |
+| <img src="docs/screenshots/readme/fullscreen-light-portrait.png" width="240" alt="Daily page in portrait"> | <img src="docs/screenshots/readme/fullscreen-light-landscape.png" width="440" alt="Full-width date header and landscape month grid"> |
+| <img src="docs/screenshots/readme/fullscreen-dark-portrait.png" width="240" alt="Dark portrait page"> | <img src="docs/screenshots/readme/fullscreen-dark-landscape.png" width="440" alt="Dark landscape page"> |
 
 ## Today on one page
 
@@ -42,7 +44,7 @@ The Aa style control at the preview's lower right applies and saves changes imme
 
 | Preview and Aa control | Dark preview |
 | --- | --- |
-| <img src="docs/screenshots/daily-page-preview.png" width="260" alt="Daily calendar preview and style control"> | <img src="docs/screenshots/daily-page-dark-preview.png" width="260" alt="Dark calendar preview"> |
+| <img src="docs/screenshots/readme/preview-light.png" width="260" alt="Daily calendar preview and style control"> | <img src="docs/screenshots/readme/preview-dark.png" width="260" alt="Dark calendar preview"> |
 
 ## Live and offline
 
