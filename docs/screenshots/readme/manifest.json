@@ -1,0 +1,96 @@
+{
+  "branch": "pro",
+  "source_commit": "007ff10f984033ac9d87482f40f62baa3b6ee4e7",
+  "capture_date": "2026-11-10",
+  "timezone": "Asia/Shanghai",
+  "android_version": "15",
+  "density_dpi": 420,
+  "portrait_pixels": [
+    1080,
+    1920
+  ],
+  "landscape_pixels": [
+    1920,
+    1080
+  ],
+  "application_id": "com.calendarmods.screens.pro",
+  "apk_sha256": "b11364a8440ea3fe71f0df5e96cdfaacfd2c4b5bf8e4785b9349625565201f24",
+  "capture_method": "adb shell screencap -p; full display, no crop or compositing",
+  "files": [
+    {
+      "file": "fullscreen-almanac-landscape.png",
+      "role": "fullscreen",
+      "sha256": "cb6b3dae74af0263c5d6f6e5cac909b9cfefee2124741faebe8d48885f5ab59b"
+    },
+    {
+      "file": "fullscreen-almanac-portrait.png",
+      "role": "fullscreen",
+      "sha256": "2f4d688ff9bf34e860c41e2435282a2b691f6fbc5e39d0d75e00d118be659cba"
+    },
+    {
+      "file": "preview-almanac.png",
+      "role": "preview",
+      "sha256": "90908405c459a2188d4d2a22d3aa270f1d11ebc31718e6d8b9a9761db1b61df1"
+    },
+    {
+      "file": "preview-canton.png",
+      "role": "preview",
+      "sha256": "9fff66802007ca732f3c570439a1e127b1c1aea183ab83a5e3e79bacbe29b282"
+    },
+    {
+      "file": "preview-classic.png",
+      "role": "preview",
+      "sha256": "23bec8ba92f680a22562a62885c3b10bfb51a88eb8144f736d47163b44cbc6c2"
+    },
+    {
+      "file": "preview-golden.png",
+      "role": "preview",
+      "sha256": "05f12789500a7d37cacba202a3dd3c873b31f3f5e781ba1738a5c66a0f48cda8"
+    },
+    {
+      "file": "preview-good_day.png",
+      "role": "preview",
+      "sha256": "780253bdacabaa1c06406c146121d27c84ba3f0ad25f29d77a7bafb76827ebe6"
+    },
+    {
+      "file": "preview-hanging.png",
+      "role": "preview",
+      "sha256": "7a8081c920c3a1a5a29bcdf821adbaf343154d031eab7c1e6c8435c6ad31a245"
+    },
+    {
+      "file": "preview-peitaiyi.png",
+      "role": "preview",
+      "sha256": "e2d817f3ef927e268ed2d487b29c64768c3d3a0c2a2523538d0621763fbeb0f1"
+    },
+    {
+      "file": "preview-photo.png",
+      "role": "preview",
+      "sha256": "d3765f2c618b5e8b8c967798f651572f2fe5882abe0c38bbd58190a629abf74e"
+    },
+    {
+      "file": "preview-teddy.png",
+      "role": "preview",
+      "sha256": "593f201218c9325f326253de44975b2a2928248eacc067f43600770e27fa2d33"
+    },
+    {
+      "file": "preview-traditional.png",
+      "role": "preview",
+      "sha256": "418c942adea71f1eb53d83fe18d0756da2f9b199f7504f10966ee538346a79a1"
+    },
+    {
+      "file": "preview-verse.png",
+      "role": "preview",
+      "sha256": "287dc4262372dbcb24805919c999654efbbd7a519d2abe0d67aeb2ed503611e7"
+    },
+    {
+      "file": "store-landscape.png",
+      "role": "store",
+      "sha256": "831a791cdd6ae84369b639a7625991c885149e4a5b7c062108d89eeb6415be9b"
+    },
+    {
+      "file": "store-portrait.png",
+      "role": "store",
+      "sha256": "ff5fc6b1b438fd43d45703a99b1f7452c9e53a2862724a35ffdbc396c885bd75"
+    }
+  ]
+}
