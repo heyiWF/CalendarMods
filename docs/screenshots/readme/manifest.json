@@ -1,0 +1,76 @@
+{
+  "branch": "main",
+  "source_commit": "545cd1b47c6e8d1178ce63d68a7328c629ef0644",
+  "capture_date": "2026-11-10",
+  "timezone": "Asia/Shanghai",
+  "android_version": "15",
+  "density_dpi": 420,
+  "portrait_pixels": [
+    1080,
+    1920
+  ],
+  "landscape_pixels": [
+    1920,
+    1080
+  ],
+  "application_id": "com.calendarmods.screens.main",
+  "apk_sha256": "6407505651e4a537d917111a83b30cc5528e3b9623100d38434ef8f96b975f1e",
+  "capture_method": "adb shell screencap -p; full display, no crop or compositing",
+  "files": [
+    {
+      "file": "fullscreen-almanac-landscape.png",
+      "role": "fullscreen",
+      "sha256": "cb6b3dae74af0263c5d6f6e5cac909b9cfefee2124741faebe8d48885f5ab59b"
+    },
+    {
+      "file": "fullscreen-almanac-portrait.png",
+      "role": "fullscreen",
+      "sha256": "2f4d688ff9bf34e860c41e2435282a2b691f6fbc5e39d0d75e00d118be659cba"
+    },
+    {
+      "file": "preview-almanac.png",
+      "role": "preview",
+      "sha256": "16013360a9550b998497d60c798cf39fee5976b53845c6fc617cea26ad8b2ddd"
+    },
+    {
+      "file": "preview-golden.png",
+      "role": "preview",
+      "sha256": "c1b8a74eddcefc24041236afef4fa16cd6b5f8df8756fc39a8e3c44d7843cb66"
+    },
+    {
+      "file": "preview-good_day.png",
+      "role": "preview",
+      "sha256": "54df0a3781d18f408645ca4012118a7dfe1540f334bdf746653586dd66142c81"
+    },
+    {
+      "file": "preview-hanging.png",
+      "role": "preview",
+      "sha256": "9eebbb82edef5c0817a8fda1e4425e3572b394ca59e486729f5e5e3ede9dc5de"
+    },
+    {
+      "file": "preview-photo.png",
+      "role": "preview",
+      "sha256": "3682cd2fe64d57a22b209a15a4208f8a539f7784d7f343b6de2be46ffcf32295"
+    },
+    {
+      "file": "preview-teddy.png",
+      "role": "preview",
+      "sha256": "1adb81573f303c38d2ca37e33f089f542039c29904e4eb01b85ebbb5e01b2741"
+    },
+    {
+      "file": "preview-verse.png",
+      "role": "preview",
+      "sha256": "4ed9c6fb138a209ccefbae69711dd65d4fc174caa14e537dd2191f854f7229be"
+    },
+    {
+      "file": "store-landscape.png",
+      "role": "store",
+      "sha256": "238c2b79d6b1b76324048a3a1bf5214013a8a244460a2ff8d26e0bb9ff818594"
+    },
+    {
+      "file": "store-portrait.png",
+      "role": "store",
+      "sha256": "66fe392b72491241e1746ff973828d990e83affa0345aebd13bbb510a30d6440"
+    }
+  ]
+}

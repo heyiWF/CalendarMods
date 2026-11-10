@@ -16,15 +16,17 @@ Requires **Android 12 / API 31 or later**. This is the **main** branch, implemen
 
 Swipe between bright desk calendars, warm artwork, photographs, quiet vertical words and traditional almanacs.
 
+Screenshots refreshed on **2026-11-10** from this branch’s latest build. Preview images retain the style button at the lower right; fullscreen images are shown separately.
+
 | Theme | Appearance | Preview |
 | --- | --- | --- |
-| 晴日 / Golden | Yellow weekday strip and prominent date | [View](docs/screenshots/refinement-portrait-1-golden.jpg) |
-| 冬日来信 / Winter Letter | Bear illustration and lunar month grid | [View](docs/screenshots/refinement-portrait-2-teddy.jpg) |
-| 拾光 / Captured Light | Your photograph and a paper month grid | [View](docs/screenshots/refinement-portrait-3-photo.jpg) |
-| 好日 / Good Day | Space, serif date and suitable-activity carousel | [View](docs/screenshots/refinement-portrait-4-good_day.jpg) |
-| 慢笺 / Verse | Pale green paper and vertical daily words | [View](docs/screenshots/refinement-portrait-5-verse.jpg) |
-| 岁时 / Almanac | Lunar dates, festivals and complete almanac entries | [View](docs/screenshots/refinement-portrait-6-almanac.jpg) |
-| 一页 / One Page | Hanging binding, large date and cat line art | [View](docs/screenshots/refinement-portrait-7-hanging.jpg) |
+| 晴日 / Golden | Yellow weekday strip and prominent date | [View](docs/screenshots/readme/preview-golden.png) |
+| 冬日来信 / Winter Letter | Bear illustration and lunar month grid | [View](docs/screenshots/readme/preview-teddy.png) |
+| 拾光 / Captured Light | Your photograph and a paper month grid | [View](docs/screenshots/readme/preview-photo.png) |
+| 好日 / Good Day | Space, serif date and suitable-activity carousel | [View](docs/screenshots/readme/preview-good_day.png) |
+| 慢笺 / Verse | Pale green paper and vertical daily words | [View](docs/screenshots/readme/preview-verse.png) |
+| 岁时 / Almanac | Lunar dates, festivals and complete almanac entries | [View](docs/screenshots/readme/preview-almanac.png) |
+| 一页 / One Page | Hanging binding, large date and cat line art | [View](docs/screenshots/readme/preview-hanging.png) |
 
 
 
@@ -36,7 +38,7 @@ Portrait resembles a complete sheet; landscape rearranges photo, date and grid i
 
 | Portrait | Landscape |
 | --- | --- |
-| <img src="docs/screenshots/immersive-portrait-6-almanac.png" width="240" alt="Portrait almanac"> | <img src="docs/screenshots/immersive-landscape-6-almanac.png" width="440" alt="Landscape almanac"> |
+| <img src="docs/screenshots/readme/fullscreen-almanac-portrait.png" width="240" alt="Portrait almanac"> | <img src="docs/screenshots/readme/fullscreen-almanac-landscape.png" width="440" alt="Landscape almanac"> |
 
 ## Your theme library
 
@@ -44,7 +46,7 @@ Swipe to the rightmost chooser entry and tap + for the local store. Recommended,
 
 Apply installs in place with a progress indicator, then becomes Installed; tapping it opens removal confirmation. Installed also provides Use. Unfavoriting retains the card until leaving the tab/store and can be undone by tapping the heart again. Deleting resets personal images/styles while retaining favorites; re-adding uses defaults at the end. Current presets work offline; online accounts/upload/download are not implemented.
 
-<img src="docs/screenshots/theme-store-portrait.jpg" width="260" alt="Three-column local theme store"> <img src="docs/screenshots/theme-store-landscape.jpg" width="460" alt="Landscape store">
+<img src="docs/screenshots/readme/store-portrait.png" width="260" alt="Three-column local theme store"> <img src="docs/screenshots/readme/store-landscape.png" width="460" alt="Landscape store">
 
 
 ## Make it yours
