@@ -59,7 +59,11 @@ internal fun Instrumentation.verifyHistoryRegressions(host: MainActivity, checks
         main {
             check(field("browsedDate").get(host) == start.plusDays(2))
             (field("todayButton").get(host) as View).performClick()
-            check((field("paging").get(host) as CalendarPaging).origin == start.plusDays(3))
+            val pager = field("paging").get(host) as CalendarPaging
+            check(pager.origin == start.plusDays(3)) {
+                "return-to-today left the pager at ${pager.origin}, expected ${start.plusDays(3)};" +
+                    " the page calls ${(field("data").get(host) as CalendarData).today} today"
+            }
             browse.invoke(host, 1)
             check(field("browsedDate").get(host) == start.plusDays(4))
         }

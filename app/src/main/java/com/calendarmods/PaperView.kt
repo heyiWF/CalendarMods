@@ -54,6 +54,9 @@ internal class PaperView(context: Context) : View(context) {
     /** The page a month turn would reveal, or null while the host is still preparing it. */
     var monthPage: ((Int) -> CalendarData?)? = null
 
+    /** Every touch that lands on the page; the host restarts its idle countdown from it. */
+    var onTouchDown: (() -> Unit)? = null
+
     private var face: ClockFace = clockFace(true)
     private var outgoing: Bitmap? = null
     private var animating = false
@@ -410,6 +413,7 @@ internal class PaperView(context: Context) : View(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (turnAnimator != null) snapTurn()
+                onTouchDown?.invoke()
                 downX = event.x
                 downY = event.y
                 downAt = SystemClock.uptimeMillis()

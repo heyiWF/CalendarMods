@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -39,6 +41,8 @@ class MainActivity : Activity() {
     private var neighbourAnchor: PlainMonth? = null
     private var neighbourRequest = 0
     private var screenAnimation: android.animation.ValueAnimator? = null
+    private val idleHandler = Handler(Looper.getMainLooper())
+    private val idleReturn = Runnable { if (immersive && browsedDate != null) showToday(style.pageAnimation) }
 
     private val theme: CalendarTheme get() = CalendarTheme.DAILY
 
@@ -115,6 +119,7 @@ class MainActivity : Activity() {
         destroyed = true
         pageRequest++
         screenAnimation?.cancel()
+        cancelIdle()
         styleSheet?.dismiss()
         stopMonitor()
         super.onDestroy()
@@ -144,6 +149,8 @@ class MainActivity : Activity() {
                         paging = CalendarPaging(calendar.today)
                         paper.setPage(theme, calendar, style, event.animate, dark)
                         prepareNeighbours(calendar.today)
+                        // Nothing is left to return to; the idle clock keeps its own countdown.
+                        idleHandler.removeCallbacks(idleReturn)
                     }
                     updateTodayButton(calendar.today)
                 }
@@ -166,6 +173,7 @@ class MainActivity : Activity() {
         paper.onMonthStep = { direction -> flipMonth(direction) }
         paper.onMonthSettled = { date -> adoptDate(date) }
         paper.monthPage = { direction -> neighbourPages[direction] }
+        paper.onTouchDown = { restartIdle() }
         if (paper.parent == null) {
             root.addView(paper, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT))
@@ -175,6 +183,7 @@ class MainActivity : Activity() {
         setSystemBars(immersive = true)
         updateTodayButton(data.today)
         prepareNeighbours(data.today)
+        restartIdle()
         syncFaceBrightness()
     }
 
@@ -189,7 +198,9 @@ class MainActivity : Activity() {
         paper.onMonthStep = null
         paper.onMonthSettled = null
         paper.monthPage = null
+        paper.onTouchDown = null
         cancelNeighbours()
+        cancelIdle()
         pageRequest++
         animateFullscreen(false)
         todayButton?.let { root.removeView(it) }
@@ -218,6 +229,7 @@ class MainActivity : Activity() {
     private fun showDate(date: PlainDate, animate: Boolean) {
         browsedDate = date
         paging?.let { pageOffset = it.page(date) - it.home }
+        restartIdle()
         val request = ++pageRequest
         Ui.io {
             val calendar = CalendarData.create(date)
@@ -273,6 +285,56 @@ class MainActivity : Activity() {
         paging?.let { pageOffset = it.page(date) - it.home }
         updateTodayButton(data?.today)
         prepareNeighbours(date)
+        restartIdle()
+    }
+
+    /**
+     * Prints today again. The day is taken from the page's own clock when the countdown expires,
+     * so one that ran past midnight lands on the new day instead of the one it started from.
+     */
+    private fun showToday(animate: Boolean) {
+        val todayData = data
+        val today = IdleReturn.target(todayData?.today, SystemCalendarClock)
+        browsedDate = null
+        pageOffset = 0
+        // Nothing is left to return to; the idle clock keeps its own countdown.
+        idleHandler.removeCallbacks(idleReturn)
+        val request = ++pageRequest
+        if (todayData != null && todayData.today == today) {
+            paging = CalendarPaging(today)
+            paper.setPage(theme, todayData, style, animate, dark)
+            updateTodayButton(today)
+            prepareNeighbours(today)
+            return
+        }
+        Ui.io {
+            val calendar = CalendarData.create(today)
+            Ui.post {
+                if (destroyed || !immersive || request != pageRequest) return@post
+                data = calendar
+                paging = CalendarPaging(today)
+                paper.setPage(theme, calendar, style, animate, dark)
+                updateTodayButton(today)
+                prepareNeighbours(today)
+                refreshChooser()
+            }
+        }
+    }
+
+    /**
+     * Restarts the silent countdown that takes a browsed page back to today. It runs only while
+     * another date is on screen in interactive mode, and every touch or date change restarts it.
+     */
+    private fun restartIdle() {
+        idleHandler.removeCallbacks(idleReturn)
+        if (!immersive) return
+        if (IdleReturn.armed(immersive, style.interactive, browsedDate != null)) {
+            idleHandler.postDelayed(idleReturn, IdleReturn.WINDOW_MS)
+        }
+    }
+
+    private fun cancelIdle() {
+        idleHandler.removeCallbacks(idleReturn)
     }
 
     /**
@@ -314,17 +376,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(20f).toInt(), dp(10f).toInt(), dp(20f).toInt(), dp(10f).toInt())
             setBackgroundColor(0xCC20231E.toInt())
-            setOnClickListener {
-                browsedDate = null
-                pageOffset = 0
-                pageRequest++
-                data?.let { calendar ->
-                    paging = CalendarPaging(calendar.today)
-                    paper.setPage(theme, calendar, style, style.pageAnimation, dark)
-                    prepareNeighbours(calendar.today)
-                }
-                updateTodayButton(data?.today)
-            }
+            setOnClickListener { showToday(style.pageAnimation) }
             val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
             params.bottomMargin = dp(72f).toInt()
@@ -358,6 +410,7 @@ class MainActivity : Activity() {
         refreshChooser()
         if (immersive) refreshPage(animate = false)
         syncFaceBrightness()
+        restartIdle()
     }
 
     /** The page and the window follow whichever printing the dark-mode source asked for. */
