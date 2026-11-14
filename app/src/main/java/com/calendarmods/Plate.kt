@@ -170,9 +170,21 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
     }
 
     companion object {
-        // Resolve once, not once per animation frame. Android chooses the closest supported
-        // system weight, including the fallback family for Chinese glyphs.
-        private val regularFace = Typeface.create("sans-serif", Typeface.NORMAL)
+        /** The heavy numeral face, for marks printed outside a page — the idle clock. */
+        val numerals: Typeface get() = numeralFace
+
+        /** The lighter face that prints marks beside the numerals, such as a clock's colon. */
+        val supporting: Typeface get() = supportingFace
+
+        /**
+         * The page and the idle clock are set in Roboto. Ask for the family by name first, so a
+         * device that keeps Roboto beside its own text face gets Roboto; otherwise take the
+         * platform's text face, which is Roboto on every AOSP release. Both names are system
+         * families — the app bundles no typeface — and an unresolvable name falls back to the
+         * default face rather than a missing font. Resolved once, not once per frame; Android
+         * picks the closest supported weight from here, Chinese glyphs included.
+         */
+        private val regularFace = robotoOrSans()
         private val legacyBoldFace = Typeface.create(regularFace, Typeface.BOLD)
         private val numeralFace = if (Build.VERSION.SDK_INT >= 28) {
             Typeface.create(regularFace, 900, false)
@@ -187,8 +199,32 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
         } else if (Build.VERSION.SDK_INT >= 21) {
             if (numeralFace == legacyBoldFace) regularFace else legacyBoldFace
         } else regularFace
-        /** Roboto Condensed, the condensed family the system ships; older releases carry Bold only. */
-        private val condensedFace = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+        /**
+         * Roboto Condensed, the condensed family the system ships — the app bundles no typeface.
+         * A device without it resolves the name to the default face, which would print the date
+         * lighter and wider than the page asks for, so the page falls back to its own numerals;
+         * the width of the digits is what tells the two faces apart.
+         */
+        private val condensedFace = run {
+            val family = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+            if (digitWidth(family) < digitWidth(legacyBoldFace) * .97f) family else numeralFace
+        }
+
+        /** Advance of the ten digits in [face] at a fixed size, in pixels. */
+        private fun digitWidth(face: Typeface): Float {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            paint.typeface = face
+            paint.textSize = 1000f
+            return paint.measureText("0123456789")
+        }
+
+        /** Roboto by name, else the platform text family; a name that resolves to nothing is skipped. */
+        private fun robotoOrSans(): Typeface {
+            val named = listOf("Roboto", "roboto").firstNotNullOfOrNull { name ->
+                Typeface.create(name, Typeface.NORMAL).takeIf { it != Typeface.DEFAULT }
+            }
+            return named ?: Typeface.create("sans-serif", Typeface.NORMAL)
+        }
 
         /**
          * Ink height of the weekday characters over the numerals' at the same size. Latin digits
