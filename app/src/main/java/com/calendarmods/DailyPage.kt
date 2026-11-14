@@ -169,8 +169,9 @@ internal class DailyPage(
     /**
      * Date line: 11月 6日 星期六 with the day's lunar name right-aligned on the same baseline. The
      * lunar run carries the day's solar term or first festival without a space — `九月廿九立冬`.
-     * Units and the weekday prefix are smaller; numerals and the final weekday glyph are heavier.
-     * When the line is too wide all runs shrink together, including their gaps.
+     * Units, the weekday prefix and the lunar run sit at [HEADER_MINOR]; the numerals and the
+     * final weekday glyph are heavier. When the line is too wide all runs shrink together,
+     * including their gaps.
      */
     private fun header(p: Plate, layout: Layout, x: Float, w: Float, top: Float) {
         val size = HEADER_SIZE * layout.scale * layout.headerScale
@@ -184,8 +185,8 @@ internal class DailyPage(
         cursor += p.textAt("星期", cursor, baseline, size * HEADER_MINOR, weekdayColor, p.bold)
         p.textAt(data.weekdayChinese.takeLast(1), cursor, baseline, size, weekdayColor, p.heavy)
 
-        val lunarWidth = p.advance(data.lunarHeadline, size, p.bold)
-        p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size, ink, p.bold)
+        val lunarWidth = p.advance(data.lunarHeadline, size * HEADER_MINOR, p.bold)
+        p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size * HEADER_MINOR, ink, p.bold)
     }
 
     /**
@@ -210,7 +211,7 @@ internal class DailyPage(
 
     /** Gaps are em-based, so the whole line gives up size together and never closes up. */
     private fun headerWidth(p: Plate, size: Float, headline: String): Float =
-        headerLeftWidth(p, size) + GAP_LUNAR * size + p.advance(headline, size, p.bold)
+        headerLeftWidth(p, size) + GAP_LUNAR * size + p.advance(headline, size * HEADER_MINOR, p.bold)
 
     /**
      * Where the two halves of the date line land, measured the way [header] prints them. The
@@ -223,7 +224,7 @@ internal class DailyPage(
         return HeaderSpan(
             size = size,
             leftEnd = EDGE + headerLeftWidth(p, size),
-            lunarLeft = EDGE + w - p.advance(headline, size, p.bold),
+            lunarLeft = EDGE + w - p.advance(headline, size * HEADER_MINOR, p.bold),
         )
     }
 
