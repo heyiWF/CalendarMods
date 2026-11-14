@@ -40,6 +40,16 @@ internal class DailyPage(
     var labelDelay = Long.MAX_VALUE
         private set
 
+    /**
+     * Where the month grid landed, in design units. The host view reads it after [draw] to map a
+     * tap onto a date and to decide whether a horizontal drag belongs to the grid.
+     */
+    var gridSpan: GridSpan? = null
+        private set
+
+    internal class GridSpan(val left: Float, val top: Float, val cellW: Float, val cellH: Float,
+        val headerH: Float)
+
     fun draw(canvas: Canvas) {
         val p = Plate(canvas, ink)
         labelDelay = Long.MAX_VALUE
@@ -382,6 +392,7 @@ internal class DailyPage(
     private fun monthGrid(p: Plate, layout: Layout) {
         val names = listOf("一", "二", "三", "四", "五", "六", "日")
         val headerH = layout.gridHeaderH
+        gridSpan = GridSpan(layout.gridX, layout.gridY, layout.cellW, layout.cellH, headerH)
         // Landscape: the full-width rule under the date line already sits just above the grid,
         // so the grid keeps its own rule only on the portrait page.
         if (!wide) {

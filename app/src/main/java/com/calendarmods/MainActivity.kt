@@ -35,6 +35,9 @@ class MainActivity : Activity() {
     private var pageRequest = 0
     private var paging: CalendarPaging? = null
     private var pageOffset = 0
+    private var neighbourPages: Map<Int, CalendarData> = emptyMap()
+    private var neighbourAnchor: PlainMonth? = null
+    private var neighbourRequest = 0
     private var screenAnimation: android.animation.ValueAnimator? = null
 
     private val theme: CalendarTheme get() = CalendarTheme.DAILY
@@ -140,6 +143,7 @@ class MainActivity : Activity() {
                         pageOffset = 0
                         paging = CalendarPaging(calendar.today)
                         paper.setPage(theme, calendar, style, event.animate, dark)
+                        prepareNeighbours(calendar.today)
                     }
                     updateTodayButton(calendar.today)
                 }
@@ -158,6 +162,10 @@ class MainActivity : Activity() {
         paper.onLongPress = { exitImmersive() }
         paper.onTap = { }
         paper.onSwipe = { direction -> if (style.interactive) browse(direction) }
+        paper.onPickDate = { date -> pickDate(date) }
+        paper.onMonthStep = { direction -> flipMonth(direction) }
+        paper.onMonthSettled = { date -> adoptDate(date) }
+        paper.monthPage = { direction -> neighbourPages[direction] }
         if (paper.parent == null) {
             root.addView(paper, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT))
@@ -166,6 +174,7 @@ class MainActivity : Activity() {
         animateFullscreen(true)
         setSystemBars(immersive = true)
         updateTodayButton(data.today)
+        prepareNeighbours(data.today)
         syncFaceBrightness()
     }
 
@@ -176,6 +185,11 @@ class MainActivity : Activity() {
         preferences.edit().putBoolean("immersive", false).apply()
         paper.onLongPress = null
         paper.onSwipe = null
+        paper.onPickDate = null
+        paper.onMonthStep = null
+        paper.onMonthSettled = null
+        paper.monthPage = null
+        cancelNeighbours()
         pageRequest++
         animateFullscreen(false)
         todayButton?.let { root.removeView(it) }
@@ -197,18 +211,93 @@ class MainActivity : Activity() {
         if (!style.interactive) return
         val pager = paging ?: CalendarPaging(data?.today ?: return).also { paging = it }
         val target = (pager.home + pageOffset + direction).coerceIn(0, pager.count - 1)
-        pageOffset = target - pager.home
-        val next = pager.date(target)
-        browsedDate = next
+        showDate(pager.date(target), style.pageAnimation)
+    }
+
+    /** Prints [date] on the page; [animate] turns the sheet the way a midnight change does. */
+    private fun showDate(date: PlainDate, animate: Boolean) {
+        browsedDate = date
+        paging?.let { pageOffset = it.page(date) - it.home }
         val request = ++pageRequest
         Ui.io {
-            val calendar = CalendarData.create(next)
+            val calendar = CalendarData.create(date)
             Ui.post {
                 if (destroyed || !immersive || request != pageRequest) return@post
-                paper.setPage(theme, calendar, style, animate = style.pageAnimation, dark = dark)
-                data?.today?.let { updateTodayButton(it) }
+                paper.setPage(theme, calendar, style, animate, dark)
+                updateTodayButton(data?.today)
+                prepareNeighbours(date)
             }
         }
+    }
+
+    /**
+     * A tap on the month grid. A date inside the shown month changes the day; a date the grid
+     * borrows from a neighbouring month turns the sheet into that month and lands on the day.
+     */
+    private fun pickDate(date: PlainDate) {
+        if (!style.interactive) return
+        val current = browsedDate ?: data?.today ?: return
+        if (date == current) return
+        if (PlainMonth.from(date) == PlainMonth.from(current)) {
+            showDate(date, style.pageAnimation)
+        } else {
+            flipTo(date, if (monthIndex(date) > monthIndex(current)) 1 else -1)
+        }
+    }
+
+    /** Turns the sheet one month forward or back, landing on the first day of that month. */
+    private fun flipMonth(direction: Int) {
+        if (!style.interactive) return
+        val current = browsedDate ?: data?.today ?: return
+        val target = CalendarPaging.monthStep(current, direction) ?: return
+        flipTo(target, direction)
+    }
+
+    /** Turns the sheet onto [date], which sits in a neighbouring month. */
+    private fun flipTo(date: PlainDate, direction: Int) {
+        val request = ++pageRequest
+        Ui.io {
+            val calendar = CalendarData.create(date)
+            Ui.post {
+                if (destroyed || !immersive || request != pageRequest) return@post
+                paper.flipTo(calendar, direction, animate = style.pageAnimation)
+            }
+        }
+    }
+
+    private fun monthIndex(date: PlainDate) = date.year * 12 + date.monthValue
+
+    /** The sheet landed on [date]: keep the pager, the today button and the warm months in step. */
+    private fun adoptDate(date: PlainDate) {
+        browsedDate = if (date == data?.today) null else date
+        paging?.let { pageOffset = it.page(date) - it.home }
+        updateTodayButton(data?.today)
+        prepareNeighbours(date)
+    }
+
+    /**
+     * Prepares the page a month turn would reveal, so a drag can follow the finger from its first
+     * pixel. Both neighbouring months are computed off the main thread, and every frame of the
+     * turn then only has to print the page that is already in hand.
+     */
+    private fun prepareNeighbours(date: PlainDate) {
+        val anchor = PlainMonth.from(date)
+        if (anchor == neighbourAnchor) return
+        neighbourAnchor = anchor
+        neighbourPages = emptyMap()
+        val request = ++neighbourRequest
+        Ui.io {
+            val pages = HashMap<Int, CalendarData>(4)
+            CalendarPaging.monthStep(date, 1)?.let { pages[1] = CalendarData.create(it) }
+            CalendarPaging.monthStep(date, -1)?.let { pages[-1] = CalendarData.create(it) }
+            Ui.post { if (!destroyed && request == neighbourRequest) neighbourPages = pages }
+        }
+    }
+
+    private fun cancelNeighbours() {
+        neighbourRequest++
+        neighbourAnchor = null
+        neighbourPages = emptyMap()
     }
 
     private fun updateTodayButton(today: PlainDate?) {
@@ -232,6 +321,7 @@ class MainActivity : Activity() {
                 data?.let { calendar ->
                     paging = CalendarPaging(calendar.today)
                     paper.setPage(theme, calendar, style, style.pageAnimation, dark)
+                    prepareNeighbours(calendar.today)
                 }
                 updateTodayButton(data?.today)
             }
