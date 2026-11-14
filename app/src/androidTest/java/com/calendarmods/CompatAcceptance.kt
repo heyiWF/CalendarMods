@@ -314,6 +314,7 @@ class CompatAcceptance : Instrumentation() {
             checks += "fullscreen entry/exit animate and interrupted entry retains the outgoing page," +
                 " and the fullscreen page reaches the bottom of the display"
             verifyHistoryRegressions(host, checks)
+            verifyIdleAndMonth(host, checks)
             val result = Bundle().apply { putString("stream", "PASS: ${checks.joinToString("; ")}\n") }
             finish(android.app.Activity.RESULT_OK, result)
         } catch (failure: Throwable) {

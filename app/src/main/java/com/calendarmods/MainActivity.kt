@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -42,9 +43,13 @@ class MainActivity : Activity() {
     private var neighbourRequest = 0
     private var screenAnimation: android.animation.ValueAnimator? = null
     private val idleHandler = Handler(Looper.getMainLooper())
-    private val idleReturn = Runnable { if (immersive && browsedDate != null) showToday(style.pageAnimation) }
+    private val idleReturn = Runnable {
+        if (resumed && !touching && IdleReturn.armed(immersive, style.interactive, browsedDate != null))
+            showToday(style.pageAnimation)
+    }
     private val idleScreen = Runnable { showScreensaver() }
     private var screenSaver: ScreenSaverView? = null
+    private var touching = false
 
     private val theme: CalendarTheme get() = CalendarTheme.DAILY
 
@@ -95,10 +100,13 @@ class MainActivity : Activity() {
         resumed = true
         if (!loaded) return
         startMonitor()
+        restartIdle()
     }
 
     override fun onPause() {
         resumed = false
+        touching = false
+        dismissScreensaver()
         faceBrightness.stop()
         stopMonitor()
         super.onPause()
@@ -175,7 +183,10 @@ class MainActivity : Activity() {
         paper.onMonthStep = { direction -> flipMonth(direction) }
         paper.onMonthSettled = { date -> adoptDate(date) }
         paper.monthPage = { direction -> neighbourPages[direction] }
-        paper.onTouchDown = { restartIdle() }
+        paper.onMonthTurnStarted = {
+            pageRequest++
+            paper.data?.let { adoptDate(it.today) }
+        }
         if (paper.parent == null) {
             root.addView(paper, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT))
@@ -201,7 +212,7 @@ class MainActivity : Activity() {
         paper.onMonthStep = null
         paper.onMonthSettled = null
         paper.monthPage = null
-        paper.onTouchDown = null
+        paper.onMonthTurnStarted = null
         cancelNeighbours()
         cancelIdle()
         pageRequest++
@@ -230,7 +241,7 @@ class MainActivity : Activity() {
 
     /** Prints [date] on the page; [animate] turns the sheet the way a midnight change does. */
     private fun showDate(date: PlainDate, animate: Boolean) {
-        browsedDate = date
+        browsedDate = if (date == data?.today) null else date
         paging?.let { pageOffset = it.page(date) - it.home }
         restartIdle()
         val request = ++pageRequest
@@ -250,7 +261,7 @@ class MainActivity : Activity() {
      * borrows from a neighbouring month turns the sheet into that month and lands on the day.
      */
     private fun pickDate(date: PlainDate) {
-        if (!style.interactive) return
+        if (!style.interactive || !CalendarPaging.supports(date)) return
         val current = browsedDate ?: data?.today ?: return
         if (date == current) return
         if (PlainMonth.from(date) == PlainMonth.from(current)) {
@@ -297,7 +308,7 @@ class MainActivity : Activity() {
      */
     private fun showToday(animate: Boolean) {
         val todayData = data
-        val today = IdleReturn.target(todayData?.today, SystemCalendarClock)
+        val today = IdleReturn.target(SystemCalendarClock)
         browsedDate = null
         pageOffset = 0
         // Nothing is left to return to; the idle clock keeps its own countdown.
@@ -331,7 +342,7 @@ class MainActivity : Activity() {
     private fun restartIdle() {
         idleHandler.removeCallbacks(idleReturn)
         idleHandler.removeCallbacks(idleScreen)
-        if (!immersive) return
+        if (!immersive || !resumed || touching || screenSaver != null) return
         if (IdleReturn.armed(immersive, style.interactive, browsedDate != null)) {
             idleHandler.postDelayed(idleReturn, IdleReturn.WINDOW_MS)
         }
@@ -347,7 +358,7 @@ class MainActivity : Activity() {
 
     /** Hands the fullscreen page over to the idle clock; a touch brings the page back. */
     private fun showScreensaver() {
-        if (screenSaver != null || !ScreenSaver.armed(immersive, style.screensaver)) return
+        if (!resumed || touching || screenSaver != null || !ScreenSaver.armed(immersive, style.screensaver)) return
         val view = ScreenSaverView(this).apply {
             hour24 = style.hour24
             onDismiss = { dismissScreensaver() }
@@ -355,12 +366,31 @@ class MainActivity : Activity() {
         root.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT))
         screenSaver = view
+        // The calendar's marquee/ticker has no visible work while the opaque clock is up.
+        paper.visibility = View.INVISIBLE
+        todayButton?.visibility = View.INVISIBLE
+        cancelIdle()
     }
 
     private fun dismissScreensaver() {
         screenSaver?.let { root.removeView(it) }
         screenSaver = null
+        paper.visibility = View.VISIBLE
+        todayButton?.visibility = View.VISIBLE
         restartIdle()
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            touching = true
+            cancelIdle()
+        }
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            touching = false
+            restartIdle()
+        }
+        return handled
     }
 
     /**
@@ -409,6 +439,7 @@ class MainActivity : Activity() {
             root.addView(this, params)
         }
         todayButton = button
+        button.visibility = if (screenSaver == null) View.VISIBLE else View.INVISIBLE
         button.bringToFront()
     }
 

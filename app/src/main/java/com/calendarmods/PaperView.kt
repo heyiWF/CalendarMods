@@ -54,8 +54,8 @@ internal class PaperView(context: Context) : View(context) {
     /** The page a month turn would reveal, or null while the host is still preparing it. */
     var monthPage: ((Int) -> CalendarData?)? = null
 
-    /** Every touch that lands on the page; the host restarts its idle countdown from it. */
-    var onTouchDown: (() -> Unit)? = null
+    /** A direct drag supersedes any asynchronous navigation request held by the host. */
+    var onMonthTurnStarted: (() -> Unit)? = null
 
     private var face: ClockFace = clockFace(true)
     private var outgoing: Bitmap? = null
@@ -122,6 +122,7 @@ internal class PaperView(context: Context) : View(context) {
         this.data = data
         this.style = style
         this.dark = dark
+        gridPrinted = false
         face = clockFace(style.hour24)
         invalidate()
     }
@@ -403,6 +404,10 @@ internal class PaperView(context: Context) : View(context) {
     private fun cellAt(x: Float, y: Float): PlainDate? {
         val cells = data?.cells ?: return null
         if (!gridPrinted) return null
+        // Float.toInt truncates toward zero: without these bounds the weekday header and
+        // positions just outside the left/top edge incorrectly select the first row/column.
+        if (x < gridLeft || x >= gridLeft + gridCellW * 7f ||
+            y < gridTop + gridHeaderH || y >= gridTop + gridHeaderH + gridCellH * 6f) return null
         val column = ((x - gridLeft) / gridCellW).toInt()
         val row = ((y - gridTop - gridHeaderH) / gridCellH).toInt()
         if (column !in 0..6 || row !in 0..5) return null
@@ -413,7 +418,6 @@ internal class PaperView(context: Context) : View(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (turnAnimator != null) snapTurn()
-                onTouchDown?.invoke()
                 downX = event.x
                 downY = event.y
                 downAt = SystemClock.uptimeMillis()
@@ -442,7 +446,7 @@ internal class PaperView(context: Context) : View(context) {
                 touchActive = false
                 if (turning) {
                     turning = false
-                    settleTurn(commit = MonthFlip.commits(turnProgress, 0f))
+                    settleTurn(commit = false)
                 }
             }
             MotionEvent.ACTION_UP -> onUp(event)
@@ -453,6 +457,7 @@ internal class PaperView(context: Context) : View(context) {
     private fun onUp(event: MotionEvent) {
         if (turning) {
             turning = false
+            touchActive = false
             // The finger's last position counts too: a release slightly past the last move still
             // decides where the sheet was left.
             followTurn(event.x - downX)
@@ -488,11 +493,14 @@ internal class PaperView(context: Context) : View(context) {
 
     /** Starts the sheet following the finger, when the neighbouring page is already prepared. */
     private fun startTurnDrag(dx: Float) {
+        if (!style.pageAnimation || !MotionSettings.enabled(context)) return
         val direction = if (dx < 0) 1 else -1
         val target = monthPage?.invoke(direction) ?: return
-        if (target.today == data?.today) return
+        val current = data?.today ?: return
+        if (CalendarPaging.monthStep(current, direction) != target.today) return
         if (!beginTurn(target, direction)) return
         turning = true
+        onMonthTurnStarted?.invoke()
         followTurn(dx)
     }
 
@@ -525,6 +533,16 @@ internal class PaperView(context: Context) : View(context) {
         if (visibility == VISIBLE) scheduleTick() else stopTicker()
     }
 
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (!attached) return
+        if (isShown) {
+            face = clockFace(style.hour24)
+            invalidate()
+            scheduleTick()
+        } else stopTicker()
+    }
+
     private fun stopTicker() {
         ticker.removeCallbacks(tick)
     }
@@ -534,7 +552,7 @@ internal class PaperView(context: Context) : View(context) {
      * label, whichever comes first.
      */
     private fun scheduleTick() {
-        if (!attached || windowVisibility != VISIBLE) return
+        if (!attached || windowVisibility != VISIBLE || !isShown) return
         ticker.removeCallbacks(tick)
         // The clock follows the wall clock, the label slide follows the monotonic timer.
         val untilMinute = 60_000L - System.currentTimeMillis() % 60_000L

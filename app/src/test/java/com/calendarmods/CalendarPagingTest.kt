@@ -1,10 +1,19 @@
 package com.calendarmods
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CalendarPagingTest {
+    @Test fun borrowedCellsCannotEscapeTheSupportedPageRange() {
+        assertFalse(CalendarPaging.supports(PlainDate.of(1, 1, 31)))
+        assertTrue(CalendarPaging.supports(PlainDate.of(1, 2, 1)))
+        assertTrue(CalendarPaging.supports(PlainDate.of(9999, 11, 30)))
+        assertFalse(CalendarPaging.supports(PlainDate.of(9999, 12, 1)))
+    }
+
     @Test fun dailyPagingCrossesYearAndLeapDayInBothDirections() {
         val year = CalendarPaging(PlainDate.of(2026, 12, 31))
         assertEquals(PlainDate.of(2027, 1, 1), year.date(year.home + 1))

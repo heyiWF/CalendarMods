@@ -13,10 +13,8 @@ internal object IdleReturn {
         immersive && interactive && browsed
 
     /**
-     * The date the page lands on: the day the app is calling today, or the wall clock when no day
-     * is loaded. It is read when the countdown expires and never remembered from when it started,
-     * so a countdown that runs past midnight lands on the new day instead of the one it left.
+     * Read the wall clock at expiry. The day's asynchronously loaded data may still belong to
+     * yesterday when the midnight notification and the idle callback arrive together.
      */
-    fun target(today: PlainDate?, clock: CalendarClock): PlainDate =
-        today ?: clock.now().localDate()
+    fun target(clock: CalendarClock): PlainDate = clock.now().localDate()
 }

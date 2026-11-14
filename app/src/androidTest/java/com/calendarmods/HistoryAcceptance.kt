@@ -42,7 +42,7 @@ internal fun Instrumentation.verifyHistoryRegressions(host: MainActivity, checks
     val applyStyle = MainActivity::class.java.getDeclaredMethod("applyStyle", ThemeStyle::class.java).apply { isAccessible = true }
     val previousStyle = ThemeStyleStore(targetContext).read()
     val original = field("data").get(host) as CalendarData
-    val start = PlainDate.of(2026, 1, 31)
+    val start = SystemCalendarClock.now().localDate().plusDays(-3)
     try {
         main {
             field("data").set(host, CalendarData.create(start))

@@ -29,17 +29,16 @@ class IdleReturnTest {
 
     @Test fun aCountdownThatStraddlesMidnightLandsOnTheNewDay() {
         // 23:59:40 on the 14th: the user turns the page to the 15th and the countdown runs past
-        // midnight. The monitor calls the 15th today before the countdown expires, so that is the
-        // day the page lands on; stepping back to the 14th would undo the user's turn.
+        // midnight. Even if the monitor is still loading the new day's data, return to the 15th.
         val clock = MovableClock(at(2026, 11, 14, 23, 59, 40))
         val browsed = PlainDate.of(2026, 11, 15)
-        assertEquals(PlainDate.of(2026, 11, 14), IdleReturn.target(PlainDate.of(2026, 11, 14), clock))
+        assertEquals(PlainDate.of(2026, 11, 14), IdleReturn.target(clock))
         clock.millis = at(2026, 11, 15, 0, 0, 20)
-        assertEquals(browsed, IdleReturn.target(PlainDate.of(2026, 11, 15), clock))
+        assertEquals(browsed, IdleReturn.target(clock))
     }
 
     @Test fun withoutALoadedDayTheClockDecides() {
         val clock = MovableClock(at(2026, 11, 14, 15, 30, 0))
-        assertEquals(PlainDate.of(2026, 11, 14), IdleReturn.target(null, clock))
+        assertEquals(PlainDate.of(2026, 11, 14), IdleReturn.target(clock))
     }
 }

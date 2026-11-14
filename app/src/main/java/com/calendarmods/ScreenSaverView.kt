@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
@@ -18,6 +19,13 @@ import kotlin.math.min
  * touch hands the page back; the host decides when it appears.
  */
 internal class ScreenSaverView(context: Context) : View(context) {
+    init {
+        // Legacy HWUI/font atlases can drop individual display-sized glyphs (notably on
+        // Android 5 Yoga tablets). Rasterise this minute-updated view into a software layer;
+        // keep the calendar and its animations hardware accelerated.
+        if (Build.VERSION.SDK_INT <= 22) setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
+
     /** Follows the page's reading, so the idle clock does not switch format under the user. */
     var hour24: Boolean = true
 
@@ -39,18 +47,23 @@ internal class ScreenSaverView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        drawClock(canvas, clockFace(hour24))
+        scheduleTick()
+    }
+
+    internal fun drawClock(canvas: Canvas, face: ClockFace) {
         canvas.drawColor(Color.BLACK)
-        val face = clockFace(hour24)
         paint.reset()
         paint.isAntiAlias = true
         paint.color = Color.WHITE
 
         // Reference sizes first; one fit factor then scales the whole block to the display. The
-        // reading is measured whole so its ink box sizes the block, and printed as three runs so
-        // the colon can be lifted the way the page's clock lifts it.
-        val readingWidth = measure(ScreenSaver.text(face), REFERENCE, Plate.numerals, digits)
+        // width uses the same three faces/runs as drawing; the colon is measured separately so
+        // it can be lifted without changing the numerals' ink height.
+        measure(face.hour + face.minute, REFERENCE, Plate.numerals, digits)
         val hourWidth = advance(face.hour, REFERENCE, Plate.numerals)
         val colonWidth = measure(COLON, REFERENCE, Plate.supporting, colon)
+        val readingWidth = hourWidth + colonWidth + advance(face.minute, REFERENCE, Plate.numerals)
         val period = face.period
         val markWidth = if (period.isEmpty()) {
             0f
@@ -68,6 +81,7 @@ internal class ScreenSaverView(context: Context) : View(context) {
         if (period.isNotEmpty()) {
             // Ink to ink: the digit's left bearing is not part of what the eye reads as the edge.
             paint.textSize = REFERENCE * MARK * fit
+            paint.typeface = Plate.supporting
             canvas.drawText(period, left + (digits.left - mark.left) * fit, top - mark.top * fit, paint)
             top += (mark.height() + gap) * fit
         }
@@ -81,7 +95,6 @@ internal class ScreenSaverView(context: Context) : View(context) {
         canvas.drawText(COLON, left + hourWidth * fit, baseline + lift * fit, paint)
         paint.typeface = Plate.numerals
         canvas.drawText(face.minute, left + (hourWidth + colonWidth) * fit, baseline, paint)
-        scheduleTick()
     }
 
     /** Sets [face] at [size] and returns the advance of [text]; the ink box lands in [box]. */
@@ -101,7 +114,7 @@ internal class ScreenSaverView(context: Context) : View(context) {
 
     /** The reading changes on the minute; nothing before then can alter the screen. */
     private fun scheduleTick() {
-        if (!attached) return
+        if (!attached || windowVisibility != VISIBLE) return
         ticker.removeCallbacks(tick)
         val untilMinute = 60_000L - System.currentTimeMillis() % 60_000L
         ticker.postDelayed(tick, untilMinute.coerceAtLeast(16L))
@@ -127,6 +140,14 @@ internal class ScreenSaverView(context: Context) : View(context) {
         attached = false
         ticker.removeCallbacks(tick)
         super.onDetachedFromWindow()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE) {
+            invalidate()
+            scheduleTick()
+        } else ticker.removeCallbacks(tick)
     }
 
     private companion object {

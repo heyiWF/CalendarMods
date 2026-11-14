@@ -24,6 +24,8 @@ internal class CalendarPaging(val origin: PlainDate) {
         private val FIRST = PlainDate.of(1, 2, 1)
         private val LAST = PlainDate.of(9999, 11, 30)
 
+        fun supports(date: PlainDate): Boolean = date >= FIRST && date <= LAST
+
         /**
          * First day of the month [direction] away from [date], or null where the range ends. A
          * month is only offered when its own six-week grid stays inside [FIRST] .. [LAST].
