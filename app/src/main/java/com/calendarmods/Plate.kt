@@ -20,6 +20,9 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
     val sans: Typeface get() = regularFace
     val bold: Typeface get() = supportingFace
     val heavy: Typeface get() = numeralFace
+
+    /** Roboto Condensed, for the date numerals the date line wants narrow and tall. */
+    val condensed: Typeface get() = condensedFace
     private val bounds = Rect()
 
     fun inkBounds(value: String, size: Float, typeface: Typeface): Rect {
@@ -184,6 +187,29 @@ internal class Plate(val canvas: Canvas, val ink: Int) {
         } else if (Build.VERSION.SDK_INT >= 21) {
             if (numeralFace == legacyBoldFace) regularFace else legacyBoldFace
         } else regularFace
+        /** Roboto Condensed, the condensed family the system ships; older releases carry Bold only. */
+        private val condensedFace = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+
+        /**
+         * Ink height of the weekday characters over the numerals' at the same size. Latin digits
+         * stop at the cap line while Chinese glyphs fill the em box, so the date line has to print
+         * the numerals larger to make their ink as tall as the character beside them. Measuring the
+         * whole run keeps the size steady whatever weekday the page lands on.
+         */
+        val cjkFit: Float by lazy {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val box = Rect()
+            paint.typeface = condensedFace
+            paint.textSize = 1000f
+            paint.getTextBounds("0123456789", 0, 10, box)
+            val digits = box.height().coerceAtLeast(1)
+            paint.typeface = numeralFace
+            val weekdays = WEEKDAYS
+            paint.getTextBounds(weekdays, 0, weekdays.length, box)
+            box.height().toFloat() / digits
+        }
+
+        private const val WEEKDAYS = "一二三四五六日"
 
         fun withAlpha(color: Int, alpha: Float): Int =
             (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)

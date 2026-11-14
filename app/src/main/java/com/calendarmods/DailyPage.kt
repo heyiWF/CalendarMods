@@ -169,17 +169,18 @@ internal class DailyPage(
     /**
      * Date line: 11月 6日 星期六 with the day's lunar name right-aligned on the same baseline. The
      * lunar run carries the day's solar term or first festival without a space — `九月廿九立冬`.
-     * Units, the weekday prefix and the lunar run sit at [HEADER_MINOR]; the numerals and the
-     * final weekday glyph are heavier. When the line is too wide all runs shrink together,
-     * including their gaps.
+     * Units, the weekday prefix and the lunar run sit at [HEADER_MINOR]; the numerals are printed
+     * condensed and larger than the text size, so their ink stands as tall as the weekday glyph.
+     * When the line is too wide all runs shrink together, including their gaps.
      */
     private fun header(p: Plate, layout: Layout, x: Float, w: Float, top: Float) {
         val size = HEADER_SIZE * layout.scale * layout.headerScale
+        val numeral = numeralSize(size)
         val baseline = top + size * .86f
         var cursor = x
-        cursor += p.textAt(data.today.monthValue.toString(), cursor, baseline, size, ink, p.heavy)
+        cursor += p.textAt(data.today.monthValue.toString(), cursor, baseline, numeral, ink, p.condensed)
         cursor += p.textAt("月", cursor, baseline, size * HEADER_MINOR, ink, p.bold) + GAP_MONTH * size
-        cursor += p.textAt(data.day, cursor, baseline, size, ink, p.heavy) + GAP_DAY * size
+        cursor += p.textAt(data.day, cursor, baseline, numeral, ink, p.condensed) + GAP_DAY * size
         cursor += p.textAt("日", cursor, baseline, size * HEADER_MINOR, ink, p.bold) + GAP_WEEKDAY * size
         val weekdayColor = if (data.today.dayOfWeek >= 6) red else ink
         cursor += p.textAt("星期", cursor, baseline, size * HEADER_MINOR, weekdayColor, p.bold)
@@ -188,6 +189,9 @@ internal class DailyPage(
         val lunarWidth = p.advance(data.lunarHeadline, size * HEADER_MINOR, p.bold)
         p.textAt(data.lunarHeadline, x + w - lunarWidth, baseline, size * HEADER_MINOR, ink, p.bold)
     }
+
+    /** Point size that makes the numerals' ink as tall as the weekday glyph's. */
+    private fun numeralSize(size: Float): Float = size * Plate.cjkFit
 
     /**
      * How much the date line has to give up so the lunar run keeps its space on the right. There is
@@ -202,9 +206,9 @@ internal class DailyPage(
 
     /** Everything left of the lunar run, run gaps included. */
     private fun headerLeftWidth(p: Plate, size: Float): Float =
-        p.advance(data.today.monthValue.toString(), size, p.heavy) +
+        p.advance(data.today.monthValue.toString(), numeralSize(size), p.condensed) +
             p.advance("月", size * HEADER_MINOR, p.bold) + GAP_MONTH * size +
-            p.advance(data.day, size, p.heavy) + GAP_DAY * size +
+            p.advance(data.day, numeralSize(size), p.condensed) + GAP_DAY * size +
             p.advance("日", size * HEADER_MINOR, p.bold) + GAP_WEEKDAY * size +
             p.advance("星期", size * HEADER_MINOR, p.bold) +
             p.advance(data.weekdayChinese.takeLast(1), size, p.heavy)
