@@ -43,6 +43,8 @@ class MainActivity : Activity() {
     private var screenAnimation: android.animation.ValueAnimator? = null
     private val idleHandler = Handler(Looper.getMainLooper())
     private val idleReturn = Runnable { if (immersive && browsedDate != null) showToday(style.pageAnimation) }
+    private val idleScreen = Runnable { showScreensaver() }
+    private var screenSaver: ScreenSaverView? = null
 
     private val theme: CalendarTheme get() = CalendarTheme.DAILY
 
@@ -191,6 +193,7 @@ class MainActivity : Activity() {
         if (!immersive) return
         immersive = false
         browsedDate = null
+        dismissScreensaver()
         preferences.edit().putBoolean("immersive", false).apply()
         paper.onLongPress = null
         paper.onSwipe = null
@@ -327,14 +330,37 @@ class MainActivity : Activity() {
      */
     private fun restartIdle() {
         idleHandler.removeCallbacks(idleReturn)
+        idleHandler.removeCallbacks(idleScreen)
         if (!immersive) return
         if (IdleReturn.armed(immersive, style.interactive, browsedDate != null)) {
             idleHandler.postDelayed(idleReturn, IdleReturn.WINDOW_MS)
+        }
+        if (ScreenSaver.armed(immersive, style.screensaver)) {
+            idleHandler.postDelayed(idleScreen, ScreenSaver.WINDOW_MS)
         }
     }
 
     private fun cancelIdle() {
         idleHandler.removeCallbacks(idleReturn)
+        idleHandler.removeCallbacks(idleScreen)
+    }
+
+    /** Hands the fullscreen page over to the idle clock; a touch brings the page back. */
+    private fun showScreensaver() {
+        if (screenSaver != null || !ScreenSaver.armed(immersive, style.screensaver)) return
+        val view = ScreenSaverView(this).apply {
+            hour24 = style.hour24
+            onDismiss = { dismissScreensaver() }
+        }
+        root.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT))
+        screenSaver = view
+    }
+
+    private fun dismissScreensaver() {
+        screenSaver?.let { root.removeView(it) }
+        screenSaver = null
+        restartIdle()
     }
 
     /**
@@ -480,6 +506,10 @@ class MainActivity : Activity() {
 
     @android.annotation.SuppressLint("GestureBackNavigation")
     override fun onBackPressed() {
+        if (screenSaver != null) {
+            dismissScreensaver()
+            return
+        }
         if (immersive) {
             exitImmersive()
             return

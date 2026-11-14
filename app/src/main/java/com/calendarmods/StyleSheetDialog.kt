@@ -133,6 +133,9 @@ internal class StyleSheetDialog(
         toggle("交互式日历", "左右滑动切换日期，点击回今天", { style.interactive }) {
             apply(style.copy(interactive = it))
         }
+        toggle("屏保模式", "全屏闲置两分钟后显示大时钟", { style.screensaver }) {
+            apply(style.copy(screensaver = it))
+        }
         divider()
         val actions = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
