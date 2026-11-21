@@ -16,4 +16,20 @@ internal object ScreenSaver {
      * left shoulder.
      */
     fun text(face: ClockFace): String = face.hour + ":" + face.minute
+
+    /** The date line the idle screen prints under its reading: 11月21日 六. */
+    data class DateLine(val month: String, val day: String, val weekday: String)
+
+    /**
+     * The date line for [date]. The weekday keeps one character — 星期六 prints as 六 — so the
+     * line stays a short run under a reading that already fills the display.
+     */
+    fun dateLine(date: PlainDate): DateLine = DateLine(
+        month = date.monthValue.toString(),
+        day = date.dayOfMonth.toString(),
+        weekday = WEEKDAYS[date.dayOfWeek - 1].toString(),
+    )
+
+    /** Monday-first, the order [PlainDate.dayOfWeek] uses. */
+    private const val WEEKDAYS = "一二三四五六日"
 }

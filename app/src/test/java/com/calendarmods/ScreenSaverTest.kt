@@ -19,4 +19,18 @@ class ScreenSaverTest {
         assertEquals("9:05", ScreenSaver.text(ClockFace("上午", "9", "05")))
         assertEquals("12:30", ScreenSaver.text(ClockFace("下午", "12", "30")))
     }
+
+    @Test fun theDateLineKeepsOneWeekdayCharacter() {
+        val saturday = ScreenSaver.dateLine(PlainDate.of(2026, 11, 21))
+        assertEquals("11", saturday.month)
+        assertEquals("21", saturday.day)
+        // 星期六 prints as 六 alone, not 星期六.
+        assertEquals("六", saturday.weekday)
+
+        assertEquals("一", ScreenSaver.dateLine(PlainDate.of(2026, 11, 16)).weekday)
+        assertEquals("日", ScreenSaver.dateLine(PlainDate.of(2026, 11, 22)).weekday)
+        val december = ScreenSaver.dateLine(PlainDate.of(2026, 12, 1))
+        assertEquals("12", december.month)
+        assertEquals("1", december.day)
+    }
 }

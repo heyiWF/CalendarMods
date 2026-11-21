@@ -22,23 +22,54 @@ internal fun Instrumentation.verifyIdleAndMonth(host: MainActivity, checks: Muta
                 try {
                     for ((hour, minute) in listOf(0 to 0, 11 to 11, 12 to 34, 16 to 57, 20 to 28, 23 to 59)) {
                         saver.drawClock(Canvas(bitmap), formatClock(true, hour, minute))
+                        fun ink(x: Int, y: Int) = bitmap.getPixel(x, y) != Color.BLACK
+                        fun rowInk(y: Int) = (0 until w).any { x -> ink(x, y) }
+                        fun firstColumn(from: Int, to: Int) = (0 until w).firstOrNull { x ->
+                            (from..to).any { y -> ink(x, y) }
+                        } ?: -1
+                        fun lastColumn(from: Int, to: Int) = (w - 1 downTo 0).firstOrNull { x ->
+                            (from..to).any { y -> ink(x, y) }
+                        } ?: -1
+                        // The date line sits under the reading: walk up over it to isolate the
+                        // rows the reading itself occupies.
+                        var row = h - 1
+                        while (row >= 0 && !rowInk(row)) row--
+                        val dateBottom = row
+                        while (row >= 0 && rowInk(row)) row--
+                        val dateTop = row + 1
+                        while (row >= 0 && !rowInk(row)) row--
+                        val readingBottom = row
                         // Every digit and the colon must leave its own ink band. A blank glyph
                         // makes this fail even when the rest of the reading still looks plausible.
                         var bands = 0
                         var previousInk = false
                         for (x in 0 until w) {
-                            val ink = (0 until h).any { y -> bitmap.getPixel(x, y) != Color.BLACK }
-                            if (ink && !previousInk) bands++
-                            previousInk = ink
+                            val columnInk = (0..readingBottom).any { y -> ink(x, y) }
+                            if (columnInk && !previousInk) bands++
+                            previousInk = columnInk
                         }
                         check(bands == 5) { "Clock $hour:$minute has $bands ink bands at $w x $h" }
+                        // The date prints under the reading, its numerals flush with the reading's
+                        // left ink and its weekday flush with the reading's right edge. Digits and
+                        // Chinese characters carry different side bearings, so the two edges meet
+                        // within a share of the width rather than on the pixel.
+                        val tolerance = (w / 100).coerceAtLeast(2)
+                        val edge = w - 1
+                        check(firstColumn(dateTop, dateBottom) in
+                            (firstColumn(0, readingBottom) - tolerance)..(firstColumn(0, readingBottom) + tolerance)) {
+                            "The date line did not start on the reading's left edge at $w x $h"
+                        }
+                        check(lastColumn(dateTop, dateBottom) in
+                            (lastColumn(0, readingBottom) - tolerance)..(lastColumn(0, readingBottom) + tolerance)) {
+                            "The weekday did not end on the reading's right edge at $w x $h"
+                        }
                         for (x in 0 until w) {
                             check(bitmap.getPixel(x, 0) == Color.BLACK)
                             check(bitmap.getPixel(x, h - 1) == Color.BLACK)
                         }
                         for (y in 0 until h) {
                             check(bitmap.getPixel(0, y) == Color.BLACK)
-                            check(bitmap.getPixel(w - 1, y) == Color.BLACK)
+                            check(bitmap.getPixel(edge, y) == Color.BLACK)
                         }
                     }
                     saver.drawClock(Canvas(bitmap), formatClock(false, 12, 34))
